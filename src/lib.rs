@@ -70,7 +70,7 @@ fn fill_log<'file>(
     Ok(())
 }
 
-fn import_to_rrd(contents: &[u8]) -> anyhow::Result<Vec<u8>> {
+pub fn import_to_rrd(contents: &[u8]) -> anyhow::Result<Vec<u8>> {
     if !WpiLogFile::is_wpilog(contents) {
         anyhow::bail!("the selected file is not a WPI log");
     }

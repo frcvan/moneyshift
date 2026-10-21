@@ -37,3 +37,4 @@ fn main() {
 
     codegen::gen_java(rerun_worktree.as_deref(), &output_dir).unwrap();
 }
+
