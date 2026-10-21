@@ -48,7 +48,7 @@ public record Mesh3D(
     /**
      * Determines which faces of the mesh are rendered.
      * 
-     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering.DoubleSided}, meaning both front and back faces are shown.
+     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering#DoubleSided}, meaning both front and back faces are shown.
      */
     org.teamvan.moneyshift.components.MeshFaceRendering faceRendering,
     /**
@@ -143,7 +143,7 @@ public record Mesh3D(
     /**
      * Determines which faces of the mesh are rendered.
      * 
-     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering.DoubleSided}, meaning both front and back faces are shown.
+     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering#DoubleSided}, meaning both front and back faces are shown.
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorFaceRendering() {
         return DESCRIPTOR_FACE_RENDERING;

@@ -346,7 +346,7 @@ impl<'a> JavaGenerator<'a> {
         let package = java_package(&object.fqname);
         let mut code = String::new();
         write_header(&mut code, &package);
-        write_docs(&mut code, &object.docs, "");
+        write_docs(&mut code, &object.docs, "", self.objects);
         match object.class {
             ObjectClass::Struct => self.render_encoding_struct(&mut code, object)?,
             ObjectClass::Enum(repr) => self.render_enum(&mut code, object, repr, false)?,
@@ -412,7 +412,7 @@ impl<'a> JavaGenerator<'a> {
             } else {
                 ","
             };
-            write_docs(code, &field.docs, "    ");
+            write_docs(code, &field.docs, "    ", self.objects);
             writeln!(
                 code,
                 "    {} {}{}",
@@ -672,7 +672,7 @@ impl<'a> JavaGenerator<'a> {
             } else {
                 ","
             };
-            write_docs(code, &field.docs, "    ");
+            write_docs(code, &field.docs, "    ", self.objects);
             let value = field.enum_or_union_variant_value.unwrap_or(0);
             writeln!(
                 code,
@@ -856,7 +856,7 @@ impl<'a> JavaGenerator<'a> {
         }
         for field in &object.fields {
             let variant = union_variant_name(field);
-            write_docs(code, &field.docs, "    ");
+            write_docs(code, &field.docs, "    ", self.objects);
             if field.typ.is_unit() {
                 writeln!(
                     code,
@@ -1217,7 +1217,7 @@ impl<'a> JavaGenerator<'a> {
         let name = java_class_name(&object.name);
         let mut code = String::new();
         write_header(&mut code, &package);
-        write_docs(&mut code, &object.docs, "");
+        write_docs(&mut code, &object.docs, "", self.objects);
         if let ObjectClass::Enum(repr) = object.class {
             self.render_enum(&mut code, object, repr, true)?;
             return Ok(code);
@@ -1230,7 +1230,7 @@ impl<'a> JavaGenerator<'a> {
             } else {
                 ","
             };
-            write_docs(&mut code, &field.docs, "    ");
+            write_docs(&mut code, &field.docs, "    ", self.objects);
             writeln!(
                 code,
                 "    {} {}{}",
@@ -1451,7 +1451,7 @@ impl<'a> JavaGenerator<'a> {
         let name = java_class_name(&object.name);
         let mut code = String::new();
         write_header(&mut code, &package);
-        write_docs(&mut code, &object.docs, "");
+        write_docs(&mut code, &object.docs, "", self.objects);
 
         writeln!(code, "public record {name}(").unwrap();
         for (index, field) in object.fields.iter().enumerate() {
@@ -1460,7 +1460,7 @@ impl<'a> JavaGenerator<'a> {
             } else {
                 ","
             };
-            write_docs(&mut code, &field.docs, "    ");
+            write_docs(&mut code, &field.docs, "    ", self.objects);
             let nullable = !field.has_attr(RerunAttr::Required);
             writeln!(
                 code,
@@ -1529,7 +1529,7 @@ impl<'a> JavaGenerator<'a> {
             )
             .unwrap();
             writeln!(code).unwrap();
-            write_docs(&mut code, &field.docs, "    ");
+            write_docs(&mut code, &field.docs, "    ", self.objects);
             writeln!(
                 code,
                 "    public static {CORE_PACKAGE}.ComponentDescriptor descriptor{}() {{",
@@ -1725,7 +1725,7 @@ impl<'a> JavaGenerator<'a> {
         let name = java_class_name(&object.name);
         let mut code = String::new();
         write_header(&mut code, &package);
-        write_docs(&mut code, &object.docs, "");
+        write_docs(&mut code, &object.docs, "", self.objects);
         writeln!(code, "public record {name}(").unwrap();
         for (index, field) in object.fields.iter().enumerate() {
             let comma = if index + 1 == object.fields.len() {
@@ -1733,7 +1733,7 @@ impl<'a> JavaGenerator<'a> {
             } else {
                 ","
             };
-            write_docs(&mut code, &field.docs, "    ");
+            write_docs(&mut code, &field.docs, "    ", self.objects);
             writeln!(
                 code,
                 "    {} {}{}",
@@ -2048,7 +2048,7 @@ fn escape_java_string(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn write_docs(code: &mut String, docs: &Docs, indent: &str) {
+fn write_docs(code: &mut String, docs: &Docs, indent: &str, objects: &Objects) {
     let lines = docs.only_lines_tagged("");
     if lines.is_empty() {
         return;
@@ -2056,12 +2056,12 @@ fn write_docs(code: &mut String, docs: &Docs, indent: &str) {
 
     writeln!(code, "{indent}/**").unwrap();
     for line in lines {
-        writeln!(code, "{indent} * {}", java_doc_line(line)).unwrap();
+        writeln!(code, "{indent} * {}", java_doc_line(line, objects)).unwrap();
     }
     writeln!(code, "{indent} */").unwrap();
 }
 
-fn java_doc_line(line: &str) -> String {
+fn java_doc_line(line: &str, objects: &Objects) -> String {
     let mut output = String::new();
     let mut rest = line;
 
@@ -2074,12 +2074,12 @@ fn java_doc_line(line: &str) -> String {
             .is_some_and(|link_start| code_start.is_none_or(|code_start| link_start < code_start))
         {
             let link_start = rust_link_start.unwrap();
-            output.push_str(&rest[..link_start]);
+            output.push_str(&escape_javadoc_text(&rest[..link_start]));
             let after_start = &rest[link_start + 2..];
             if let Some(link_end) = after_start.find("`]") {
                 let label = &after_start[..link_end];
                 let after_label = &after_start[link_end + 2..];
-                let (target, remainder) = if let Some(target) = after_label.strip_prefix('[') {
+                let (target, mut remainder) = if let Some(target) = after_label.strip_prefix('[') {
                     if let Some(target_end) = target.find(']') {
                         (&target[1..target_end], &target[target_end + 1..])
                     } else {
@@ -2088,8 +2088,19 @@ fn java_doc_line(line: &str) -> String {
                 } else {
                     (label, after_label)
                 };
+
+                // A markdown link whose label is itself a Rust doclink, e.g.
+                // [`DepthImage`](https://...): keep the Javadoc link and drop the outer URL.
+                let trailing = remainder
+                    .strip_prefix("](")
+                    .or_else(|| remainder.strip_prefix('('));
+                if let Some(trailing) = trailing {
+                    if let Some(url_end) = trailing.find(')') {
+                        remainder = &trailing[url_end + 1..];
+                    }
+                }
                 output.push_str("{@link ");
-                output.push_str(&java_doc_link(target));
+                output.push_str(&java_doc_link(target, objects));
                 if target != label {
                     output.push(' ');
                     output.push_str(&escape_javadoc_text(label));
@@ -2104,7 +2115,7 @@ fn java_doc_line(line: &str) -> String {
             .is_some_and(|link_start| code_start.is_none_or(|code_start| link_start < code_start))
         {
             let link_start = markdown_link_start.unwrap();
-            output.push_str(&rest[..link_start]);
+            output.push_str(&escape_javadoc_text(&rest[..link_start]));
             let after_start = &rest[link_start + 1..];
             if let Some(label_end) = after_start.find("](") {
                 let label = &after_start[..label_end];
@@ -2133,14 +2144,14 @@ fn java_doc_line(line: &str) -> String {
             }
         }
 
-        output.push_str(rest);
+        output.push_str(&escape_javadoc_text(rest));
         break;
     }
 
     output.replace("*/", "*\\/")
 }
 
-fn java_doc_link(path: &str) -> String {
+fn java_doc_link(path: &str, objects: &Objects) -> String {
     let path = if let Some(path) = path.strip_prefix("crate::") {
         format!("{JAVA_PACKAGE_PREFIX}.{}", path.replace("::", "."))
     } else if let Some(path) = path.strip_prefix("rerun::") {
@@ -2149,15 +2160,37 @@ fn java_doc_link(path: &str) -> String {
         path.to_owned()
     };
     let path = path.replace("::", ".").replace(".datatypes.", ".encodings.");
+    let path = if !path.starts_with(JAVA_PACKAGE_PREFIX)
+        && matches!(
+            path.split('.').next().unwrap_or_default(),
+            "archetypes" | "components" | "encodings" | "views" | "blueprint" | "testing"
+        )
+    {
+        format!("{JAVA_PACKAGE_PREFIX}.{path}")
+    } else {
+        path
+    };
     let mut parts = path.rsplitn(2, '.');
     let last = parts.next().unwrap_or_default();
     let Some(prefix) = parts.next() else {
         return path;
     };
-    if last
-        .chars()
-        .next()
-        .is_some_and(|character| character.is_ascii_lowercase())
+
+    // A Rust doclink can point at an enum variant (`FillMode::Gradient`). In Java those variants
+    // are constants of the enum, so they need `#`, while a real nested type still needs `.`.
+    let fqname = prefix
+        .strip_prefix(JAVA_PACKAGE_PREFIX)
+        .map(|prefix| format!("rerun{}", prefix));
+    let is_enum = fqname
+        .as_deref()
+        .and_then(|fqname| objects.get(fqname))
+        .is_some_and(|object| matches!(object.class, ObjectClass::Enum(_)));
+
+    if is_enum
+        || last
+            .chars()
+            .next()
+            .is_some_and(|character| character.is_ascii_lowercase())
     {
         format!("{prefix}#{last}")
     } else {
@@ -2186,7 +2219,7 @@ fn escape_javadoc_attribute(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use re_types_builder::Docs;
+    use re_types_builder::{Docs, Objects};
 
     use super::{
         java_doc_line, java_identifier, java_package, snake_to_camel, write_docs,
@@ -2226,7 +2259,7 @@ mod tests {
             [" A description.", "", " A closing `*/`."].into_iter(),
         );
         let mut code = String::new();
-        write_docs(&mut code, &docs, "    ");
+        write_docs(&mut code, &docs, "    ", &Objects::default());
         assert_eq!(
             code,
             "    /**\n     * A description.\n     * \n     * A closing {@code *\\/}.\n     */\n"
@@ -2236,11 +2269,17 @@ mod tests {
     #[test]
     fn converts_rustdoc_links_and_code() {
         assert_eq!(
-            java_doc_line("See [`rerun::components::Position2D`] and [`crate::foo::draw`]."),
+            java_doc_line(
+                "See [`rerun::components::Position2D`] and [`crate::foo::draw`].",
+                &Objects::default(),
+            ),
             "See {@link org.teamvan.moneyshift.components.Position2D} and {@link org.teamvan.moneyshift.foo#draw}."
         );
         assert_eq!(
-            java_doc_line("Use `Vec<T>` or [the guide](https://example.com?a=1&b=2)."),
+            java_doc_line(
+                "Use `Vec<T>` or [the guide](https://example.com?a=1&b=2).",
+                &Objects::default(),
+            ),
             "Use {@code Vec&lt;T&gt;} or <a href=\"https://example.com?a=1&amp;b=2\">the guide</a>."
         );
     }

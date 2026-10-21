@@ -20,7 +20,7 @@ public record ViewBlueprint(
      * 
      * Defaults to the root path '/' if not specified.
      * 
-     * The transform at this path forms the reference point for all scene->world transforms in this view.
+     * The transform at this path forms the reference point for all scene-&gt;world transforms in this view.
      * I.e. the position of this entity path in space forms the origin of the coordinate system in this view.
      * Furthermore, this is the primary indicator for heuristics on what entities we show in this view.
      */
@@ -62,7 +62,7 @@ public record ViewBlueprint(
      * 
      * Defaults to the root path '/' if not specified.
      * 
-     * The transform at this path forms the reference point for all scene->world transforms in this view.
+     * The transform at this path forms the reference point for all scene-&gt;world transforms in this view.
      * I.e. the position of this entity path in space forms the origin of the coordinate system in this view.
      * Furthermore, this is the primary indicator for heuristics on what entities we show in this view.
      */

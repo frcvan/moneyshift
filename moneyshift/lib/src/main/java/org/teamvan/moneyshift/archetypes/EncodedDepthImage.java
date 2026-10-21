@@ -4,7 +4,7 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * A depth image encoded with a codec (e.g. RVL, PNG, or TIFF).
  * 
- * Rerun also supports uncompressed depth images with the {@link archetypes.DepthImage}(https://rerun.io/docs/reference/types/archetypes/depth_image).
+ * Rerun also supports uncompressed depth images with the {@link org.teamvan.moneyshift.archetypes.DepthImage}.
  * 
  */
 public record EncodedDepthImage(
@@ -14,7 +14,7 @@ public record EncodedDepthImage(
      * Supported are:
      * * single channel PNG
      * * single channel TIFF with {@code U8}, {@code U16}, or {@code F32} samples
-     * * RVL with ROS2 metadata (for details see <https://github.com/ros-perception/image_transport_plugins/tree/jazzy>)
+     * * RVL with ROS2 metadata (for details see &lt;https://github.com/ros-perception/image_transport_plugins/tree/jazzy&gt;)
      */
     org.teamvan.moneyshift.components.Blob blob,
     /**
@@ -69,7 +69,7 @@ public record EncodedDepthImage(
      * Supported are:
      * * single channel PNG
      * * single channel TIFF with {@code U8}, {@code U16}, or {@code F32} samples
-     * * RVL with ROS2 metadata (for details see <https://github.com/ros-perception/image_transport_plugins/tree/jazzy>)
+     * * RVL with ROS2 metadata (for details see &lt;https://github.com/ros-perception/image_transport_plugins/tree/jazzy&gt;)
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorBlob() {
         return DESCRIPTOR_BLOB;

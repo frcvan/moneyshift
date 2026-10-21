@@ -41,7 +41,7 @@ public record Points3D(
     /**
      * How points should be shaded.
      * 
-     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading.Gradient} by default.
+     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading#Gradient} by default.
      */
     org.teamvan.moneyshift.components.PointShading pointShading,
     /**
@@ -128,7 +128,7 @@ public record Points3D(
     /**
      * How points should be shaded.
      * 
-     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading.Gradient} by default.
+     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading#Gradient} by default.
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorPointShading() {
         return DESCRIPTOR_POINT_SHADING;

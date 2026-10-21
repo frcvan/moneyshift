@@ -12,7 +12,7 @@ public enum FillMode implements org.teamvan.moneyshift.Component {
      * 
      * * An {@link org.teamvan.moneyshift.archetypes.Ellipsoids3D} will draw three axis-aligned ellipses that are cross-sections
      *   of each ellipsoid, each of which displays two out of three of the sizes of the ellipsoid.
-     * * For {@link org.teamvan.moneyshift.archetypes.Boxes3D}, it is the edges of the box, identical to {@link org.teamvan.moneyshift.components.FillMode.DenseWireframe}.
+     * * For {@link org.teamvan.moneyshift.archetypes.Boxes3D}, it is the edges of the box, identical to {@link org.teamvan.moneyshift.components.FillMode#DenseWireframe}.
      */
     MajorWireframe(1L),
     /**
@@ -22,7 +22,7 @@ public enum FillMode implements org.teamvan.moneyshift.Component {
      * 
      * * An {@link org.teamvan.moneyshift.archetypes.Ellipsoids3D} will draw a wireframe triangle mesh that approximates each
      *   ellipsoid.
-     * * For {@link org.teamvan.moneyshift.archetypes.Boxes3D}, it is the edges of the box, identical to {@link org.teamvan.moneyshift.components.FillMode.MajorWireframe}.
+     * * For {@link org.teamvan.moneyshift.archetypes.Boxes3D}, it is the edges of the box, identical to {@link org.teamvan.moneyshift.components.FillMode#MajorWireframe}.
      */
     DenseWireframe(2L),
     /**

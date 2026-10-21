@@ -2,7 +2,7 @@
 package org.teamvan.moneyshift.components;
 
 /**
- * Pixel resolution width & height, e.g. of a camera sensor.
+ * Pixel resolution width &amp; height, e.g. of a camera sensor.
  * 
  * Typically in integer units, but for some use cases floating point may be used.
  */

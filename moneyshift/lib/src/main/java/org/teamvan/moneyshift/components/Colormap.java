@@ -42,7 +42,7 @@ public enum Colormap implements org.teamvan.moneyshift.Component {
      * This is a perceptually non-uniform rainbow colormap addressing many issues of
      * more traditional rainbow colormaps like Jet.
      * It is more perceptually uniform without sharp transitions and is more colorblind-friendly.
-     * Details: <https://research.google/blog/turbo-an-improved-rainbow-colormap-for-visualization/>
+     * Details: &lt;https://research.google/blog/turbo-an-improved-rainbow-colormap-for-visualization/&gt;
      */
     Turbo(5L),
     /**

@@ -11,7 +11,7 @@ public enum VideoCodec implements org.teamvan.moneyshift.Component {
     /**
      * AOMedia Video 1 (AV1)
      * 
-     * See <https://en.wikipedia.org/wiki/AV1>
+     * See &lt;https://en.wikipedia.org/wiki/AV1&gt;
      * 
      * {@link org.teamvan.moneyshift.components.VideoSample}s using this codec should be formatted according the "Low overhead bitstream format",
      * as specified in Section 5.2 of the <a href="https://aomediacodec.github.io/av1-spec/#low-overhead-bitstream-format">AV1 specification</a>.
@@ -26,11 +26,11 @@ public enum VideoCodec implements org.teamvan.moneyshift.Component {
     /**
      * Advanced Video Coding (AVC/H.264)
      * 
-     * See <https://en.wikipedia.org/wiki/Advanced_Video_Coding>
+     * See &lt;https://en.wikipedia.org/wiki/Advanced_Video_Coding&gt;
      * 
      * {@link org.teamvan.moneyshift.components.VideoSample}s using this codec should be formatted according to Annex B specification.
      * (Note that this is different from AVCC format found in MP4 files.
-     * To learn more about Annex B, check for instance <https://membrane.stream/learn/h264/3>)
+     * To learn more about Annex B, check for instance &lt;https://membrane.stream/learn/h264/3&gt;)
      * Key frames (IDR) require inclusion of a SPS (Sequence Parameter Set)
      * 
      * Enum value is the fourcc for 'avc1' (the WebCodec string assigned to this codec) in big endian.
@@ -39,11 +39,11 @@ public enum VideoCodec implements org.teamvan.moneyshift.Component {
     /**
      * High Efficiency Video Coding (HEVC/H.265)
      * 
-     * See <https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding>
+     * See &lt;https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding&gt;
      * 
      * {@link org.teamvan.moneyshift.components.VideoSample}s using this codec should be formatted according to Annex B specification.
      * (Note that this is different from AVCC format found in MP4 files.
-     * To learn more about Annex B, check for instance <https://membrane.stream/learn/h264/3>)
+     * To learn more about Annex B, check for instance &lt;https://membrane.stream/learn/h264/3&gt;)
      * Key frames (IRAP) require inclusion of a SPS (Sequence Parameter Set)
      * 
      * Enum value is the fourcc for 'hev1' (the WebCodec string assigned to this codec) in big endian.
@@ -52,7 +52,7 @@ public enum VideoCodec implements org.teamvan.moneyshift.Component {
     /**
      * VP8
      * 
-     * See <https://en.wikipedia.org/wiki/VP8>
+     * See &lt;https://en.wikipedia.org/wiki/VP8&gt;
      * 
      * Enum value is the fourcc for 'vp08' (the WebCodec string assigned to this codec) in big endian.
      */
@@ -60,7 +60,7 @@ public enum VideoCodec implements org.teamvan.moneyshift.Component {
     /**
      * VP9
      * 
-     * See <https://en.wikipedia.org/wiki/VP9>
+     * See &lt;https://en.wikipedia.org/wiki/VP9&gt;
      * 
      * Enum value is the fourcc for 'vp09' (the WebCodec string assigned to this codec) in big endian.
      */

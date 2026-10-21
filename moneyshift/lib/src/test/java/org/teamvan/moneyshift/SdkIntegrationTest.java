@@ -129,6 +129,28 @@ class SdkIntegrationTest {
                             .withColors(new Color(new Rgba32(0xFF0000FFL)))
                             .withLabels(new Text(new org.teamvan.moneyshift.encodings.Utf8("fixture")))
                             .build());
+            stream.log(
+                    "world/annotations",
+                    org.teamvan.moneyshift.archetypes.AnnotationContext.builder()
+                            .withContext(new org.teamvan.moneyshift.components.AnnotationContext(
+                                    List.of(new org.teamvan.moneyshift.encodings.ClassDescriptionMapElem(
+                                            new org.teamvan.moneyshift.encodings.ClassId(1),
+                                            new org.teamvan.moneyshift.encodings.ClassDescription(
+                                                    new org.teamvan.moneyshift.encodings.AnnotationInfo(
+                                                            1,
+                                                            new org.teamvan.moneyshift.encodings.Utf8("thing"),
+                                                            new Rgba32(0xFF00FFFFL)),
+                                                    List.of(),
+                                                    List.of())))))
+                            .build());
+            stream.log(
+                    "world/depth",
+                    org.teamvan.moneyshift.archetypes.EncodedDepthImage.builder()
+                            .withBlob(new org.teamvan.moneyshift.components.Blob(
+                                    new org.teamvan.moneyshift.encodings.Blob(List.of((short) 1, (short) 2))))
+                            .withMediaType(new org.teamvan.moneyshift.components.MediaType(
+                                    new org.teamvan.moneyshift.encodings.Utf8("image/png")))
+                            .build());
             stream.logStatic(
                     "world/scalars",
                     Scalars.builder()

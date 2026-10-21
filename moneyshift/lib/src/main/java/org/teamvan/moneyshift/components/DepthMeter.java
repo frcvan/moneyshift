@@ -2,7 +2,7 @@
 package org.teamvan.moneyshift.components;
 
 /**
- * The world->depth map scaling factor.
+ * The world-&gt;depth map scaling factor.
  * 
  * This measures how many depth map units are in a world unit.
  * For instance, if a depth map uses millimeters and the world uses meters,

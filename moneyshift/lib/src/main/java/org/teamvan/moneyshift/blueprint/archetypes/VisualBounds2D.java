@@ -14,7 +14,7 @@ public record VisualBounds2D(
     /**
      * Controls the visible range of a 2D view.
      * 
-     * Use this to control pan & zoom of the view.
+     * Use this to control pan &amp; zoom of the view.
      */
     org.teamvan.moneyshift.blueprint.components.VisualBounds2D range
 ) implements org.teamvan.moneyshift.Archetype {
@@ -28,7 +28,7 @@ public record VisualBounds2D(
     /**
      * Controls the visible range of a 2D view.
      * 
-     * Use this to control pan & zoom of the view.
+     * Use this to control pan &amp; zoom of the view.
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorRange() {
         return DESCRIPTOR_RANGE;

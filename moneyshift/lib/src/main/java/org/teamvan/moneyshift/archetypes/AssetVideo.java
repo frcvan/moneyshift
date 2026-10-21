@@ -6,7 +6,7 @@ package org.teamvan.moneyshift.archetypes;
  * 
  * Only MP4 containers are currently supported.
  * 
- * See <https://rerun.io/docs/reference/video> for codec support and more general information.
+ * See &lt;https://rerun.io/docs/reference/video&gt; for codec support and more general information.
  * 
  * In order to display a video, you also need to log a {@link org.teamvan.moneyshift.archetypes.VideoFrameReference} for each frame.
  * 

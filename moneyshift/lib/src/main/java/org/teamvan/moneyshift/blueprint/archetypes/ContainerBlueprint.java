@@ -20,17 +20,17 @@ public record ContainerBlueprint(
     /**
      * The layout shares of each column in the container.
      * 
-     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Horizontal} containers, the length of this list should always match the number of contents.
+     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Horizontal} containers, the length of this list should always match the number of contents.
      * 
-     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Vertical} containers.
+     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Vertical} containers.
      */
     java.util.List<org.teamvan.moneyshift.blueprint.components.ColumnShare> colShares,
     /**
      * The layout shares of each row of the container.
      * 
-     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Vertical} containers, the length of this list should always match the number of contents.
+     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Vertical} containers, the length of this list should always match the number of contents.
      * 
-     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Horizontal} containers.
+     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Horizontal} containers.
      */
     java.util.List<org.teamvan.moneyshift.blueprint.components.RowShare> rowShares,
     /**
@@ -50,7 +50,7 @@ public record ContainerBlueprint(
      * 
      * If unset, the grid layout will be auto.
      * 
-     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Horizontal}/{@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Vertical} containers.
+     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Horizontal}/{@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Vertical} containers.
      */
     org.teamvan.moneyshift.blueprint.components.GridColumns gridColumns
 ) implements org.teamvan.moneyshift.Archetype {
@@ -91,9 +91,9 @@ public record ContainerBlueprint(
     /**
      * The layout shares of each column in the container.
      * 
-     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Horizontal} containers, the length of this list should always match the number of contents.
+     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Horizontal} containers, the length of this list should always match the number of contents.
      * 
-     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Vertical} containers.
+     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Vertical} containers.
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorColShares() {
         return DESCRIPTOR_COL_SHARES;
@@ -103,9 +103,9 @@ public record ContainerBlueprint(
     /**
      * The layout shares of each row of the container.
      * 
-     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Vertical} containers, the length of this list should always match the number of contents.
+     * For {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Vertical} containers, the length of this list should always match the number of contents.
      * 
-     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Horizontal} containers.
+     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Horizontal} containers.
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorRowShares() {
         return DESCRIPTOR_ROW_SHARES;
@@ -137,7 +137,7 @@ public record ContainerBlueprint(
      * 
      * If unset, the grid layout will be auto.
      * 
-     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Horizontal}/{@link org.teamvan.moneyshift.blueprint.components.ContainerKind.Vertical} containers.
+     * Ignored for {@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Horizontal}/{@link org.teamvan.moneyshift.blueprint.components.ContainerKind#Vertical} containers.
      */
     public static org.teamvan.moneyshift.ComponentDescriptor descriptorGridColumns() {
         return DESCRIPTOR_GRID_COLUMNS;

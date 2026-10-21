@@ -8,7 +8,7 @@ package org.teamvan.moneyshift.archetypes;
  * To show an entire video, a video frame reference for each frame of the video should be logged.
  * References to a {@link org.teamvan.moneyshift.archetypes.VideoStream} use the active Viewer timeline.
  * 
- * See <https://rerun.io/docs/reference/video> for details of what is and isn't supported.
+ * See &lt;https://rerun.io/docs/reference/video&gt; for details of what is and isn't supported.
  * 
  */
 public record VideoFrameReference(

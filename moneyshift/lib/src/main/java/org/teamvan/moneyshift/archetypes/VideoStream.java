@@ -25,14 +25,14 @@ public record VideoStream(
      * The current timestamp is used as presentation timestamp (PTS) for all data in this sample.
      * There is currently no way to log differing decoding timestamps, meaning
      * that there is no support for B-frames.
-     * See <https://github.com/rerun-io/rerun/issues/10090> for more details.
+     * See &lt;https://github.com/rerun-io/rerun/issues/10090&gt; for more details.
      * 
      * Rerun chunks containing frames (i.e. bundles of sample data) may arrive out of order,
      * but may cause the video playback in the Viewer to reset.
      * It is recommended to have all chunks for a video stream to be ordered temporally order.
      * 
      * Logging separate videos on the same entity is allowed iff they share the exact same
-     * codec parameters & resolution.
+     * codec parameters &amp; resolution.
      * 
      * The samples are expected to be encoded using the {@code codec} field.
      * Each video sample must contain enough data for exactly one video frame
@@ -94,14 +94,14 @@ public record VideoStream(
      * The current timestamp is used as presentation timestamp (PTS) for all data in this sample.
      * There is currently no way to log differing decoding timestamps, meaning
      * that there is no support for B-frames.
-     * See <https://github.com/rerun-io/rerun/issues/10090> for more details.
+     * See &lt;https://github.com/rerun-io/rerun/issues/10090&gt; for more details.
      * 
      * Rerun chunks containing frames (i.e. bundles of sample data) may arrive out of order,
      * but may cause the video playback in the Viewer to reset.
      * It is recommended to have all chunks for a video stream to be ordered temporally order.
      * 
      * Logging separate videos on the same entity is allowed iff they share the exact same
-     * codec parameters & resolution.
+     * codec parameters &amp; resolution.
      * 
      * The samples are expected to be encoded using the {@code codec} field.
      * Each video sample must contain enough data for exactly one video frame

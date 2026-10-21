@@ -9,7 +9,7 @@ package org.teamvan.moneyshift.archetypes;
  * Capsules in other orientations may be produced by applying a rotation to the entity or
  * instances.
  * 
- * If there's more instance poses than lengths & radii, the last capsule's orientation will be repeated for the remaining poses.
+ * If there's more instance poses than lengths &amp; radii, the last capsule's orientation will be repeated for the remaining poses.
  * Orienting and placing capsules forms a separate transform that is applied prior to {@link org.teamvan.moneyshift.archetypes.InstancePoses3D} and {@link org.teamvan.moneyshift.archetypes.Transform3D}.
  * 
  */
