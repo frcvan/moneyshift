@@ -90,6 +90,17 @@ the previously generated top-level packages, and rewrites them. The Java backend
 as part of that pass, so regenerating the type surface keeps the ergonomic API intact.
 Hand-written core classes and the protobuf bindings are never touched.
 
+## Publishing
+
+```sh
+./gradlew :lib:publishToMavenLocal   # or :lib:publish
+```
+
+Each published artifact (jar, sources, javadoc) must stay under 5 MB. Javadoc is generated with
+`-no-fonts` because the JDK otherwise bundles ~4 MB of DejaVu webfonts into the docs, which alone
+pushed the javadoc jar over the budget. `:lib:checkPublicationSize` prints the size of every
+artifact and fails the build if one exceeds 5 MB; it runs as part of `:lib:check`.
+
 ## Architecture
 
 ```
