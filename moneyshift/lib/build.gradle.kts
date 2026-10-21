@@ -21,6 +21,7 @@ dependencies {
     runtimeOnly(libs.arrow.memory.unsafe)
 
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.grpc.netty.shaded)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

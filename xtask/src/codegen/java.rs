@@ -21,6 +21,28 @@ pub fn generate(
         objects,
         registry: type_registry,
     };
+
+    // Remove previous generated trees so that a renamed or deleted definition cannot leave a
+    // stale Java class behind. Only the top-level packages created below are touched; the
+    // hand-written core and the protobuf bindings live elsewhere.
+    let mut generated_roots = std::collections::BTreeSet::new();
+    for object in objects.values() {
+        let package = java_package(&object.fqname);
+        let relative = package
+            .strip_prefix(JAVA_PACKAGE_PREFIX)
+            .unwrap_or(&package)
+            .trim_start_matches('.');
+        if let Some(first) = relative.split('.').next() {
+            generated_roots.insert(first.to_owned());
+        }
+    }
+    for root in generated_roots {
+        let path = output_dir.join(&root);
+        if path.exists() {
+            fs::remove_dir_all(&path).with_context(|| format!("cleaning {path}"))?;
+        }
+    }
+
     for object in objects.values() {
         let path = output_path(output_dir, object);
         println!(

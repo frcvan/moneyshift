@@ -148,7 +148,10 @@ public final class GrpcTransport implements Transport {
                 f.completeExceptionally(
                         new TransportException("gRPC transport stopped", failure));
             }
-            responseLatch.countDown();
+            if (failure != null) {
+                // The response observer will never fire; do not leave close() waiting.
+                responseLatch.countDown();
+            }
         }
     }
 
@@ -212,12 +215,12 @@ public final class GrpcTransport implements Transport {
         if (closed) {
             return;
         }
-        closed = true;
         try {
             flush(30_000);
         } catch (TransportException ignored) {
             // We still want to shut the channel down; the failure is reported by earlier sends.
         }
+        closed = true;
         try {
             queue.put(new Command(null, null, true));
         } catch (InterruptedException e) {

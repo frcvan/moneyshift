@@ -82,4 +82,20 @@ public final class LogMsgFactory {
     public static LogMsg arrow(ArrowMsg msg) {
         return LogMsg.newBuilder().setArrowMsg(msg).build();
     }
+
+    /** Asks the viewer to show a blueprint recording, optionally as the default blueprint. */
+    public static LogMsg activateBlueprint(
+            Store blueprintStore, boolean makeActive, boolean makeDefault) {
+        if (!blueprintStore.blueprint()) {
+            throw new IllegalArgumentException("the store must be a blueprint store");
+        }
+        return LogMsg.newBuilder()
+                .setBlueprintActivationCommand(
+                        org.teamvan.moneyshift.proto.log_msg.v1alpha1
+                                .BlueprintActivationCommand.newBuilder()
+                                .setBlueprintId(blueprintStore.toProto())
+                                .setMakeActive(makeActive)
+                                .setMakeDefault(makeDefault))
+                .build();
+    }
 }

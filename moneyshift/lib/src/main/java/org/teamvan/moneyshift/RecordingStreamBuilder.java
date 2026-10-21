@@ -8,6 +8,7 @@ import java.util.UUID;
 public final class RecordingStreamBuilder {
     private final String applicationId;
     private String recordingId = newRecordingId();
+    private boolean blueprint;
     private String grpcEndpoint;
     private Path file;
     private boolean memory;
@@ -29,6 +30,17 @@ public final class RecordingStreamBuilder {
     /** Alias for {@link #newRecording(String)}. */
     public static RecordingStreamBuilder builder(String applicationId) {
         return newRecording(applicationId);
+    }
+
+    /** Starts a builder for a blueprint store rather than a recording store. */
+    public static RecordingStreamBuilder newBlueprint(String applicationId) {
+        return new RecordingStreamBuilder(applicationId).blueprint(true);
+    }
+
+    /** Whether the stream writes a blueprint store. */
+    public RecordingStreamBuilder blueprint(boolean blueprint) {
+        this.blueprint = blueprint;
+        return this;
     }
 
     /** Overrides the random recording id. */
@@ -94,7 +106,7 @@ public final class RecordingStreamBuilder {
         }
 
         return new RecordingStream(
-                new LogMsgFactory.Store(applicationId, recordingId, false), sink, sendLogTime);
+                new LogMsgFactory.Store(applicationId, recordingId, blueprint), sink, sendLogTime);
     }
 
     private static String newRecordingId() {
