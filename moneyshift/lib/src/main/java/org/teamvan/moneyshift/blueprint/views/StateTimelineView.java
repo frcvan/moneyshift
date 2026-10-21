@@ -27,6 +27,11 @@ public record StateTimelineView(
             return this;
         }
 
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withTimeRanges(org.teamvan.moneyshift.blueprint.components.VisibleTimeRange... value) {
+            return withTimeRanges(new org.teamvan.moneyshift.blueprint.archetypes.VisibleTimeRanges(java.util.List.of(value)));
+        }
+
         public StateTimelineView build() {
             return new StateTimelineView(timeRanges);
         }

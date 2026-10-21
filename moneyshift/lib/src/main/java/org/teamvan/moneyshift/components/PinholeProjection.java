@@ -20,6 +20,12 @@ public record PinholeProjection(
     public PinholeProjection {
         java.util.Objects.requireNonNull(imageFromCamera, "imageFromCamera");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public PinholeProjection(float[] flatColumns) {
+        this(new org.teamvan.moneyshift.encodings.Mat3x3(flatColumns));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.PinholeProjection";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

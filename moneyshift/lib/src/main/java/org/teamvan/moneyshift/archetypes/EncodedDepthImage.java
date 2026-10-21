@@ -204,9 +204,19 @@ public record EncodedDepthImage(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withMediaType(java.lang.String value) {
+            return withMediaType(new org.teamvan.moneyshift.components.MediaType(value));
+        }
+
         public Builder withMeter(org.teamvan.moneyshift.components.DepthMeter value) {
             this.meter = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withMeter(float value) {
+            return withMeter(new org.teamvan.moneyshift.components.DepthMeter(value));
         }
 
         public Builder withColormap(org.teamvan.moneyshift.components.Colormap value) {
@@ -224,9 +234,19 @@ public record EncodedDepthImage(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withPointFillRatio(float value) {
+            return withPointFillRatio(new org.teamvan.moneyshift.components.FillRatio(value));
+        }
+
         public Builder withDrawOrder(org.teamvan.moneyshift.components.DrawOrder value) {
             this.drawOrder = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withDrawOrder(float value) {
+            return withDrawOrder(new org.teamvan.moneyshift.components.DrawOrder(value));
         }
 
         public Builder withMagnificationFilter(org.teamvan.moneyshift.components.MagnificationFilter value) {

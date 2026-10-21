@@ -71,9 +71,19 @@ public record PlotBackground(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
+        }
+
         public Builder withShowGrid(org.teamvan.moneyshift.blueprint.components.Enabled value) {
             this.showGrid = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowGrid(boolean value) {
+            return withShowGrid(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
         }
 
         public PlotBackground build() {

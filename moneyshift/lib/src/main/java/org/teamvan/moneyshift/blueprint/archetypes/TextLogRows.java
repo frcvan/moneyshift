@@ -60,6 +60,15 @@ public record TextLogRows(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withFilterByLogLevel(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.TextLogLevel> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.TextLogLevel(v));
+            }
+            return withFilterByLogLevel(values);
+        }
+
         public Builder withFilterByLogLevel(org.teamvan.moneyshift.components.TextLogLevel... value) {
             return withFilterByLogLevel(java.util.List.of(value));
         }

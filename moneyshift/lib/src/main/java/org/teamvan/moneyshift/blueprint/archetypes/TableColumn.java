@@ -130,14 +130,29 @@ public record TableColumn(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withName(java.lang.String value) {
+            return withName(new org.teamvan.moneyshift.components.Name(value));
+        }
+
         public Builder withEditable(org.teamvan.moneyshift.blueprint.components.Editable value) {
             this.editable = value;
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withEditable(boolean value) {
+            return withEditable(new org.teamvan.moneyshift.blueprint.components.Editable(value));
+        }
+
         public Builder withVisible(org.teamvan.moneyshift.components.Visible value) {
             this.visible = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean value) {
+            return withVisible(new org.teamvan.moneyshift.components.Visible(value));
         }
 
         public Builder withCellKind(org.teamvan.moneyshift.blueprint.components.TableCellKind value) {

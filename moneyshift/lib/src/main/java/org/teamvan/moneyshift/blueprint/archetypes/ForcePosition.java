@@ -91,9 +91,19 @@ public record ForcePosition(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withEnabled(boolean value) {
+            return withEnabled(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
+        }
+
         public Builder withStrength(org.teamvan.moneyshift.blueprint.components.ForceStrength value) {
             this.strength = value;
             return this;
+        }
+
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withStrength(double value) {
+            return withStrength(new org.teamvan.moneyshift.blueprint.components.ForceStrength(value));
         }
 
         public Builder withPosition(org.teamvan.moneyshift.components.Position2D value) {

@@ -12,6 +12,12 @@ public record Count(
     public Count {
         java.util.Objects.requireNonNull(value, "value");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Count(long value) {
+        this(new org.teamvan.moneyshift.encodings.UInt64(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Count";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

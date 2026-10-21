@@ -18,6 +18,12 @@ public record Plane3D(
     public Plane3D {
         java.util.Objects.requireNonNull(xyzd, "xyzd");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Plane3D(float[] xyzd) {
+        this(new org.teamvan.moneyshift.encodings.Plane3D(xyzd));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Plane3D";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

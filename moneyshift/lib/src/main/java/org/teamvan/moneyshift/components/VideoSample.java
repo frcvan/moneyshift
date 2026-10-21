@@ -15,6 +15,12 @@ public record VideoSample(
     public VideoSample {
         java.util.Objects.requireNonNull(buffer, "buffer");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VideoSample(java.util.List<java.lang.Short> data) {
+        this(new org.teamvan.moneyshift.encodings.Blob(data));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.VideoSample";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

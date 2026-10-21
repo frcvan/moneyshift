@@ -10,6 +10,12 @@ public record Fps(
     public Fps {
         java.util.Objects.requireNonNull(fps, "fps");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Fps(double value) {
+        this(new org.teamvan.moneyshift.encodings.Float64(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.Fps";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

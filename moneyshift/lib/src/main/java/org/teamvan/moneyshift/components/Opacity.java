@@ -13,6 +13,12 @@ public record Opacity(
     public Opacity {
         java.util.Objects.requireNonNull(opacity, "opacity");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Opacity(float value) {
+        this(new org.teamvan.moneyshift.encodings.Float32(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Opacity";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

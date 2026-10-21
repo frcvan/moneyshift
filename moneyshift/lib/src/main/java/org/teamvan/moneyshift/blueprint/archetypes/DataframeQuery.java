@@ -175,6 +175,11 @@ public record DataframeQuery(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTimeline(java.lang.String value) {
+            return withTimeline(new org.teamvan.moneyshift.blueprint.components.TimelineName(value));
+        }
+
         public Builder withFilterByRange(org.teamvan.moneyshift.blueprint.components.FilterByRange value) {
             this.filterByRange = value;
             return this;
@@ -190,6 +195,11 @@ public record DataframeQuery(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withApplyLatestAt(boolean value) {
+            return withApplyLatestAt(new org.teamvan.moneyshift.blueprint.components.ApplyLatestAt(value));
+        }
+
         public Builder withSelect(org.teamvan.moneyshift.blueprint.components.SelectedColumns value) {
             this.select = value;
             return this;
@@ -200,9 +210,19 @@ public record DataframeQuery(
             return this;
         }
 
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withEntityOrder(org.teamvan.moneyshift.encodings.EntityPath... value) {
+            return withEntityOrder(new org.teamvan.moneyshift.blueprint.components.ColumnOrder(java.util.List.of(value)));
+        }
+
         public Builder withAutoScroll(org.teamvan.moneyshift.blueprint.components.AutoScroll value) {
             this.autoScroll = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withAutoScroll(boolean value) {
+            return withAutoScroll(new org.teamvan.moneyshift.blueprint.components.AutoScroll(value));
         }
 
         public DataframeQuery build() {

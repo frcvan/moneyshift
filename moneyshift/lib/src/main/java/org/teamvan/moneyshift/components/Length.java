@@ -13,6 +13,12 @@ public record Length(
     public Length {
         java.util.Objects.requireNonNull(length, "length");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Length(float value) {
+        this(new org.teamvan.moneyshift.encodings.Float32(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Length";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -18,6 +18,12 @@ public record AbsoluteTimeRange(
         java.util.Objects.requireNonNull(min, "min");
         java.util.Objects.requireNonNull(max, "max");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public AbsoluteTimeRange(long min, long max) {
+        this(new org.teamvan.moneyshift.encodings.TimeInt(min), new org.teamvan.moneyshift.encodings.TimeInt(max));
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.AbsoluteTimeRange";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

@@ -10,6 +10,12 @@ public record Range1D(
     public Range1D {
         java.util.Objects.requireNonNull(range, "range");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Range1D(double[] range) {
+        this(new org.teamvan.moneyshift.encodings.Range1D(range));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Range1D";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

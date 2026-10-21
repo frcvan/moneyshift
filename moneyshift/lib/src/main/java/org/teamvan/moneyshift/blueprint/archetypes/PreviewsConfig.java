@@ -61,6 +61,11 @@ public record PreviewsConfig(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTimeline(java.lang.String value) {
+            return withTimeline(new org.teamvan.moneyshift.blueprint.components.TimelineName(value));
+        }
+
         public PreviewsConfig build() {
             return new PreviewsConfig(timeline);
         }

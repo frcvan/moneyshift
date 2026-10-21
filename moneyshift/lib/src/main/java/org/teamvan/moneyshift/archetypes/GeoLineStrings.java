@@ -100,6 +100,11 @@ public record GeoLineStrings(
             return this;
         }
 
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withLineStrings(org.teamvan.moneyshift.encodings.DVec2D... value) {
+            return withLineStrings(java.util.List.of(new org.teamvan.moneyshift.components.GeoLineString(java.util.List.of(value))));
+        }
+
         public Builder withLineStrings(org.teamvan.moneyshift.components.GeoLineString... value) {
             return withLineStrings(java.util.List.of(value));
         }
@@ -109,6 +114,15 @@ public record GeoLineStrings(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRadii(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Radius> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Radius(v));
+            }
+            return withRadii(values);
+        }
+
         public Builder withRadii(org.teamvan.moneyshift.components.Radius... value) {
             return withRadii(java.util.List.of(value));
         }
@@ -116,6 +130,15 @@ public record GeoLineStrings(
         public Builder withColors(java.util.List<org.teamvan.moneyshift.components.Color> value) {
             this.colors = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
         }
 
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {

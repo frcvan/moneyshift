@@ -122,9 +122,19 @@ public record ViewBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withClassIdentifier(java.lang.String value) {
+            return withClassIdentifier(new org.teamvan.moneyshift.blueprint.components.ViewClass(value));
+        }
+
         public Builder withDisplayName(org.teamvan.moneyshift.components.Name value) {
             this.displayName = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withDisplayName(java.lang.String value) {
+            return withDisplayName(new org.teamvan.moneyshift.components.Name(value));
         }
 
         public Builder withSpaceOrigin(org.teamvan.moneyshift.blueprint.components.ViewOrigin value) {
@@ -132,9 +142,19 @@ public record ViewBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withSpaceOrigin(java.lang.String value) {
+            return withSpaceOrigin(new org.teamvan.moneyshift.blueprint.components.ViewOrigin(value));
+        }
+
         public Builder withVisible(org.teamvan.moneyshift.components.Visible value) {
             this.visible = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean value) {
+            return withVisible(new org.teamvan.moneyshift.components.Visible(value));
         }
 
         public ViewBlueprint build() {

@@ -10,6 +10,12 @@ public record TriangleIndices(
     public TriangleIndices {
         java.util.Objects.requireNonNull(indices, "indices");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public TriangleIndices(long[] xyz) {
+        this(new org.teamvan.moneyshift.encodings.UVec3D(xyz));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.TriangleIndices";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

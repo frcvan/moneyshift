@@ -74,6 +74,15 @@ public record StateChange(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withState(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withState(values);
+        }
+
         public Builder withState(org.teamvan.moneyshift.components.Text... value) {
             return withState(java.util.List.of(value));
         }

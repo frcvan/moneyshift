@@ -126,6 +126,15 @@ public record GeoPoints(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRadii(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Radius> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Radius(v));
+            }
+            return withRadii(values);
+        }
+
         public Builder withRadii(org.teamvan.moneyshift.components.Radius... value) {
             return withRadii(java.util.List.of(value));
         }
@@ -135,6 +144,15 @@ public record GeoPoints(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -142,6 +160,15 @@ public record GeoPoints(
         public Builder withClassIds(java.util.List<org.teamvan.moneyshift.components.ClassId> value) {
             this.classIds = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withClassIds(int... value) {
+            java.util.List<org.teamvan.moneyshift.components.ClassId> values = new java.util.ArrayList<>(value.length);
+            for (int v : value) {
+                values.add(new org.teamvan.moneyshift.components.ClassId(v));
+            }
+            return withClassIds(values);
         }
 
         public Builder withClassIds(org.teamvan.moneyshift.components.ClassId... value) {

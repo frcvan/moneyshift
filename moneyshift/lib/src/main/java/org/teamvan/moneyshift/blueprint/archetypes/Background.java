@@ -75,6 +75,11 @@ public record Background(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
+        }
+
         public Background build() {
             return new Background(kind, color);
         }

@@ -10,6 +10,12 @@ public record ImageFormat(
     public ImageFormat {
         java.util.Objects.requireNonNull(imageFormat, "imageFormat");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public ImageFormat(long width, long height, org.teamvan.moneyshift.encodings.PixelFormat pixelFormat, org.teamvan.moneyshift.encodings.ColorModel colorModel, org.teamvan.moneyshift.encodings.ChannelDatatype channelDatatype) {
+        this(new org.teamvan.moneyshift.encodings.ImageFormat(width, height, pixelFormat, colorModel, channelDatatype));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.ImageFormat";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

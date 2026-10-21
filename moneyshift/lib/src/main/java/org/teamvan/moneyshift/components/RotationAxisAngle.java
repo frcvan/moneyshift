@@ -13,6 +13,12 @@ public record RotationAxisAngle(
     public RotationAxisAngle {
         java.util.Objects.requireNonNull(rotation, "rotation");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public RotationAxisAngle(org.teamvan.moneyshift.encodings.Vec3D axis, float angle) {
+        this(new org.teamvan.moneyshift.encodings.RotationAxisAngle(axis, new org.teamvan.moneyshift.encodings.Angle(angle)));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.RotationAxisAngle";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

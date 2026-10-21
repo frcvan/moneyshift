@@ -277,6 +277,15 @@ public record VoxelGridMap(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withValues(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.VoxelValue> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.VoxelValue(v));
+            }
+            return withValues(values);
+        }
+
         public Builder withValues(org.teamvan.moneyshift.components.VoxelValue... value) {
             return withValues(java.util.List.of(value));
         }
@@ -284,6 +293,15 @@ public record VoxelGridMap(
         public Builder withColors(java.util.List<org.teamvan.moneyshift.components.Color> value) {
             this.colors = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
         }
 
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
@@ -308,6 +326,11 @@ public record VoxelGridMap(
         public Builder withOpacity(org.teamvan.moneyshift.components.Opacity value) {
             this.opacity = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withOpacity(float value) {
+            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
         }
 
         public Builder withValueRange(org.teamvan.moneyshift.components.ValueRange value) {

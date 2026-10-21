@@ -23,6 +23,12 @@ public record TransformMat3x3(
     public TransformMat3x3 {
         java.util.Objects.requireNonNull(matrix, "matrix");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public TransformMat3x3(float[] flatColumns) {
+        this(new org.teamvan.moneyshift.encodings.Mat3x3(flatColumns));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.TransformMat3x3";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -59,6 +59,11 @@ public record NearClipPlane(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withNearClipPlane(float value) {
+            return withNearClipPlane(new org.teamvan.moneyshift.blueprint.components.NearClipPlane(value));
+        }
+
         public NearClipPlane build() {
             return new NearClipPlane(nearClipPlane);
         }

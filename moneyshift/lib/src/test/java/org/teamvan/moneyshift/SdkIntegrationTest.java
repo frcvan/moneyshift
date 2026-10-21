@@ -25,13 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.teamvan.moneyshift.archetypes.Points3D;
 import org.teamvan.moneyshift.archetypes.Scalars;
 import org.teamvan.moneyshift.archetypes.TextLog;
-import org.teamvan.moneyshift.components.Color;
 import org.teamvan.moneyshift.components.Position3D;
-import org.teamvan.moneyshift.components.Radius;
-import org.teamvan.moneyshift.components.Scalar;
-import org.teamvan.moneyshift.components.Text;
-import org.teamvan.moneyshift.components.TextLogLevel;
-import org.teamvan.moneyshift.encodings.Rgba32;
 import org.teamvan.moneyshift.proto.log_msg.v1alpha1.ArrowMsg;
 import org.teamvan.moneyshift.proto.log_msg.v1alpha1.Encoding;
 
@@ -55,21 +49,19 @@ class SdkIntegrationTest {
                     "world/points",
                     Points3D.builder()
                             .withPositions(Position3D.of(1.0f, 2.0f, 3.0f), Position3D.of(4.0f, 5.0f, 6.0f))
-                            .withColors(new Color(new Rgba32(0xFF0000FFL)))
-                            .withRadii(new Radius(new org.teamvan.moneyshift.encodings.Float32(0.25f)))
-                            .withLabels(new Text(new org.teamvan.moneyshift.encodings.Utf8("point")))
+                            .withColors(0xFF0000FFL)
+                            .withRadii(0.25f)
+                            .withLabels("point")
                             .build());
             stream.log(
                     "logs/text",
                     TextLog.builder()
-                            .withText(new Text(new org.teamvan.moneyshift.encodings.Utf8("hello")))
-                            .withLevel(new TextLogLevel(new org.teamvan.moneyshift.encodings.Utf8("INFO")))
+                            .withText("hello")
+                            .withLevel("INFO")
                             .build());
             stream.logStatic(
                     "world/scalars",
-                    Scalars.builder()
-                            .withScalars(new Scalar(new org.teamvan.moneyshift.encodings.Float64(42.0)))
-                            .build());
+                    Scalars.builder().withScalars(42.0).build());
         }
 
         byte[] bytes = Files.readAllBytes(rrdPath);
@@ -126,36 +118,30 @@ class SdkIntegrationTest {
                     "world/points",
                     Points3D.builder()
                             .withPositions(Position3D.of(1, 2, 3), Position3D.of(4, 5, 6))
-                            .withColors(new Color(new Rgba32(0xFF0000FFL)))
-                            .withLabels(new Text(new org.teamvan.moneyshift.encodings.Utf8("fixture")))
+                            .withColors(0xFF0000FFL)
+                            .withLabels("fixture")
                             .build());
             stream.log(
                     "world/annotations",
                     org.teamvan.moneyshift.archetypes.AnnotationContext.builder()
-                            .withContext(new org.teamvan.moneyshift.components.AnnotationContext(
-                                    List.of(new org.teamvan.moneyshift.encodings.ClassDescriptionMapElem(
-                                            new org.teamvan.moneyshift.encodings.ClassId(1),
-                                            new org.teamvan.moneyshift.encodings.ClassDescription(
-                                                    new org.teamvan.moneyshift.encodings.AnnotationInfo(
-                                                            1,
-                                                            new org.teamvan.moneyshift.encodings.Utf8("thing"),
-                                                            new Rgba32(0xFF00FFFFL)),
-                                                    List.of(),
-                                                    List.of())))))
+                            .withContext(new org.teamvan.moneyshift.encodings.ClassDescriptionMapElem(
+                                    1,
+                                    new org.teamvan.moneyshift.encodings.ClassDescription(
+                                            new org.teamvan.moneyshift.encodings.AnnotationInfo(
+                                                    1, "thing", 0xFF00FFFFL),
+                                            List.of(),
+                                            List.of())))
                             .build());
             stream.log(
                     "world/depth",
                     org.teamvan.moneyshift.archetypes.EncodedDepthImage.builder()
                             .withBlob(new org.teamvan.moneyshift.components.Blob(
-                                    new org.teamvan.moneyshift.encodings.Blob(List.of((short) 1, (short) 2))))
-                            .withMediaType(new org.teamvan.moneyshift.components.MediaType(
-                                    new org.teamvan.moneyshift.encodings.Utf8("image/png")))
+                                    List.of((short) 1, (short) 2)))
+                            .withMediaType("image/png")
                             .build());
             stream.logStatic(
                     "world/scalars",
-                    Scalars.builder()
-                            .withScalars(new Scalar(new org.teamvan.moneyshift.encodings.Float64(3.5)))
-                            .build());
+                    Scalars.builder().withScalars(3.5).build());
         }
         assertTrue(Files.size(fixture) > 0);
     }

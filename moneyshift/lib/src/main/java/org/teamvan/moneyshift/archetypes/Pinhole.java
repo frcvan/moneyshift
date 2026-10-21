@@ -288,9 +288,19 @@ public record Pinhole(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withChildFrame(java.lang.String value) {
+            return withChildFrame(new org.teamvan.moneyshift.components.TransformFrameId(value));
+        }
+
         public Builder withParentFrame(org.teamvan.moneyshift.components.TransformFrameId value) {
             this.parentFrame = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withParentFrame(java.lang.String value) {
+            return withParentFrame(new org.teamvan.moneyshift.components.TransformFrameId(value));
         }
 
         public Builder withImagePlaneDistance(org.teamvan.moneyshift.components.ImagePlaneDistance value) {
@@ -298,14 +308,29 @@ public record Pinhole(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withImagePlaneDistance(float value) {
+            return withImagePlaneDistance(new org.teamvan.moneyshift.components.ImagePlaneDistance(value));
+        }
+
         public Builder withColor(org.teamvan.moneyshift.components.Color value) {
             this.color = value;
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
+        }
+
         public Builder withLineWidth(org.teamvan.moneyshift.components.Radius value) {
             this.lineWidth = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withLineWidth(float value) {
+            return withLineWidth(new org.teamvan.moneyshift.components.Radius(value));
         }
 
         public Pinhole build() {

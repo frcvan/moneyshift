@@ -144,6 +144,15 @@ public record TensorSliceSelection(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withSlider(long... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.TensorDimensionIndexSlider> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.TensorDimensionIndexSlider(v));
+            }
+            return withSlider(values);
+        }
+
         public Builder withSlider(org.teamvan.moneyshift.blueprint.components.TensorDimensionIndexSlider... value) {
             return withSlider(java.util.List.of(value));
         }

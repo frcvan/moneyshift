@@ -274,9 +274,19 @@ public record Transform3D(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withChildFrame(java.lang.String value) {
+            return withChildFrame(new org.teamvan.moneyshift.components.TransformFrameId(value));
+        }
+
         public Builder withParentFrame(org.teamvan.moneyshift.components.TransformFrameId value) {
             this.parentFrame = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withParentFrame(java.lang.String value) {
+            return withParentFrame(new org.teamvan.moneyshift.components.TransformFrameId(value));
         }
 
         public Transform3D build() {

@@ -20,6 +20,12 @@ public record TextLogColumn(
         java.util.Objects.requireNonNull(visible, "visible");
         java.util.Objects.requireNonNull(kind, "kind");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public TextLogColumn(boolean visible, org.teamvan.moneyshift.blueprint.encodings.TextLogColumnKind kind) {
+        this(new org.teamvan.moneyshift.encodings.Bool(visible), kind);
+    }
+
     public static final java.lang.String NAME = "rerun.blueprint.encodings.TextLogColumn";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

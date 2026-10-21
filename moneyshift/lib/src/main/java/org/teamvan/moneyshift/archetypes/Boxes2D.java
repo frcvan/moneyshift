@@ -213,6 +213,15 @@ public record Boxes2D(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -220,6 +229,15 @@ public record Boxes2D(
         public Builder withRadii(java.util.List<org.teamvan.moneyshift.components.Radius> value) {
             this.radii = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRadii(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Radius> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Radius(v));
+            }
+            return withRadii(values);
         }
 
         public Builder withRadii(org.teamvan.moneyshift.components.Radius... value) {
@@ -231,6 +249,15 @@ public record Boxes2D(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLabels(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withLabels(values);
+        }
+
         public Builder withLabels(org.teamvan.moneyshift.components.Text... value) {
             return withLabels(java.util.List.of(value));
         }
@@ -240,14 +267,33 @@ public record Boxes2D(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowLabels(boolean value) {
+            return withShowLabels(new org.teamvan.moneyshift.components.ShowLabels(value));
+        }
+
         public Builder withDrawOrder(org.teamvan.moneyshift.components.DrawOrder value) {
             this.drawOrder = value;
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withDrawOrder(float value) {
+            return withDrawOrder(new org.teamvan.moneyshift.components.DrawOrder(value));
+        }
+
         public Builder withClassIds(java.util.List<org.teamvan.moneyshift.components.ClassId> value) {
             this.classIds = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withClassIds(int... value) {
+            java.util.List<org.teamvan.moneyshift.components.ClassId> values = new java.util.ArrayList<>(value.length);
+            for (int v : value) {
+                values.add(new org.teamvan.moneyshift.components.ClassId(v));
+            }
+            return withClassIds(values);
         }
 
         public Builder withClassIds(org.teamvan.moneyshift.components.ClassId... value) {

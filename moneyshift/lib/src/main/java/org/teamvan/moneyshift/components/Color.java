@@ -14,6 +14,12 @@ public record Color(
     public Color {
         java.util.Objects.requireNonNull(rgba, "rgba");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Color(long rgba) {
+        this(new org.teamvan.moneyshift.encodings.Rgba32(rgba));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Color";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

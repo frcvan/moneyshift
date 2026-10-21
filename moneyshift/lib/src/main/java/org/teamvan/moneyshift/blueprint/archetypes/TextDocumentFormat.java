@@ -81,9 +81,19 @@ public record TextDocumentFormat(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withMonospace(boolean value) {
+            return withMonospace(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
+        }
+
         public Builder withWordWrap(org.teamvan.moneyshift.blueprint.components.Enabled value) {
             this.wordWrap = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withWordWrap(boolean value) {
+            return withWordWrap(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
         }
 
         public TextDocumentFormat build() {

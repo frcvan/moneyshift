@@ -12,6 +12,12 @@ public record KeypointId(
     public KeypointId {
         java.util.Objects.requireNonNull(id, "id");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public KeypointId(int id) {
+        this(new org.teamvan.moneyshift.encodings.KeypointId(id));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.KeypointId";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -55,6 +55,11 @@ public record GraphBackground(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
+        }
+
         public GraphBackground build() {
             return new GraphBackground(color);
         }

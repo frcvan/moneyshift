@@ -3,6 +3,7 @@ package org.teamvan.moneyshift;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -32,9 +33,8 @@ class GeneratedCoverageTest {
     void everyArchetypeSerializesEveryField() throws Exception {
         List<Class<?>> archetypes = classesIn("org/teamvan/moneyshift/archetypes");
         archetypes.addAll(classesIn("org/teamvan/moneyshift/blueprint/archetypes"));
-        archetypes.addAll(classesIn("org/teamvan/moneyshift/testing/archetypes"));
 
-        assertTrue(archetypes.size() >= 100, "expected the full archetype set, got " + archetypes.size());
+        assertEquals(96, archetypes.size(), "expected the full non-testing archetype set");
 
         try (BufferAllocator allocator = new RootAllocator()) {
             for (Class<?> archetype : archetypes) {
@@ -61,9 +61,8 @@ class GeneratedCoverageTest {
     void everyComponentBuildsAnArrowBatch() throws Exception {
         List<Class<?>> components = classesIn("org/teamvan/moneyshift/components");
         components.addAll(classesIn("org/teamvan/moneyshift/blueprint/components"));
-        components.addAll(classesIn("org/teamvan/moneyshift/testing/components"));
 
-        assertTrue(components.size() >= 150, "expected the full component set, got " + components.size());
+        assertEquals(147, components.size(), "expected the full non-testing component set");
 
         try (BufferAllocator allocator = new RootAllocator()) {
             for (Class<?> component : components) {
@@ -95,9 +94,8 @@ class GeneratedCoverageTest {
     void everyEncodingWritesAnArrowVector() throws Exception {
         List<Class<?>> encodings = classesIn("org/teamvan/moneyshift/encodings");
         encodings.addAll(classesIn("org/teamvan/moneyshift/blueprint/encodings"));
-        encodings.addAll(classesIn("org/teamvan/moneyshift/testing/encodings"));
 
-        assertTrue(encodings.size() >= 80, "expected the full encoding set, got " + encodings.size());
+        assertEquals(62, encodings.size(), "expected the full non-testing encoding set");
 
         try (BufferAllocator allocator = new RootAllocator()) {
             for (Class<?> encoding : encodings) {
@@ -121,6 +119,15 @@ class GeneratedCoverageTest {
                 }
             }
         }
+    }
+
+    @Test
+    void testingDefinitionsAreNotGenerated() {
+        // `rerun.testing.*` only exists to exercise Rerun's own codegen and is deliberately not
+        // part of the public SDK.
+        assertNull(
+                GeneratedCoverageTest.class.getClassLoader().getResource("org/teamvan/moneyshift/testing"),
+                "the testing package must not be generated");
     }
 
     private static List<Class<?>> classesIn(String resourceDirectory) throws Exception {

@@ -20,6 +20,12 @@ public record TimelineColumn(
         java.util.Objects.requireNonNull(visible, "visible");
         java.util.Objects.requireNonNull(timeline, "timeline");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public TimelineColumn(boolean visible, java.lang.String timeline) {
+        this(new org.teamvan.moneyshift.encodings.Bool(visible), new org.teamvan.moneyshift.encodings.Utf8(timeline));
+    }
+
     public static final java.lang.String NAME = "rerun.blueprint.encodings.TimelineColumn";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

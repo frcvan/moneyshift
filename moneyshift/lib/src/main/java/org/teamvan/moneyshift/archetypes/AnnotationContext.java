@@ -63,6 +63,11 @@ public record AnnotationContext(
             return this;
         }
 
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withContext(org.teamvan.moneyshift.encodings.ClassDescriptionMapElem... value) {
+            return withContext(new org.teamvan.moneyshift.components.AnnotationContext(java.util.List.of(value)));
+        }
+
         public AnnotationContext build() {
             return new AnnotationContext(context);
         }

@@ -121,9 +121,19 @@ public record Asset3D(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withMediaType(java.lang.String value) {
+            return withMediaType(new org.teamvan.moneyshift.components.MediaType(value));
+        }
+
         public Builder withAlbedoFactor(org.teamvan.moneyshift.components.AlbedoFactor value) {
             this.albedoFactor = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withAlbedoFactor(long value) {
+            return withAlbedoFactor(new org.teamvan.moneyshift.components.AlbedoFactor(value));
         }
 
         public Asset3D build() {

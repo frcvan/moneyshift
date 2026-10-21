@@ -94,6 +94,11 @@ public record AssetVideo(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withMediaType(java.lang.String value) {
+            return withMediaType(new org.teamvan.moneyshift.components.MediaType(value));
+        }
+
         public AssetVideo build() {
             return new AssetVideo(blob, mediaType);
         }

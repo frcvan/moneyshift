@@ -20,6 +20,12 @@ public record ClassDescriptionMapElem(
         java.util.Objects.requireNonNull(classId, "classId");
         java.util.Objects.requireNonNull(classDescription, "classDescription");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public ClassDescriptionMapElem(int classId, org.teamvan.moneyshift.encodings.ClassDescription classDescription) {
+        this(new org.teamvan.moneyshift.encodings.ClassId(classId), classDescription);
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.ClassDescriptionMapElem";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

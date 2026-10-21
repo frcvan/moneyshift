@@ -164,14 +164,29 @@ public record TimePanelBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTimeline(java.lang.String value) {
+            return withTimeline(new org.teamvan.moneyshift.blueprint.components.TimelineName(value));
+        }
+
         public Builder withPlaybackSpeed(org.teamvan.moneyshift.blueprint.components.PlaybackSpeed value) {
             this.playbackSpeed = value;
             return this;
         }
 
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withPlaybackSpeed(double value) {
+            return withPlaybackSpeed(new org.teamvan.moneyshift.blueprint.components.PlaybackSpeed(value));
+        }
+
         public Builder withFps(org.teamvan.moneyshift.blueprint.components.Fps value) {
             this.fps = value;
             return this;
+        }
+
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withFps(double value) {
+            return withFps(new org.teamvan.moneyshift.blueprint.components.Fps(value));
         }
 
         public Builder withPlayState(org.teamvan.moneyshift.blueprint.components.PlayState value) {

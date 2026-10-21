@@ -59,6 +59,11 @@ public record Clear(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withIsRecursive(boolean value) {
+            return withIsRecursive(new org.teamvan.moneyshift.components.ClearIsRecursive(value));
+        }
+
         public Clear build() {
             return new Clear(isRecursive);
         }

@@ -12,6 +12,12 @@ public record ChannelId(
     public ChannelId {
         java.util.Objects.requireNonNull(id, "id");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public ChannelId(int value) {
+        this(new org.teamvan.moneyshift.encodings.UInt16(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.ChannelId";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

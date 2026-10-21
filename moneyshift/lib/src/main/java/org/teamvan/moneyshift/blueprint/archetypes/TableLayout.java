@@ -64,6 +64,15 @@ public record TableLayout(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withColumnOrder(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.ColumnName> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.ColumnName(v));
+            }
+            return withColumnOrder(values);
+        }
+
         public Builder withColumnOrder(org.teamvan.moneyshift.blueprint.components.ColumnName... value) {
             return withColumnOrder(java.util.List.of(value));
         }

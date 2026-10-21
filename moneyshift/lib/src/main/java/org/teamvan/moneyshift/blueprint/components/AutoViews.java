@@ -10,6 +10,12 @@ public record AutoViews(
     public AutoViews {
         java.util.Objects.requireNonNull(autoViews, "autoViews");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public AutoViews(boolean value) {
+        this(new org.teamvan.moneyshift.encodings.Bool(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.AutoViews";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -12,6 +12,12 @@ public record Resolution(
     public Resolution {
         java.util.Objects.requireNonNull(resolution, "resolution");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Resolution(float[] xy) {
+        this(new org.teamvan.moneyshift.encodings.Vec2D(xy));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Resolution";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

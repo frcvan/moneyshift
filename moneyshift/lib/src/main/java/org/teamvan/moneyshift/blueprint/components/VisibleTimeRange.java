@@ -12,6 +12,12 @@ public record VisibleTimeRange(
     public VisibleTimeRange {
         java.util.Objects.requireNonNull(value, "value");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VisibleTimeRange(java.lang.String timeline, org.teamvan.moneyshift.encodings.TimeRange range) {
+        this(new org.teamvan.moneyshift.encodings.VisibleTimeRange(new org.teamvan.moneyshift.encodings.Utf8(timeline), range));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.VisibleTimeRange";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

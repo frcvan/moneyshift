@@ -10,6 +10,12 @@ public record FilterByRange(
     public FilterByRange {
         java.util.Objects.requireNonNull(range, "range");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public FilterByRange(long start, long end) {
+        this(new org.teamvan.moneyshift.blueprint.encodings.FilterByRange(new org.teamvan.moneyshift.encodings.TimeInt(start), new org.teamvan.moneyshift.encodings.TimeInt(end)));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.FilterByRange";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -5,8 +5,8 @@ Python, and C++ SDKs: native Arrow IPC chunks, LZ4-compressed `ArrowMsg`s, RRD f
 `rerun.sdk_comms.v1alpha1.MessageProxyService` gRPC transport.
 
 Everything under `lib/src/main/java/org/teamvan/moneyshift/{archetypes,components,encodings,
-blueprint,testing}` is generated from Rerun's own type definitions, so the SDK covers every
-archetype, component, datatype, blueprint view, and testing type in that release.
+blueprint}` is generated from Rerun's own type definitions, so the SDK covers every archetype,
+component, datatype, and blueprint view in that release.
 
 ## Usage
 
@@ -22,6 +22,8 @@ try (RecordingStream rec = RecordingStreamBuilder.newRecording("my-app")
     rec.setTimeSequence("frame", 0);
     rec.log("world/points", Points3D.builder()
             .withPositions(Position3D.of(1, 2, 3), Position3D.of(4, 5, 6))
+            .withColors(0xFF00E5FFL)
+            .withRadii(0.03f)
             .build());
 }
 ```
@@ -29,8 +31,38 @@ try (RecordingStream rec = RecordingStreamBuilder.newRecording("my-app")
 Sinks are selected with `connectGrpc(...)`, `save(path)`, `memory()`, or `transport(...)`.
 `toRrdBytes()` returns a complete `.rrd` stream for a memory sink.
 
+A runnable end-to-end example lives in [`example/`](example/README.md):
+
+```sh
+./gradlew :example:run
+```
+
 Static data uses `logStatic`. Timelines can be set with `setTimeSequence`, `setTimeDurationNanos`,
 `setTimeTimestampNanosSinceEpoch`, or the `Timeline` overloads.
+
+### Unwrapped values
+
+Rerun models every value as a component wrapping a datatype wrapping a primitive, which is
+the right shape for the wire format but noisy to type. The SDK therefore also accepts the raw
+data everywhere:
+
+```java
+Points3D.builder()
+        .withPositions(Position3D.of(1, 2, 3))
+        .withColors(0xFF00E5FFL)          // instead of new Color(new Rgba32(0xFF00E5FFL))
+        .withRadii(0.03f, 0.05f)          // instead of new Radius(new Float32(0.03f))
+        .withLabels("sensor")             // instead of new Text(new Utf8("sensor"))
+        .withClassIds(1)                  // instead of new ClassId(new ClassId(1))
+        .build();
+
+new AnnotationInfo(1, "sensor return", 0xFF00E5FFL)
+new RotationAxisAngle(Vec3D.of(0, 0, 1), 0.5f)
+```
+
+Every generated component and encoding has a constructor that takes its fields without the
+intermediate encoding records, and every archetype builder has overloads for the primitive or
+string behind a component. The canonical constructors and `withX(List<Component>)` setters remain
+available when you want to pass fully constructed values.
 
 ### Blueprints
 
@@ -40,7 +72,7 @@ RecordingStream blueprint = RecordingStreamBuilder.newBlueprint("my-app")
         .build();
 
 blueprint.log("view/0", ViewBlueprint.builder()
-        .withClassIdentifier(new ViewClass(new Utf8("3D")))
+        .withClassIdentifier("3D")
         .build());
 
 recording.activateBlueprint(blueprint, true, false);
@@ -53,8 +85,10 @@ cargo xtask java moneyshift/lib/src/main/java
 ```
 
 The command reads `re_type_definitions` (the Rerun git tag pinned in `xtask/Cargo.toml`), removes
-the previously generated top-level packages, and rewrites them. Hand-written core classes and the
-protobuf bindings are never touched.
+the previously generated top-level packages, and rewrites them. The Java backend in
+`xtask/src/codegen/java.rs` emits the unwrapped constructors and builder overloads described above
+as part of that pass, so regenerating the type surface keeps the ergonomic API intact.
+Hand-written core classes and the protobuf bindings are never touched.
 
 ## Architecture
 
@@ -82,6 +116,7 @@ The tests cover:
 
 - Arrow IPC round-tripping and Rerun schema metadata.
 - Every generated archetype, component, and encoding being constructed and serialized.
+- The unwrapped constructors and builder overloads producing exactly the canonical values.
 - RRD framing and footer decoding.
 - A real client-streaming gRPC proxy server.
 - Blueprint store kinds and activation messages.

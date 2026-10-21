@@ -65,6 +65,15 @@ public record Scalars(
             return this;
         }
 
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withScalars(double... value) {
+            java.util.List<org.teamvan.moneyshift.components.Scalar> values = new java.util.ArrayList<>(value.length);
+            for (double v : value) {
+                values.add(new org.teamvan.moneyshift.components.Scalar(v));
+            }
+            return withScalars(values);
+        }
+
         public Builder withScalars(org.teamvan.moneyshift.components.Scalar... value) {
             return withScalars(java.util.List.of(value));
         }

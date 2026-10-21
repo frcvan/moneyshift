@@ -13,6 +13,12 @@ public record VisualizerComponentMapping(
     public VisualizerComponentMapping {
         java.util.Objects.requireNonNull(mapping, "mapping");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VisualizerComponentMapping(java.lang.String target, org.teamvan.moneyshift.blueprint.encodings.ComponentSourceKind sourceKind, java.lang.String sourceComponent, java.lang.String selector) {
+        this(new org.teamvan.moneyshift.blueprint.encodings.VisualizerComponentMapping(new org.teamvan.moneyshift.encodings.Utf8(target), sourceKind, sourceComponent, selector));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.VisualizerComponentMapping";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

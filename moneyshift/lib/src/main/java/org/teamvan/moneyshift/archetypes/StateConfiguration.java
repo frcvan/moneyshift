@@ -145,6 +145,15 @@ public record StateConfiguration(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withValues(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withValues(values);
+        }
+
         public Builder withValues(org.teamvan.moneyshift.components.Text... value) {
             return withValues(java.util.List.of(value));
         }
@@ -152,6 +161,15 @@ public record StateConfiguration(
         public Builder withLabels(java.util.List<org.teamvan.moneyshift.components.Text> value) {
             this.labels = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLabels(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withLabels(values);
         }
 
         public Builder withLabels(org.teamvan.moneyshift.components.Text... value) {
@@ -163,6 +181,15 @@ public record StateConfiguration(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -170,6 +197,15 @@ public record StateConfiguration(
         public Builder withVisible(java.util.List<org.teamvan.moneyshift.components.Visible> value) {
             this.visible = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean... value) {
+            java.util.List<org.teamvan.moneyshift.components.Visible> values = new java.util.ArrayList<>(value.length);
+            for (boolean v : value) {
+                values.add(new org.teamvan.moneyshift.components.Visible(v));
+            }
+            return withVisible(values);
         }
 
         public Builder withVisible(org.teamvan.moneyshift.components.Visible... value) {

@@ -210,14 +210,29 @@ public record VideoStream(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withIsKeyframe(boolean value) {
+            return withIsKeyframe(new org.teamvan.moneyshift.components.IsKeyframe(value));
+        }
+
         public Builder withOpacity(org.teamvan.moneyshift.components.Opacity value) {
             this.opacity = value;
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withOpacity(float value) {
+            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
+        }
+
         public Builder withDrawOrder(org.teamvan.moneyshift.components.DrawOrder value) {
             this.drawOrder = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withDrawOrder(float value) {
+            return withDrawOrder(new org.teamvan.moneyshift.components.DrawOrder(value));
         }
 
         public VideoStream build() {

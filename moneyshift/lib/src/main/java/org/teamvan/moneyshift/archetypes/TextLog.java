@@ -91,14 +91,29 @@ public record TextLog(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withText(java.lang.String value) {
+            return withText(new org.teamvan.moneyshift.components.Text(value));
+        }
+
         public Builder withLevel(org.teamvan.moneyshift.components.TextLogLevel value) {
             this.level = value;
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLevel(java.lang.String value) {
+            return withLevel(new org.teamvan.moneyshift.components.TextLogLevel(value));
+        }
+
         public Builder withColor(org.teamvan.moneyshift.components.Color value) {
             this.color = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
         }
 
         public TextLog build() {

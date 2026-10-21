@@ -19,6 +19,12 @@ public record VisibleTimeRange(
         java.util.Objects.requireNonNull(timeline, "timeline");
         java.util.Objects.requireNonNull(range, "range");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public VisibleTimeRange(java.lang.String timeline, org.teamvan.moneyshift.encodings.TimeRange range) {
+        this(new org.teamvan.moneyshift.encodings.Utf8(timeline), range);
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.VisibleTimeRange";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

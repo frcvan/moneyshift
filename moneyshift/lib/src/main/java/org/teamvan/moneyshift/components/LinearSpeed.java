@@ -13,6 +13,12 @@ public record LinearSpeed(
     public LinearSpeed {
         java.util.Objects.requireNonNull(speed, "speed");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public LinearSpeed(double value) {
+        this(new org.teamvan.moneyshift.encodings.Float64(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.LinearSpeed";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

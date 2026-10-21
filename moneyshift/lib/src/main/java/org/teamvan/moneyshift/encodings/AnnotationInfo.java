@@ -23,6 +23,12 @@ public record AnnotationInfo(
 ) {
     public AnnotationInfo {
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public AnnotationInfo(int id, java.lang.String label, long color) {
+        this(id, new org.teamvan.moneyshift.encodings.Utf8(label), new org.teamvan.moneyshift.encodings.Rgba32(color));
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.AnnotationInfo";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

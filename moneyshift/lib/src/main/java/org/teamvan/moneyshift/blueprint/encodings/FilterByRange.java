@@ -18,6 +18,12 @@ public record FilterByRange(
         java.util.Objects.requireNonNull(start, "start");
         java.util.Objects.requireNonNull(end, "end");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public FilterByRange(long start, long end) {
+        this(new org.teamvan.moneyshift.encodings.TimeInt(start), new org.teamvan.moneyshift.encodings.TimeInt(end));
+    }
+
     public static final java.lang.String NAME = "rerun.blueprint.encodings.FilterByRange";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

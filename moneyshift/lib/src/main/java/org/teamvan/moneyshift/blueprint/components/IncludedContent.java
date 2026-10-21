@@ -16,6 +16,12 @@ public record IncludedContent(
     public IncludedContent {
         java.util.Objects.requireNonNull(contents, "contents");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public IncludedContent(java.lang.String path) {
+        this(new org.teamvan.moneyshift.encodings.EntityPath(path));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.IncludedContent";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

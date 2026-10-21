@@ -85,9 +85,19 @@ public record TextDocument(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withText(java.lang.String value) {
+            return withText(new org.teamvan.moneyshift.components.Text(value));
+        }
+
         public Builder withMediaType(org.teamvan.moneyshift.components.MediaType value) {
             this.mediaType = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withMediaType(java.lang.String value) {
+            return withMediaType(new org.teamvan.moneyshift.components.MediaType(value));
         }
 
         public TextDocument build() {

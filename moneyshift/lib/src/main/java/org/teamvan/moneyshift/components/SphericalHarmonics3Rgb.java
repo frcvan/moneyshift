@@ -12,6 +12,12 @@ public record SphericalHarmonics3Rgb(
     public SphericalHarmonics3Rgb {
         java.util.Objects.requireNonNull(coefficients, "coefficients");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public SphericalHarmonics3Rgb(float[][] coefficients) {
+        this(new org.teamvan.moneyshift.encodings.SphericalHarmonics3Rgb(coefficients));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.SphericalHarmonics3Rgb";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

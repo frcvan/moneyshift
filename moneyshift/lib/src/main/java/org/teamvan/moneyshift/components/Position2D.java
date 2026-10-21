@@ -10,6 +10,12 @@ public record Position2D(
     public Position2D {
         java.util.Objects.requireNonNull(xy, "xy");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Position2D(float[] xy) {
+        this(new org.teamvan.moneyshift.encodings.Vec2D(xy));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Position2D";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -10,6 +10,12 @@ public record LatLon(
     public LatLon {
         java.util.Objects.requireNonNull(latLon, "latLon");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public LatLon(double[] xy) {
+        this(new org.teamvan.moneyshift.encodings.DVec2D(xy));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.LatLon";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

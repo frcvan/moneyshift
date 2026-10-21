@@ -64,6 +64,11 @@ public record CoordinateFrame(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withFrame(java.lang.String value) {
+            return withFrame(new org.teamvan.moneyshift.components.TransformFrameId(value));
+        }
+
         public CoordinateFrame build() {
             return new CoordinateFrame(frame);
         }

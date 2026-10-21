@@ -13,6 +13,12 @@ public record TextLogColumn(
     public TextLogColumn {
         java.util.Objects.requireNonNull(textLogColumn, "textLogColumn");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public TextLogColumn(boolean visible, org.teamvan.moneyshift.blueprint.encodings.TextLogColumnKind kind) {
+        this(new org.teamvan.moneyshift.blueprint.encodings.TextLogColumn(new org.teamvan.moneyshift.encodings.Bool(visible), kind));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.TextLogColumn";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

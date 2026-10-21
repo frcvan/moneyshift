@@ -10,6 +10,12 @@ public record GraphEdge(
     public GraphEdge {
         java.util.Objects.requireNonNull(edge, "edge");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public GraphEdge(java.lang.String first, java.lang.String second) {
+        this(new org.teamvan.moneyshift.encodings.Utf8Pair(new org.teamvan.moneyshift.encodings.Utf8(first), new org.teamvan.moneyshift.encodings.Utf8(second)));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.GraphEdge";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

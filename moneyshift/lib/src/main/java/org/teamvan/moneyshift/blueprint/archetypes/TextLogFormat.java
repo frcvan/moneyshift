@@ -59,6 +59,11 @@ public record TextLogFormat(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withMonospaceBody(boolean value) {
+            return withMonospaceBody(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
+        }
+
         public TextLogFormat build() {
             return new TextLogFormat(monospaceBody);
         }

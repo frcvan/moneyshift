@@ -16,6 +16,12 @@ public record VisualizerInstructionId(
     public VisualizerInstructionId {
         java.util.Objects.requireNonNull(visualizer, "visualizer");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VisualizerInstructionId(short[] bytes) {
+        this(new org.teamvan.moneyshift.encodings.Uuid(bytes));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.VisualizerInstructionId";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

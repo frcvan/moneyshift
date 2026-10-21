@@ -186,6 +186,15 @@ public record GaussianSplats3D(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -202,6 +211,11 @@ public record GaussianSplats3D(
         public Builder withSphericalHarmonicsDegree(org.teamvan.moneyshift.components.SphericalHarmonicsDegree value) {
             this.sphericalHarmonicsDegree = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withSphericalHarmonicsDegree(long value) {
+            return withSphericalHarmonicsDegree(new org.teamvan.moneyshift.components.SphericalHarmonicsDegree(value));
         }
 
         public GaussianSplats3D build() {

@@ -12,6 +12,12 @@ public record VoxelIndex(
     public VoxelIndex {
         java.util.Objects.requireNonNull(index, "index");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VoxelIndex(int[] xyz) {
+        this(new org.teamvan.moneyshift.encodings.IVec3D(xyz));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.VoxelIndex";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

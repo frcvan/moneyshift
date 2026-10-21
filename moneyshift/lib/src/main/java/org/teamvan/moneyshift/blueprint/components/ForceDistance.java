@@ -12,6 +12,12 @@ public record ForceDistance(
     public ForceDistance {
         java.util.Objects.requireNonNull(distance, "distance");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public ForceDistance(double value) {
+        this(new org.teamvan.moneyshift.encodings.Float64(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.ForceDistance";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

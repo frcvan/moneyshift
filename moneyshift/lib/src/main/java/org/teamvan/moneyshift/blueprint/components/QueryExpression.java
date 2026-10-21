@@ -19,6 +19,12 @@ public record QueryExpression(
     public QueryExpression {
         java.util.Objects.requireNonNull(filter, "filter");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public QueryExpression(java.lang.String value) {
+        this(new org.teamvan.moneyshift.encodings.Utf8(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.QueryExpression";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

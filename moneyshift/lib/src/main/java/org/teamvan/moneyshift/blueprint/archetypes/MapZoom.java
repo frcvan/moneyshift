@@ -59,6 +59,11 @@ public record MapZoom(
             return this;
         }
 
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withZoom(double value) {
+            return withZoom(new org.teamvan.moneyshift.blueprint.components.ZoomLevel(value));
+        }
+
         public MapZoom build() {
             return new MapZoom(zoom);
         }

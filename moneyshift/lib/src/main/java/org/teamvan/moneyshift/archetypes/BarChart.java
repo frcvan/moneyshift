@@ -111,6 +111,11 @@ public record BarChart(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
+        }
+
         public Builder withAbscissa(org.teamvan.moneyshift.components.TensorData value) {
             this.abscissa = value;
             return this;
@@ -119,6 +124,15 @@ public record BarChart(
         public Builder withWidths(java.util.List<org.teamvan.moneyshift.components.Length> value) {
             this.widths = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withWidths(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Length> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Length(v));
+            }
+            return withWidths(values);
         }
 
         public Builder withWidths(org.teamvan.moneyshift.components.Length... value) {

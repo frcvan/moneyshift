@@ -15,14 +15,26 @@ fn main() {
             LogMsg::SetStoreInfo(info) => println!("store info: {info:?}"),
             LogMsg::ArrowMsg(_, arrow) => {
                 let b = &arrow.batch;
-                println!("batch rows={} schema_meta={:?}", b.num_rows(), b.schema().metadata());
+                println!(
+                    "batch rows={} schema_meta={:?}",
+                    b.num_rows(),
+                    b.schema().metadata()
+                );
                 for f in b.schema().fields() {
-                    println!("  field {:?} {:?} nullable={} meta={:?}", f.name(), f.data_type(), f.is_nullable(), f.metadata());
+                    println!(
+                        "  field {:?} {:?} nullable={} meta={:?}",
+                        f.name(),
+                        f.data_type(),
+                        f.is_nullable(),
+                        f.metadata()
+                    );
                 }
             }
             _ => println!("other"),
         }
-        if n > 3 { break; }
+        if n > 3 {
+            break;
+        }
     }
     println!("seen {n}");
 }

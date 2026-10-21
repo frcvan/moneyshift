@@ -133,14 +133,29 @@ public record SpatialInformation(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTargetFrame(java.lang.String value) {
+            return withTargetFrame(new org.teamvan.moneyshift.components.TransformFrameId(value));
+        }
+
         public Builder withShowBoundingBox(org.teamvan.moneyshift.blueprint.components.Enabled value) {
             this.showBoundingBox = value;
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowBoundingBox(boolean value) {
+            return withShowBoundingBox(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
+        }
+
         public Builder withShowAxes(org.teamvan.moneyshift.blueprint.components.Enabled value) {
             this.showAxes = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowAxes(boolean value) {
+            return withShowAxes(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
         }
 
         public Builder withAxes(org.teamvan.moneyshift.components.ViewCoordinates value) {

@@ -18,6 +18,12 @@ public record FilterIsNotNull(
         java.util.Objects.requireNonNull(active, "active");
         java.util.Objects.requireNonNull(column, "column");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public FilterIsNotNull(boolean active, org.teamvan.moneyshift.blueprint.encodings.ComponentColumnSelector column) {
+        this(new org.teamvan.moneyshift.encodings.Bool(active), column);
+    }
+
     public static final java.lang.String NAME = "rerun.blueprint.encodings.FilterIsNotNull";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

@@ -256,6 +256,11 @@ public record Volume3D(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withOpacity(float value) {
+            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
+        }
+
         public Volume3D build() {
             return new Volume3D(values, voxelSize, translation, quaternion, valueRange, colormap, opacity);
         }

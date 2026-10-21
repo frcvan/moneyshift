@@ -97,6 +97,15 @@ public record ViewContents(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withQuery(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.QueryExpression> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.QueryExpression(v));
+            }
+            return withQuery(values);
+        }
+
         public Builder withQuery(org.teamvan.moneyshift.blueprint.components.QueryExpression... value) {
             return withQuery(java.util.List.of(value));
         }

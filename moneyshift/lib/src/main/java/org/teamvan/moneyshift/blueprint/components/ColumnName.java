@@ -13,6 +13,12 @@ public record ColumnName(
     public ColumnName {
         java.util.Objects.requireNonNull(value, "value");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public ColumnName(java.lang.String value) {
+        this(new org.teamvan.moneyshift.encodings.Utf8(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.ColumnName";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

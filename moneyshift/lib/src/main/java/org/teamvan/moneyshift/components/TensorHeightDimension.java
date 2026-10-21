@@ -10,6 +10,12 @@ public record TensorHeightDimension(
     public TensorHeightDimension {
         java.util.Objects.requireNonNull(dimension, "dimension");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public TensorHeightDimension(long dimension, boolean invert) {
+        this(new org.teamvan.moneyshift.encodings.TensorDimensionSelection(dimension, invert));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.TensorHeightDimension";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

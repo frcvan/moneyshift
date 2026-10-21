@@ -84,6 +84,11 @@ public record PlotLegend(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean value) {
+            return withVisible(new org.teamvan.moneyshift.components.Visible(value));
+        }
+
         public PlotLegend build() {
             return new PlotLegend(corner, visible);
         }

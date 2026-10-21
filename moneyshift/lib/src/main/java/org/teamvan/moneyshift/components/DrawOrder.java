@@ -15,6 +15,12 @@ public record DrawOrder(
     public DrawOrder {
         java.util.Objects.requireNonNull(value, "value");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public DrawOrder(float value) {
+        this(new org.teamvan.moneyshift.encodings.Float32(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.DrawOrder";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

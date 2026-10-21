@@ -26,6 +26,12 @@ public record Texcoord2D(
     public Texcoord2D {
         java.util.Objects.requireNonNull(uv, "uv");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Texcoord2D(float[] xy) {
+        this(new org.teamvan.moneyshift.encodings.Vec2D(xy));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Texcoord2D";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

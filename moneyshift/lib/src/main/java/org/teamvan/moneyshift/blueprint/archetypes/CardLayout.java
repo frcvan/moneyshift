@@ -109,14 +109,33 @@ public record CardLayout(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTitle(java.lang.String value) {
+            return withTitle(new org.teamvan.moneyshift.blueprint.components.ColumnName(value));
+        }
+
         public Builder withLink(org.teamvan.moneyshift.blueprint.components.ColumnName value) {
             this.link = value;
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLink(java.lang.String value) {
+            return withLink(new org.teamvan.moneyshift.blueprint.components.ColumnName(value));
+        }
+
         public Builder withFieldOrder(java.util.List<org.teamvan.moneyshift.blueprint.components.ColumnName> value) {
             this.fieldOrder = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withFieldOrder(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.ColumnName> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.ColumnName(v));
+            }
+            return withFieldOrder(values);
         }
 
         public Builder withFieldOrder(org.teamvan.moneyshift.blueprint.components.ColumnName... value) {

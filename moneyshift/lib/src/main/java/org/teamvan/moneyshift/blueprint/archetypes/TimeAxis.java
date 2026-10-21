@@ -101,6 +101,11 @@ public record TimeAxis(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withZoomLock(boolean value) {
+            return withZoomLock(new org.teamvan.moneyshift.blueprint.components.LockRangeDuringZoom(value));
+        }
+
         public TimeAxis build() {
             return new TimeAxis(link, viewRange, zoomLock);
         }

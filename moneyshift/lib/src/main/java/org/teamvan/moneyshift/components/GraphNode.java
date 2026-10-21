@@ -10,6 +10,12 @@ public record GraphNode(
     public GraphNode {
         java.util.Objects.requireNonNull(id, "id");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public GraphNode(java.lang.String value) {
+        this(new org.teamvan.moneyshift.encodings.Utf8(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.GraphNode";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

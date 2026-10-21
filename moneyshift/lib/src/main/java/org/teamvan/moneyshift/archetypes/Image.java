@@ -152,9 +152,19 @@ public record Image(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withOpacity(float value) {
+            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
+        }
+
         public Builder withDrawOrder(org.teamvan.moneyshift.components.DrawOrder value) {
             this.drawOrder = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withDrawOrder(float value) {
+            return withDrawOrder(new org.teamvan.moneyshift.components.DrawOrder(value));
         }
 
         public Builder withMagnificationFilter(org.teamvan.moneyshift.components.MagnificationFilter value) {

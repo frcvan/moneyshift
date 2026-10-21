@@ -10,6 +10,12 @@ public record VideoTimestamp(
     public VideoTimestamp {
         java.util.Objects.requireNonNull(timestamp, "timestamp");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VideoTimestamp(long timestampNs) {
+        this(new org.teamvan.moneyshift.encodings.VideoTimestamp(timestampNs));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.VideoTimestamp";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

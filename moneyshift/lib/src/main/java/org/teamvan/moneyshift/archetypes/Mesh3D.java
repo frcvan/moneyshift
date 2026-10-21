@@ -275,6 +275,15 @@ public record Mesh3D(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withVertexColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withVertexColors(values);
+        }
+
         public Builder withVertexColors(org.teamvan.moneyshift.components.Color... value) {
             return withVertexColors(java.util.List.of(value));
         }
@@ -291,6 +300,11 @@ public record Mesh3D(
         public Builder withAlbedoFactor(org.teamvan.moneyshift.components.AlbedoFactor value) {
             this.albedoFactor = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withAlbedoFactor(long value) {
+            return withAlbedoFactor(new org.teamvan.moneyshift.components.AlbedoFactor(value));
         }
 
         public Builder withFaceRendering(org.teamvan.moneyshift.components.MeshFaceRendering value) {
@@ -311,6 +325,15 @@ public record Mesh3D(
         public Builder withClassIds(java.util.List<org.teamvan.moneyshift.components.ClassId> value) {
             this.classIds = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withClassIds(int... value) {
+            java.util.List<org.teamvan.moneyshift.components.ClassId> values = new java.util.ArrayList<>(value.length);
+            for (int v : value) {
+                values.add(new org.teamvan.moneyshift.components.ClassId(v));
+            }
+            return withClassIds(values);
         }
 
         public Builder withClassIds(org.teamvan.moneyshift.components.ClassId... value) {

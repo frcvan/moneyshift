@@ -13,6 +13,12 @@ public record RootContainer(
     public RootContainer {
         java.util.Objects.requireNonNull(id, "id");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public RootContainer(short[] bytes) {
+        this(new org.teamvan.moneyshift.encodings.Uuid(bytes));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.RootContainer";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -15,6 +15,12 @@ public record FillRatio(
     public FillRatio {
         java.util.Objects.requireNonNull(value, "value");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public FillRatio(float value) {
+        this(new org.teamvan.moneyshift.encodings.Float32(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.FillRatio";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

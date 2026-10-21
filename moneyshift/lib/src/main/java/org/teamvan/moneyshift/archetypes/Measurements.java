@@ -258,6 +258,15 @@ public record Measurements(
             return this;
         }
 
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withValues(double... value) {
+            java.util.List<org.teamvan.moneyshift.components.Scalar> values = new java.util.ArrayList<>(value.length);
+            for (double v : value) {
+                values.add(new org.teamvan.moneyshift.components.Scalar(v));
+            }
+            return withValues(values);
+        }
+
         public Builder withValues(org.teamvan.moneyshift.components.Scalar... value) {
             return withValues(java.util.List.of(value));
         }
@@ -265,6 +274,15 @@ public record Measurements(
         public Builder withVariances(java.util.List<org.teamvan.moneyshift.components.Variance> value) {
             this.variances = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withVariances(double... value) {
+            java.util.List<org.teamvan.moneyshift.components.Variance> values = new java.util.ArrayList<>(value.length);
+            for (double v : value) {
+                values.add(new org.teamvan.moneyshift.components.Variance(v));
+            }
+            return withVariances(values);
         }
 
         public Builder withVariances(org.teamvan.moneyshift.components.Variance... value) {
@@ -276,6 +294,15 @@ public record Measurements(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withUnits(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Unit> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Unit(v));
+            }
+            return withUnits(values);
+        }
+
         public Builder withUnits(org.teamvan.moneyshift.components.Unit... value) {
             return withUnits(java.util.List.of(value));
         }
@@ -283,6 +310,15 @@ public record Measurements(
         public Builder withColors(java.util.List<org.teamvan.moneyshift.components.Color> value) {
             this.colors = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
         }
 
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
@@ -294,6 +330,15 @@ public record Measurements(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withWidths(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.StrokeWidth> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.StrokeWidth(v));
+            }
+            return withWidths(values);
+        }
+
         public Builder withWidths(org.teamvan.moneyshift.components.StrokeWidth... value) {
             return withWidths(java.util.List.of(value));
         }
@@ -303,6 +348,15 @@ public record Measurements(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withNames(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Name> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Name(v));
+            }
+            return withNames(values);
+        }
+
         public Builder withNames(org.teamvan.moneyshift.components.Name... value) {
             return withNames(java.util.List.of(value));
         }
@@ -310,6 +364,15 @@ public record Measurements(
         public Builder withVisibleSeries(java.util.List<org.teamvan.moneyshift.components.Visible> value) {
             this.visibleSeries = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisibleSeries(boolean... value) {
+            java.util.List<org.teamvan.moneyshift.components.Visible> values = new java.util.ArrayList<>(value.length);
+            for (boolean v : value) {
+                values.add(new org.teamvan.moneyshift.components.Visible(v));
+            }
+            return withVisibleSeries(values);
         }
 
         public Builder withVisibleSeries(org.teamvan.moneyshift.components.Visible... value) {

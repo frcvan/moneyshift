@@ -160,6 +160,11 @@ public record LineStrips3D(
             return this;
         }
 
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withStrips(org.teamvan.moneyshift.encodings.Vec3D... value) {
+            return withStrips(java.util.List.of(new org.teamvan.moneyshift.components.LineStrip3D(java.util.List.of(value))));
+        }
+
         public Builder withStrips(org.teamvan.moneyshift.components.LineStrip3D... value) {
             return withStrips(java.util.List.of(value));
         }
@@ -167,6 +172,15 @@ public record LineStrips3D(
         public Builder withRadii(java.util.List<org.teamvan.moneyshift.components.Radius> value) {
             this.radii = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRadii(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Radius> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Radius(v));
+            }
+            return withRadii(values);
         }
 
         public Builder withRadii(org.teamvan.moneyshift.components.Radius... value) {
@@ -178,6 +192,15 @@ public record LineStrips3D(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -185,6 +208,15 @@ public record LineStrips3D(
         public Builder withLabels(java.util.List<org.teamvan.moneyshift.components.Text> value) {
             this.labels = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLabels(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withLabels(values);
         }
 
         public Builder withLabels(org.teamvan.moneyshift.components.Text... value) {
@@ -196,9 +228,23 @@ public record LineStrips3D(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowLabels(boolean value) {
+            return withShowLabels(new org.teamvan.moneyshift.components.ShowLabels(value));
+        }
+
         public Builder withClassIds(java.util.List<org.teamvan.moneyshift.components.ClassId> value) {
             this.classIds = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withClassIds(int... value) {
+            java.util.List<org.teamvan.moneyshift.components.ClassId> values = new java.util.ArrayList<>(value.length);
+            for (int v : value) {
+                values.add(new org.teamvan.moneyshift.components.ClassId(v));
+            }
+            return withClassIds(values);
         }
 
         public Builder withClassIds(org.teamvan.moneyshift.components.ClassId... value) {

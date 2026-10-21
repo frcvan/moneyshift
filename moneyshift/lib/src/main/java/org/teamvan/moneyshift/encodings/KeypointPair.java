@@ -18,6 +18,12 @@ public record KeypointPair(
         java.util.Objects.requireNonNull(keypoint0, "keypoint0");
         java.util.Objects.requireNonNull(keypoint1, "keypoint1");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public KeypointPair(int keypoint0, int keypoint1) {
+        this(new org.teamvan.moneyshift.encodings.KeypointId(keypoint0), new org.teamvan.moneyshift.encodings.KeypointId(keypoint1));
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.KeypointPair";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

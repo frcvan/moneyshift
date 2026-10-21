@@ -71,6 +71,11 @@ public record VisualizerInstruction(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withVisualizerType(java.lang.String value) {
+            return withVisualizerType(new org.teamvan.moneyshift.blueprint.components.VisualizerType(value));
+        }
+
         public Builder withComponentMap(java.util.List<org.teamvan.moneyshift.blueprint.components.VisualizerComponentMapping> value) {
             this.componentMap = java.util.List.copyOf(value);
             return this;

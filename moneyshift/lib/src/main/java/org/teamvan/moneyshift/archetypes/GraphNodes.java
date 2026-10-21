@@ -146,6 +146,15 @@ public record GraphNodes(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withNodeIds(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.GraphNode> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.GraphNode(v));
+            }
+            return withNodeIds(values);
+        }
+
         public Builder withNodeIds(org.teamvan.moneyshift.components.GraphNode... value) {
             return withNodeIds(java.util.List.of(value));
         }
@@ -164,6 +173,15 @@ public record GraphNodes(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -171,6 +189,15 @@ public record GraphNodes(
         public Builder withLabels(java.util.List<org.teamvan.moneyshift.components.Text> value) {
             this.labels = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLabels(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withLabels(values);
         }
 
         public Builder withLabels(org.teamvan.moneyshift.components.Text... value) {
@@ -182,9 +209,23 @@ public record GraphNodes(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowLabels(boolean value) {
+            return withShowLabels(new org.teamvan.moneyshift.components.ShowLabels(value));
+        }
+
         public Builder withRadii(java.util.List<org.teamvan.moneyshift.components.Radius> value) {
             this.radii = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRadii(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Radius> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Radius(v));
+            }
+            return withRadii(values);
         }
 
         public Builder withRadii(org.teamvan.moneyshift.components.Radius... value) {

@@ -154,14 +154,33 @@ public record ViewportBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withAutoLayout(boolean value) {
+            return withAutoLayout(new org.teamvan.moneyshift.blueprint.components.AutoLayout(value));
+        }
+
         public Builder withAutoViews(org.teamvan.moneyshift.blueprint.components.AutoViews value) {
             this.autoViews = value;
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withAutoViews(boolean value) {
+            return withAutoViews(new org.teamvan.moneyshift.blueprint.components.AutoViews(value));
+        }
+
         public Builder withPastViewerRecommendations(java.util.List<org.teamvan.moneyshift.blueprint.components.ViewerRecommendationHash> value) {
             this.pastViewerRecommendations = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withPastViewerRecommendations(long... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.ViewerRecommendationHash> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.ViewerRecommendationHash(v));
+            }
+            return withPastViewerRecommendations(values);
         }
 
         public Builder withPastViewerRecommendations(org.teamvan.moneyshift.blueprint.components.ViewerRecommendationHash... value) {

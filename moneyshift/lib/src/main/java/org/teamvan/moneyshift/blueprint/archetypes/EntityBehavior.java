@@ -94,9 +94,19 @@ public record EntityBehavior(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withInteractive(boolean value) {
+            return withInteractive(new org.teamvan.moneyshift.components.Interactive(value));
+        }
+
         public Builder withVisible(org.teamvan.moneyshift.components.Visible value) {
             this.visible = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean value) {
+            return withVisible(new org.teamvan.moneyshift.components.Visible(value));
         }
 
         public EntityBehavior build() {

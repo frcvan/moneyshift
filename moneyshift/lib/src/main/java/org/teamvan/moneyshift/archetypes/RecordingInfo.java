@@ -76,9 +76,19 @@ public record RecordingInfo(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withStartTime(long value) {
+            return withStartTime(new org.teamvan.moneyshift.components.Timestamp(value));
+        }
+
         public Builder withName(org.teamvan.moneyshift.components.Name value) {
             this.name = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withName(java.lang.String value) {
+            return withName(new org.teamvan.moneyshift.components.Name(value));
         }
 
         public RecordingInfo build() {

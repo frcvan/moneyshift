@@ -159,6 +159,15 @@ public record SeriesPoints(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -177,6 +186,15 @@ public record SeriesPoints(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withNames(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Name> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Name(v));
+            }
+            return withNames(values);
+        }
+
         public Builder withNames(org.teamvan.moneyshift.components.Name... value) {
             return withNames(java.util.List.of(value));
         }
@@ -186,6 +204,15 @@ public record SeriesPoints(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisibleSeries(boolean... value) {
+            java.util.List<org.teamvan.moneyshift.components.Visible> values = new java.util.ArrayList<>(value.length);
+            for (boolean v : value) {
+                values.add(new org.teamvan.moneyshift.components.Visible(v));
+            }
+            return withVisibleSeries(values);
+        }
+
         public Builder withVisibleSeries(org.teamvan.moneyshift.components.Visible... value) {
             return withVisibleSeries(java.util.List.of(value));
         }
@@ -193,6 +220,15 @@ public record SeriesPoints(
         public Builder withMarkerSizes(java.util.List<org.teamvan.moneyshift.components.MarkerSize> value) {
             this.markerSizes = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withMarkerSizes(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.MarkerSize> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.MarkerSize(v));
+            }
+            return withMarkerSizes(values);
         }
 
         public Builder withMarkerSizes(org.teamvan.moneyshift.components.MarkerSize... value) {

@@ -77,9 +77,19 @@ public record TransformAxes3D(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withAxisLength(float value) {
+            return withAxisLength(new org.teamvan.moneyshift.components.AxisLength(value));
+        }
+
         public Builder withShowFrame(org.teamvan.moneyshift.components.ShowLabels value) {
             this.showFrame = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowFrame(boolean value) {
+            return withShowFrame(new org.teamvan.moneyshift.components.ShowLabels(value));
         }
 
         public TransformAxes3D build() {

@@ -10,6 +10,12 @@ public record StrokeWidth(
     public StrokeWidth {
         java.util.Objects.requireNonNull(width, "width");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public StrokeWidth(float value) {
+        this(new org.teamvan.moneyshift.encodings.Float32(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.StrokeWidth";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

@@ -143,9 +143,19 @@ public record LineGrid3D(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean value) {
+            return withVisible(new org.teamvan.moneyshift.components.Visible(value));
+        }
+
         public Builder withSpacing(org.teamvan.moneyshift.blueprint.components.GridSpacing value) {
             this.spacing = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withSpacing(float value) {
+            return withSpacing(new org.teamvan.moneyshift.blueprint.components.GridSpacing(value));
         }
 
         public Builder withPlane(org.teamvan.moneyshift.components.Plane3D value) {
@@ -158,9 +168,19 @@ public record LineGrid3D(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withStrokeWidth(float value) {
+            return withStrokeWidth(new org.teamvan.moneyshift.components.StrokeWidth(value));
+        }
+
         public Builder withColor(org.teamvan.moneyshift.components.Color value) {
             this.color = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColor(long value) {
+            return withColor(new org.teamvan.moneyshift.components.Color(value));
         }
 
         public LineGrid3D build() {

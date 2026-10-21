@@ -18,6 +18,12 @@ public record ChannelCountPair(
         java.util.Objects.requireNonNull(channelId, "channelId");
         java.util.Objects.requireNonNull(messageCount, "messageCount");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public ChannelCountPair(int channelId, long messageCount) {
+        this(new org.teamvan.moneyshift.encodings.UInt16(channelId), new org.teamvan.moneyshift.encodings.UInt64(messageCount));
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.ChannelCountPair";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

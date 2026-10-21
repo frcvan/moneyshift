@@ -10,6 +10,12 @@ public record FilterIsNotNull(
     public FilterIsNotNull {
         java.util.Objects.requireNonNull(filterIsNotNull, "filterIsNotNull");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public FilterIsNotNull(boolean active, org.teamvan.moneyshift.blueprint.encodings.ComponentColumnSelector column) {
+        this(new org.teamvan.moneyshift.blueprint.encodings.FilterIsNotNull(new org.teamvan.moneyshift.encodings.Bool(active), column));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.FilterIsNotNull";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

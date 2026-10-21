@@ -10,6 +10,12 @@ public record ComponentColumnSelector(
     public ComponentColumnSelector {
         java.util.Objects.requireNonNull(selector, "selector");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public ComponentColumnSelector(java.lang.String entityPath, java.lang.String component) {
+        this(new org.teamvan.moneyshift.blueprint.encodings.ComponentColumnSelector(new org.teamvan.moneyshift.encodings.EntityPath(entityPath), new org.teamvan.moneyshift.encodings.Utf8(component)));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.ComponentColumnSelector";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

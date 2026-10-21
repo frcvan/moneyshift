@@ -145,14 +145,29 @@ public record McapSchema(
             return this;
         }
 
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withId(int value) {
+            return withId(new org.teamvan.moneyshift.components.SchemaId(value));
+        }
+
         public Builder withName(org.teamvan.moneyshift.components.Text value) {
             this.name = value;
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withName(java.lang.String value) {
+            return withName(new org.teamvan.moneyshift.components.Text(value));
+        }
+
         public Builder withEncoding(org.teamvan.moneyshift.components.Text value) {
             this.encoding = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withEncoding(java.lang.String value) {
+            return withEncoding(new org.teamvan.moneyshift.components.Text(value));
         }
 
         public Builder withData(org.teamvan.moneyshift.components.Blob value) {

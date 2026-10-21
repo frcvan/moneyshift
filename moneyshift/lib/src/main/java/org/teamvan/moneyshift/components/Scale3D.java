@@ -14,6 +14,12 @@ public record Scale3D(
     public Scale3D {
         java.util.Objects.requireNonNull(scale, "scale");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Scale3D(float[] xyz) {
+        this(new org.teamvan.moneyshift.encodings.Vec3D(xyz));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Scale3D";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

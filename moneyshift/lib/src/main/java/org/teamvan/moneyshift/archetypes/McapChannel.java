@@ -141,9 +141,19 @@ public record McapChannel(
             return this;
         }
 
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withId(int value) {
+            return withId(new org.teamvan.moneyshift.components.ChannelId(value));
+        }
+
         public Builder withTopic(org.teamvan.moneyshift.components.Text value) {
             this.topic = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTopic(java.lang.String value) {
+            return withTopic(new org.teamvan.moneyshift.components.Text(value));
         }
 
         public Builder withMessageEncoding(org.teamvan.moneyshift.components.Text value) {
@@ -151,9 +161,19 @@ public record McapChannel(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withMessageEncoding(java.lang.String value) {
+            return withMessageEncoding(new org.teamvan.moneyshift.components.Text(value));
+        }
+
         public Builder withMetadata(org.teamvan.moneyshift.components.KeyValuePairs value) {
             this.metadata = value;
             return this;
+        }
+
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withMetadata(org.teamvan.moneyshift.encodings.Utf8Pair... value) {
+            return withMetadata(new org.teamvan.moneyshift.components.KeyValuePairs(java.util.List.of(value)));
         }
 
         public McapChannel build() {

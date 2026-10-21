@@ -12,3 +12,4 @@ plugins {
 
 rootProject.name = "moneyshift"
 include("lib")
+include("example")

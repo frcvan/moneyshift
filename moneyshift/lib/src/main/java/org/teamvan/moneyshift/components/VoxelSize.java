@@ -13,6 +13,12 @@ public record VoxelSize(
     public VoxelSize {
         java.util.Objects.requireNonNull(xyz, "xyz");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public VoxelSize(float[] xyz) {
+        this(new org.teamvan.moneyshift.encodings.Vec3D(xyz));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.VoxelSize";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

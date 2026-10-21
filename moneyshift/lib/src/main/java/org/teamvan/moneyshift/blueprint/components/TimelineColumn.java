@@ -13,6 +13,12 @@ public record TimelineColumn(
     public TimelineColumn {
         java.util.Objects.requireNonNull(timelineColumn, "timelineColumn");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public TimelineColumn(boolean visible, java.lang.String timeline) {
+        this(new org.teamvan.moneyshift.blueprint.encodings.TimelineColumn(new org.teamvan.moneyshift.encodings.Bool(visible), new org.teamvan.moneyshift.encodings.Utf8(timeline)));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.TimelineColumn";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

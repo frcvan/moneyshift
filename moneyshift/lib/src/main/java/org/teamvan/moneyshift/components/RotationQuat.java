@@ -14,6 +14,12 @@ public record RotationQuat(
     public RotationQuat {
         java.util.Objects.requireNonNull(quaternion, "quaternion");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public RotationQuat(float[] xyzw) {
+        this(new org.teamvan.moneyshift.encodings.Quaternion(xyzw));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.RotationQuat";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

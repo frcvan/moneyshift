@@ -23,6 +23,12 @@ public record RotationAxisAngle(
         java.util.Objects.requireNonNull(axis, "axis");
         java.util.Objects.requireNonNull(angle, "angle");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public RotationAxisAngle(org.teamvan.moneyshift.encodings.Vec3D axis, float angle) {
+        this(axis, new org.teamvan.moneyshift.encodings.Angle(angle));
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.RotationAxisAngle";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

@@ -68,6 +68,15 @@ public record TableColumnPreview(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withViews(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.IncludedContent> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.IncludedContent(v));
+            }
+            return withViews(values);
+        }
+
         public Builder withViews(org.teamvan.moneyshift.blueprint.components.IncludedContent... value) {
             return withViews(java.util.List.of(value));
         }

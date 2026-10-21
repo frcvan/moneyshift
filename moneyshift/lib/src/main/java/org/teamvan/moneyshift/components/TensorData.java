@@ -17,6 +17,12 @@ public record TensorData(
     public TensorData {
         java.util.Objects.requireNonNull(data, "data");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public TensorData(java.util.List<java.lang.Long> shape, java.util.List<java.lang.String> names, org.teamvan.moneyshift.encodings.TensorBuffer buffer) {
+        this(new org.teamvan.moneyshift.encodings.TensorData(shape, names, buffer));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.TensorData";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

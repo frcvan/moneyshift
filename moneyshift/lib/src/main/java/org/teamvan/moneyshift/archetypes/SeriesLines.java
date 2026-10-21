@@ -191,6 +191,15 @@ public record SeriesLines(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
+        }
+
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
             return withColors(java.util.List.of(value));
         }
@@ -198,6 +207,15 @@ public record SeriesLines(
         public Builder withWidths(java.util.List<org.teamvan.moneyshift.components.StrokeWidth> value) {
             this.widths = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withWidths(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.StrokeWidth> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.StrokeWidth(v));
+            }
+            return withWidths(values);
         }
 
         public Builder withWidths(org.teamvan.moneyshift.components.StrokeWidth... value) {
@@ -209,6 +227,15 @@ public record SeriesLines(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withNames(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Name> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Name(v));
+            }
+            return withNames(values);
+        }
+
         public Builder withNames(org.teamvan.moneyshift.components.Name... value) {
             return withNames(java.util.List.of(value));
         }
@@ -216,6 +243,15 @@ public record SeriesLines(
         public Builder withVisibleSeries(java.util.List<org.teamvan.moneyshift.components.Visible> value) {
             this.visibleSeries = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisibleSeries(boolean... value) {
+            java.util.List<org.teamvan.moneyshift.components.Visible> values = new java.util.ArrayList<>(value.length);
+            for (boolean v : value) {
+                values.add(new org.teamvan.moneyshift.components.Visible(v));
+            }
+            return withVisibleSeries(values);
         }
 
         public Builder withVisibleSeries(org.teamvan.moneyshift.components.Visible... value) {

@@ -34,6 +34,12 @@ public record VisualizerComponentMapping(
         java.util.Objects.requireNonNull(target, "target");
         java.util.Objects.requireNonNull(sourceKind, "sourceKind");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public VisualizerComponentMapping(java.lang.String target, org.teamvan.moneyshift.blueprint.encodings.ComponentSourceKind sourceKind, java.lang.String sourceComponent, java.lang.String selector) {
+        this(new org.teamvan.moneyshift.encodings.Utf8(target), sourceKind, sourceComponent, selector);
+    }
+
     public static final java.lang.String NAME = "rerun.blueprint.encodings.VisualizerComponentMapping";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

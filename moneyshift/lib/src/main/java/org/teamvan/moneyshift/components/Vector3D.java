@@ -10,6 +10,12 @@ public record Vector3D(
     public Vector3D {
         java.util.Objects.requireNonNull(vector, "vector");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Vector3D(float[] xyz) {
+        this(new org.teamvan.moneyshift.encodings.Vec3D(xyz));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Vector3D";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

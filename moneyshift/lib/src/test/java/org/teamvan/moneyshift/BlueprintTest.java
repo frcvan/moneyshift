@@ -9,9 +9,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import org.teamvan.moneyshift.blueprint.archetypes.ViewBlueprint;
-import org.teamvan.moneyshift.blueprint.components.ViewClass;
-import org.teamvan.moneyshift.components.Name;
-import org.teamvan.moneyshift.encodings.Utf8;
 import org.teamvan.moneyshift.proto.log_msg.v1alpha1.LogMsg;
 
 class BlueprintTest {
@@ -46,8 +43,8 @@ class BlueprintTest {
             blueprint.log(
                     "view/0",
                     ViewBlueprint.builder()
-                            .withClassIdentifier(new ViewClass(new Utf8("3D")))
-                            .withDisplayName(new Name(new Utf8("Main")))
+                            .withClassIdentifier("3D")
+                            .withDisplayName("Main")
                             .build());
             recording.activateBlueprint(blueprint, true, false);
         }

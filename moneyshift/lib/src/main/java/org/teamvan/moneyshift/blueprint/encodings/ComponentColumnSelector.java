@@ -21,6 +21,12 @@ public record ComponentColumnSelector(
         java.util.Objects.requireNonNull(entityPath, "entityPath");
         java.util.Objects.requireNonNull(component, "component");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public ComponentColumnSelector(java.lang.String entityPath, java.lang.String component) {
+        this(new org.teamvan.moneyshift.encodings.EntityPath(entityPath), new org.teamvan.moneyshift.encodings.Utf8(component));
+    }
+
     public static final java.lang.String NAME = "rerun.blueprint.encodings.ComponentColumnSelector";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

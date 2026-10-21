@@ -16,6 +16,12 @@ public record IsKeyframe(
     public IsKeyframe {
         java.util.Objects.requireNonNull(isKeyframe, "isKeyframe");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public IsKeyframe(boolean value) {
+        this(new org.teamvan.moneyshift.encodings.Bool(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.IsKeyframe";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

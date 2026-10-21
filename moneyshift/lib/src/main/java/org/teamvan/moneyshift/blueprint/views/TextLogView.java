@@ -39,6 +39,11 @@ public record TextLogView(
             return this;
         }
 
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withRows(org.teamvan.moneyshift.components.TextLogLevel... value) {
+            return withRows(new org.teamvan.moneyshift.blueprint.archetypes.TextLogRows(java.util.List.of(value)));
+        }
+
         public Builder withFormatOptions(org.teamvan.moneyshift.blueprint.archetypes.TextLogFormat value) {
             this.formatOptions = value;
             return this;

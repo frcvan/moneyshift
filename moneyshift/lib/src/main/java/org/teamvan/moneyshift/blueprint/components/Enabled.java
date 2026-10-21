@@ -10,6 +10,12 @@ public record Enabled(
     public Enabled {
         java.util.Objects.requireNonNull(visible, "visible");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public Enabled(boolean value) {
+        this(new org.teamvan.moneyshift.encodings.Bool(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.Enabled";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

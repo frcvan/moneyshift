@@ -206,9 +206,23 @@ public record ContainerBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withDisplayName(java.lang.String value) {
+            return withDisplayName(new org.teamvan.moneyshift.components.Name(value));
+        }
+
         public Builder withContents(java.util.List<org.teamvan.moneyshift.blueprint.components.IncludedContent> value) {
             this.contents = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withContents(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.IncludedContent> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.IncludedContent(v));
+            }
+            return withContents(values);
         }
 
         public Builder withContents(org.teamvan.moneyshift.blueprint.components.IncludedContent... value) {
@@ -220,6 +234,15 @@ public record ContainerBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withColShares(float... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.ColumnShare> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.ColumnShare(v));
+            }
+            return withColShares(values);
+        }
+
         public Builder withColShares(org.teamvan.moneyshift.blueprint.components.ColumnShare... value) {
             return withColShares(java.util.List.of(value));
         }
@@ -227,6 +250,15 @@ public record ContainerBlueprint(
         public Builder withRowShares(java.util.List<org.teamvan.moneyshift.blueprint.components.RowShare> value) {
             this.rowShares = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRowShares(float... value) {
+            java.util.List<org.teamvan.moneyshift.blueprint.components.RowShare> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.blueprint.components.RowShare(v));
+            }
+            return withRowShares(values);
         }
 
         public Builder withRowShares(org.teamvan.moneyshift.blueprint.components.RowShare... value) {
@@ -238,14 +270,29 @@ public record ContainerBlueprint(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withActiveTab(java.lang.String value) {
+            return withActiveTab(new org.teamvan.moneyshift.blueprint.components.ActiveTab(value));
+        }
+
         public Builder withVisible(org.teamvan.moneyshift.components.Visible value) {
             this.visible = value;
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withVisible(boolean value) {
+            return withVisible(new org.teamvan.moneyshift.components.Visible(value));
+        }
+
         public Builder withGridColumns(org.teamvan.moneyshift.blueprint.components.GridColumns value) {
             this.gridColumns = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withGridColumns(long value) {
+            return withGridColumns(new org.teamvan.moneyshift.blueprint.components.GridColumns(value));
         }
 
         public ContainerBlueprint build() {

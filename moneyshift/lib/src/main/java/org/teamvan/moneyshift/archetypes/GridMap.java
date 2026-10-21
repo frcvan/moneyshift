@@ -240,6 +240,11 @@ public record GridMap(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withCellSize(float value) {
+            return withCellSize(new org.teamvan.moneyshift.components.CellSize(value));
+        }
+
         public Builder withTranslation(org.teamvan.moneyshift.components.Translation3D value) {
             this.translation = value;
             return this;
@@ -260,9 +265,19 @@ public record GridMap(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withOpacity(float value) {
+            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
+        }
+
         public Builder withDrawOrder(org.teamvan.moneyshift.components.DrawOrder value) {
             this.drawOrder = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withDrawOrder(float value) {
+            return withDrawOrder(new org.teamvan.moneyshift.components.DrawOrder(value));
         }
 
         public Builder withColormap(org.teamvan.moneyshift.components.Colormap value) {

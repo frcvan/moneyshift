@@ -18,6 +18,12 @@ public record Utf8Pair(
         java.util.Objects.requireNonNull(first, "first");
         java.util.Objects.requireNonNull(second, "second");
     }
+
+    /** Creates a value from unwrapped fields, without encoding records. */
+    public Utf8Pair(java.lang.String first, java.lang.String second) {
+        this(new org.teamvan.moneyshift.encodings.Utf8(first), new org.teamvan.moneyshift.encodings.Utf8(second));
+    }
+
     public static final java.lang.String NAME = "rerun.encodings.Utf8Pair";
 
     public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {

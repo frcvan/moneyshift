@@ -226,6 +226,15 @@ public record Points3D(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withRadii(float... value) {
+            java.util.List<org.teamvan.moneyshift.components.Radius> values = new java.util.ArrayList<>(value.length);
+            for (float v : value) {
+                values.add(new org.teamvan.moneyshift.components.Radius(v));
+            }
+            return withRadii(values);
+        }
+
         public Builder withRadii(org.teamvan.moneyshift.components.Radius... value) {
             return withRadii(java.util.List.of(value));
         }
@@ -233,6 +242,15 @@ public record Points3D(
         public Builder withColors(java.util.List<org.teamvan.moneyshift.components.Color> value) {
             this.colors = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withColors(long... value) {
+            java.util.List<org.teamvan.moneyshift.components.Color> values = new java.util.ArrayList<>(value.length);
+            for (long v : value) {
+                values.add(new org.teamvan.moneyshift.components.Color(v));
+            }
+            return withColors(values);
         }
 
         public Builder withColors(org.teamvan.moneyshift.components.Color... value) {
@@ -244,6 +262,15 @@ public record Points3D(
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withLabels(java.lang.String... value) {
+            java.util.List<org.teamvan.moneyshift.components.Text> values = new java.util.ArrayList<>(value.length);
+            for (java.lang.String v : value) {
+                values.add(new org.teamvan.moneyshift.components.Text(v));
+            }
+            return withLabels(values);
+        }
+
         public Builder withLabels(org.teamvan.moneyshift.components.Text... value) {
             return withLabels(java.util.List.of(value));
         }
@@ -251,6 +278,11 @@ public record Points3D(
         public Builder withShowLabels(org.teamvan.moneyshift.components.ShowLabels value) {
             this.showLabels = value;
             return this;
+        }
+
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withShowLabels(boolean value) {
+            return withShowLabels(new org.teamvan.moneyshift.components.ShowLabels(value));
         }
 
         public Builder withPointShading(org.teamvan.moneyshift.components.PointShading value) {
@@ -263,6 +295,15 @@ public record Points3D(
             return this;
         }
 
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withClassIds(int... value) {
+            java.util.List<org.teamvan.moneyshift.components.ClassId> values = new java.util.ArrayList<>(value.length);
+            for (int v : value) {
+                values.add(new org.teamvan.moneyshift.components.ClassId(v));
+            }
+            return withClassIds(values);
+        }
+
         public Builder withClassIds(org.teamvan.moneyshift.components.ClassId... value) {
             return withClassIds(java.util.List.of(value));
         }
@@ -270,6 +311,15 @@ public record Points3D(
         public Builder withKeypointIds(java.util.List<org.teamvan.moneyshift.components.KeypointId> value) {
             this.keypointIds = java.util.List.copyOf(value);
             return this;
+        }
+
+        /** Overload that takes the {@code int} value(s) directly. */
+        public Builder withKeypointIds(int... value) {
+            java.util.List<org.teamvan.moneyshift.components.KeypointId> values = new java.util.ArrayList<>(value.length);
+            for (int v : value) {
+                values.add(new org.teamvan.moneyshift.components.KeypointId(v));
+            }
+            return withKeypointIds(values);
         }
 
         public Builder withKeypointIds(org.teamvan.moneyshift.components.KeypointId... value) {

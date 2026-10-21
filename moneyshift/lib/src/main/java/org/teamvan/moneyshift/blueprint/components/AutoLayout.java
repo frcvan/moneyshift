@@ -10,6 +10,12 @@ public record AutoLayout(
     public AutoLayout {
         java.util.Objects.requireNonNull(autoLayout, "autoLayout");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public AutoLayout(boolean value) {
+        this(new org.teamvan.moneyshift.encodings.Bool(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.blueprint.components.AutoLayout";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

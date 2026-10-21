@@ -209,14 +209,29 @@ public record EyeControls3D(
             return this;
         }
 
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withSpeed(double value) {
+            return withSpeed(new org.teamvan.moneyshift.components.LinearSpeed(value));
+        }
+
         public Builder withTrackingEntity(org.teamvan.moneyshift.components.EntityPath value) {
             this.trackingEntity = value;
             return this;
         }
 
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withTrackingEntity(java.lang.String value) {
+            return withTrackingEntity(new org.teamvan.moneyshift.components.EntityPath(value));
+        }
+
         public Builder withSpinSpeed(org.teamvan.moneyshift.blueprint.components.AngularSpeed value) {
             this.spinSpeed = value;
             return this;
+        }
+
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withSpinSpeed(double value) {
+            return withSpinSpeed(new org.teamvan.moneyshift.blueprint.components.AngularSpeed(value));
         }
 
         public EyeControls3D build() {

@@ -95,14 +95,29 @@ public record ForceLink(
             return this;
         }
 
+        /** Overload that takes the {@code boolean} value(s) directly. */
+        public Builder withEnabled(boolean value) {
+            return withEnabled(new org.teamvan.moneyshift.blueprint.components.Enabled(value));
+        }
+
         public Builder withDistance(org.teamvan.moneyshift.blueprint.components.ForceDistance value) {
             this.distance = value;
             return this;
         }
 
+        /** Overload that takes the {@code double} value(s) directly. */
+        public Builder withDistance(double value) {
+            return withDistance(new org.teamvan.moneyshift.blueprint.components.ForceDistance(value));
+        }
+
         public Builder withIterations(org.teamvan.moneyshift.blueprint.components.ForceIterations value) {
             this.iterations = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withIterations(long value) {
+            return withIterations(new org.teamvan.moneyshift.blueprint.components.ForceIterations(value));
         }
 
         public ForceLink build() {

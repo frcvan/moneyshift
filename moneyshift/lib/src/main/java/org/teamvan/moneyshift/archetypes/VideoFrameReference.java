@@ -149,9 +149,19 @@ public record VideoFrameReference(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withTimestamp(long value) {
+            return withTimestamp(new org.teamvan.moneyshift.components.VideoTimestamp(value));
+        }
+
         public Builder withVideoReference(org.teamvan.moneyshift.components.EntityPath value) {
             this.videoReference = value;
             return this;
+        }
+
+        /** Overload that takes the {@code java.lang.String} value(s) directly. */
+        public Builder withVideoReference(java.lang.String value) {
+            return withVideoReference(new org.teamvan.moneyshift.components.EntityPath(value));
         }
 
         public Builder withOpacity(org.teamvan.moneyshift.components.Opacity value) {
@@ -159,9 +169,19 @@ public record VideoFrameReference(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withOpacity(float value) {
+            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
+        }
+
         public Builder withDrawOrder(org.teamvan.moneyshift.components.DrawOrder value) {
             this.drawOrder = value;
             return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withDrawOrder(float value) {
+            return withDrawOrder(new org.teamvan.moneyshift.components.DrawOrder(value));
         }
 
         public VideoFrameReference build() {

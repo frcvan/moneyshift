@@ -19,6 +19,12 @@ public record SphericalHarmonicsDegree(
     public SphericalHarmonicsDegree {
         java.util.Objects.requireNonNull(degree, "degree");
     }
+
+    /** Creates a value from unwrapped fields, skipping the encoding record. */
+    public SphericalHarmonicsDegree(long value) {
+        this(new org.teamvan.moneyshift.encodings.UInt32(value));
+    }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.SphericalHarmonicsDegree";
     public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 

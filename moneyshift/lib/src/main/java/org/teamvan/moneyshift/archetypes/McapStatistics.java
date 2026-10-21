@@ -221,9 +221,19 @@ public record McapStatistics(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withMessageCount(long value) {
+            return withMessageCount(new org.teamvan.moneyshift.components.Count(value));
+        }
+
         public Builder withSchemaCount(org.teamvan.moneyshift.components.Count value) {
             this.schemaCount = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withSchemaCount(long value) {
+            return withSchemaCount(new org.teamvan.moneyshift.components.Count(value));
         }
 
         public Builder withChannelCount(org.teamvan.moneyshift.components.Count value) {
@@ -231,9 +241,19 @@ public record McapStatistics(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withChannelCount(long value) {
+            return withChannelCount(new org.teamvan.moneyshift.components.Count(value));
+        }
+
         public Builder withAttachmentCount(org.teamvan.moneyshift.components.Count value) {
             this.attachmentCount = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withAttachmentCount(long value) {
+            return withAttachmentCount(new org.teamvan.moneyshift.components.Count(value));
         }
 
         public Builder withMetadataCount(org.teamvan.moneyshift.components.Count value) {
@@ -241,9 +261,19 @@ public record McapStatistics(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withMetadataCount(long value) {
+            return withMetadataCount(new org.teamvan.moneyshift.components.Count(value));
+        }
+
         public Builder withChunkCount(org.teamvan.moneyshift.components.Count value) {
             this.chunkCount = value;
             return this;
+        }
+
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withChunkCount(long value) {
+            return withChunkCount(new org.teamvan.moneyshift.components.Count(value));
         }
 
         public Builder withMessageStartTime(org.teamvan.moneyshift.components.Timestamp value) {
@@ -251,14 +281,29 @@ public record McapStatistics(
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withMessageStartTime(long value) {
+            return withMessageStartTime(new org.teamvan.moneyshift.components.Timestamp(value));
+        }
+
         public Builder withMessageEndTime(org.teamvan.moneyshift.components.Timestamp value) {
             this.messageEndTime = value;
             return this;
         }
 
+        /** Overload that takes the {@code long} value(s) directly. */
+        public Builder withMessageEndTime(long value) {
+            return withMessageEndTime(new org.teamvan.moneyshift.components.Timestamp(value));
+        }
+
         public Builder withChannelMessageCounts(org.teamvan.moneyshift.components.ChannelMessageCounts value) {
             this.channelMessageCounts = value;
             return this;
+        }
+
+        /** Overload that takes the elements of a single component directly. */
+        public Builder withChannelMessageCounts(org.teamvan.moneyshift.encodings.ChannelCountPair... value) {
+            return withChannelMessageCounts(new org.teamvan.moneyshift.components.ChannelMessageCounts(java.util.List.of(value)));
         }
 
         public McapStatistics build() {

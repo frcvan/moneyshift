@@ -113,6 +113,11 @@ public record TensorScalarMapping(
             return this;
         }
 
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withGamma(float value) {
+            return withGamma(new org.teamvan.moneyshift.components.GammaCorrection(value));
+        }
+
         public TensorScalarMapping build() {
             return new TensorScalarMapping(magFilter, colormap, gamma);
         }
