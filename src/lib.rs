@@ -11,12 +11,11 @@ use re_chunk::RowId;
 use re_log;
 use re_log_encoding::rrd::{Encoder, EncodingOptions};
 use re_log_types::{
-    ApplicationId, EntityPath, LogMsg, SetStoreInfo, StoreId, StoreInfo, StoreKind, StoreSource,
-    Timeline,
+    EntityPath, LogMsg, SetStoreInfo, StoreId, StoreInfo, StoreKind, StoreSource, Timeline,
 };
 use wasm_bindgen::prelude::*;
 
-use conv::log_changes_to_chunks;
+use conv::{ConversionOptions, log_changes_to_chunks_with_options};
 use log::{EntryLog, Timestamp};
 use wpilog::parse::{Payload, WpiLogFile, WpiRecord};
 
@@ -77,8 +76,12 @@ fn import_to_rrd(contents: &[u8]) -> anyhow::Result<Vec<u8>> {
     }
 
     let store_id = StoreId::random(StoreKind::Recording, "FIRSTrun");
-    let application_id = ApplicationId::random();
     let timeline = Timeline::new_duration("robotime");
+    let options = ConversionOptions {
+        recording_name: Some("FIRSTrun WPI log".into()),
+        view_coordinates: true,
+        ..ConversionOptions::default()
+    };
     let mut contexts = HashMap::new();
     let mut logger = EntryLog::new();
 
@@ -99,7 +102,7 @@ fn import_to_rrd(contents: &[u8]) -> anyhow::Result<Vec<u8>> {
         row_id: *RowId::new(),
         info: StoreInfo::new(store_id.clone(), StoreSource::Other("WpiLog".into())),
     }))?;
-    for chunk in log_changes_to_chunks(&store_id, &application_id, timeline, &mut logger) {
+    for chunk in log_changes_to_chunks_with_options(timeline, &mut logger, &options) {
         encoder.append(&LogMsg::ArrowMsg(store_id.clone(), chunk.to_arrow_msg()?))?;
     }
     encoder.finish()?;
@@ -119,5 +122,62 @@ mod tests {
     #[test]
     fn rejects_non_wpilog_data() {
         assert!(import_to_rrd(b"not a WPI log").is_err());
+    }
+
+    #[test]
+    fn imports_the_example_wpilog() {
+        let contents = include_bytes!("../test_data/FRC_TBD_d225b5377c70a88d.wpilog");
+        let rrd = import_to_rrd(contents).unwrap();
+        assert!(!rrd.is_empty());
+    }
+
+    #[test]
+    fn the_example_wpilog_contains_renderable_native_values() {
+        use crate::log::EntryLog;
+        use crate::wpilog::parse::WpiLogFile;
+        use hashbrown::HashMap;
+
+        let contents = include_bytes!("../test_data/FRC_TBD_d225b5377c70a88d.wpilog");
+        let mut contexts = HashMap::new();
+        let mut logger = EntryLog::new();
+        WpiLogFile::parse(contents, |record| {
+            super::fill_log(&mut contexts, &mut logger, record).unwrap();
+        })
+        .unwrap();
+
+        let chunks = crate::conv::log_changes_to_chunks_with_options(
+            re_log_types::Timeline::new_duration("robotime"),
+            &mut logger,
+            &crate::conv::ConversionOptions::default(),
+        );
+
+        let has_archetype = |entity: &str, archetype: &str| {
+            chunks.iter().any(|chunk| {
+                chunk.entity_path() == &re_log_types::EntityPath::from(entity)
+                    && chunk.component_descriptors().any(|descriptor| {
+                        descriptor
+                            .archetype
+                            .as_ref()
+                            .is_some_and(|name| name == archetype)
+                    })
+            })
+        };
+
+        assert!(has_archetype(
+            "AdvantageKit/RealOutputs/SomeSubsystem/ScalarEntity",
+            "rerun.archetypes.Scalars"
+        ));
+        assert!(has_archetype(
+            "AdvantageKit/RealOutputs/OtherSubsystem/Point3dEntity",
+            "rerun.archetypes.Points3D"
+        ));
+        assert!(has_archetype(
+            "AdvantageKit/RadioStatus/Status",
+            "rerun.archetypes.TextDocument"
+        ));
+        assert!(!chunks.iter().any(|chunk| {
+            let path = chunk.entity_path().to_string();
+            path.ends_with("/.type") || path.ends_with("/.components")
+        }));
     }
 }

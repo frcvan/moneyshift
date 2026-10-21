@@ -3,7 +3,8 @@ use std::{num::NonZero, sync::Arc};
 use ::anyhow::{Context, anyhow, bail};
 use arrow::{
     array::{
-        ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int64Array, StringArray,
+        ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array,
+        Int32Array, Int64Array, StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     compute::concat,
     datatypes::DataType,
@@ -80,13 +81,13 @@ impl EntryValue {
         let is_array = ty.strip_suffix("[]").map(|st| ty = st).is_some();
 
         Ok(match ty {
-            "raw" => Self::parse_datatype(data, is_array, DataType::Binary)?,
-            "boolean" => Self::parse_datatype(data, is_array, DataType::Boolean)?,
-            "int64" => Self::parse_datatype(data, is_array, DataType::Int64)?,
-            "float" => Self::parse_datatype(data, is_array, DataType::Float32)?,
-            "double" => Self::parse_datatype(data, is_array, DataType::Float64)?,
-            "string" => Self::parse_datatype(data, is_array, DataType::Utf8)?,
-            "json" => return Err(anyhow!("json not implemented").into()),
+            "raw" | "byte" | "bytes" => Self::parse_datatype(data, is_array, DataType::Binary)?,
+            "boolean" | "bool" => Self::parse_datatype(data, is_array, DataType::Boolean)?,
+            "int64" | "int" | "long" | "int32" | "int16" | "int8" | "uint64" | "uint32"
+            | "uint16" | "uint8" => Self::parse_datatype(data, is_array, DataType::Int64)?,
+            "float" | "float32" => Self::parse_datatype(data, is_array, DataType::Float32)?,
+            "double" | "float64" => Self::parse_datatype(data, is_array, DataType::Float64)?,
+            "string" | "json" => Self::parse_datatype(data, is_array, DataType::Utf8)?,
             "structschema" => {
                 let s = WpiLibStructSchema::parse(data)?;
 
@@ -95,15 +96,17 @@ impl EntryValue {
                 Self::StructSchema(s)
             }
             s => {
-                if s.starts_with("struct:") {
-                    let resolved = struct_map
-                        .get(s)
-                        .ok_or_else(|| EntryValueParseError::StructNotFound(ty.into()))
-                        .and_then(|s| {
-                            s.resolve(struct_map)
-                                .map_err(|s| EntryValueParseError::StructNotFound(s))
-                        })?;
+                let bare = s.strip_prefix("struct:").unwrap_or(s);
+                let prefixed = format!("struct:{s}");
+                let schema = struct_map
+                    .get(s)
+                    .or_else(|| struct_map.get(bare))
+                    .or_else(|| struct_map.get(&prefixed));
 
+                if let Some(schema) = schema {
+                    let resolved = schema
+                        .resolve(struct_map)
+                        .map_err(|s| EntryValueParseError::StructNotFound(s))?;
                     Self::parse_from_struct(data, resolved, is_array)?
                 } else {
                     return Err(
@@ -120,29 +123,76 @@ impl EntryValue {
         ty: DataType,
     ) -> Result<EntryValue, EntryValueParseError> {
         if is_array {
-            let size = Self::datatype_size(ty.clone())
-                .ok_or_else(|| anyhow!("datatype {ty} cannot be used as an array"))?;
-            let chunks = data.chunks_exact(size);
-            if !chunks.remainder().is_empty() {
-                return Err(anyhow!(
-                    "array payload has {} trailing bytes for {ty}",
-                    chunks.remainder().len()
-                )
-                .into());
+            if data.is_empty() {
+                return Ok(EntryValue::Arrow(arrow::array::new_empty_array(&ty)));
             }
-            let arrays = data
-                .chunks_exact(size)
-                .map(|d| Self::parse_datatype_single(d, ty.clone()))
-                .collect::<Result<_, _>>()?;
-            let arrays: Vec<ArrayRef> = arrays;
-            let arrays = arrays.iter().map(|array| &**array).collect::<Vec<_>>();
-            Ok(EntryValue::Arrow(
-                concat(&arrays).map_err(anyhow::Error::from)?,
-            ))
+
+            match ty {
+                // WPILog's `string[]` and `raw[]` are encoded as a u32 count followed
+                // by length-prefixed values rather than fixed-width elements.
+                DataType::Utf8 | DataType::Binary => {
+                    let (count, mut rest) = Self::read_u32_prefix(data)?;
+                    let mut values = Vec::with_capacity(count as usize);
+                    for _ in 0..count {
+                        let (len, tail) = Self::read_u32_prefix(rest)?;
+                        let Some((value, tail)) = tail.split_at_checked(len as usize) else {
+                            return Err(anyhow!("truncated length-prefixed array element").into());
+                        };
+                        values.push(value);
+                        rest = tail;
+                    }
+                    if !rest.is_empty() {
+                        return Err(
+                            anyhow!("array payload has {} trailing bytes", rest.len()).into()
+                        );
+                    }
+                    if ty == DataType::Utf8 {
+                        Ok(EntryValue::Arrow(Arc::new(StringArray::from_iter_values(
+                            values
+                                .into_iter()
+                                .map(|value| String::from_utf8_lossy(value)),
+                        ))))
+                    } else {
+                        Ok(EntryValue::Arrow(Arc::new(BinaryArray::from_iter_values(
+                            values,
+                        ))))
+                    }
+                }
+                ty => {
+                    let size = Self::datatype_size(ty.clone())
+                        .ok_or_else(|| anyhow!("datatype {ty} cannot be used as an array"))?;
+                    let chunks = data.chunks_exact(size);
+                    if !chunks.remainder().is_empty() {
+                        return Err(anyhow!(
+                            "array payload has {} trailing bytes for {ty}",
+                            chunks.remainder().len()
+                        )
+                        .into());
+                    }
+                    let arrays = data
+                        .chunks_exact(size)
+                        .map(|d| Self::parse_datatype_single(d, ty.clone()))
+                        .collect::<Result<_, _>>()?;
+                    let arrays: Vec<ArrayRef> = arrays;
+                    let arrays = arrays.iter().map(|array| &**array).collect::<Vec<_>>();
+                    Ok(EntryValue::Arrow(
+                        concat(&arrays).map_err(anyhow::Error::from)?,
+                    ))
+                }
+            }
         } else {
             let array = Self::parse_datatype_single(data, ty)?;
             Ok(EntryValue::Arrow(array))
         }
+    }
+
+    fn read_u32_prefix(data: &[u8]) -> Result<(u32, &[u8]), anyhow::Error> {
+        let bytes: [u8; 4] = data
+            .get(0..4)
+            .with_context(|| anyhow!("not enough data for a u32 length prefix"))?
+            .try_into()
+            .map_err(|_| anyhow!("not enough data for a u32 length prefix"))?;
+        Ok((u32::from_le_bytes(bytes), &data[4..]))
     }
 
     // Returns the size of the datatype in the datalog spec.
@@ -152,9 +202,10 @@ impl EntryValue {
     fn datatype_size(ty: DataType) -> Option<usize> {
         match ty {
             DataType::Binary | DataType::Utf8 => None,
-            DataType::Boolean => Some(1),
-            DataType::Float32 => Some(4),
-            DataType::Int64 | DataType::Float64 => Some(8),
+            DataType::Boolean | DataType::Int8 | DataType::UInt8 => Some(1),
+            DataType::Int16 | DataType::UInt16 => Some(2),
+            DataType::Int32 | DataType::UInt32 | DataType::Float32 => Some(4),
+            DataType::Int64 | DataType::UInt64 | DataType::Float64 => Some(8),
             _ => None,
         }
     }
@@ -167,12 +218,57 @@ impl EntryValue {
             DataType::Boolean => {
                 Arc::new(BooleanArray::from_iter(data.first().map(|&b| Some(b != 0))))
             }
-            // 8-byte (64-bit) signed value
+            // Fixed-width signed/unsigned integers.
+            DataType::Int8 => data
+                .first()
+                .map(|&v| Arc::new(Int8Array::from_iter_values([v as i8])) as ArrayRef)
+                .with_context(|| anyhow!("not enough data for int8"))?,
+            DataType::Int16 => data
+                .get(0..2)
+                .with_context(|| anyhow!("not enough data for int16"))?
+                .try_into()
+                .map(|b| {
+                    Arc::new(Int16Array::from_iter_values([i16::from_le_bytes(b)])) as ArrayRef
+                })?,
+            DataType::Int32 => data
+                .get(0..4)
+                .with_context(|| anyhow!("not enough data for int32"))?
+                .try_into()
+                .map(|b| {
+                    Arc::new(Int32Array::from_iter_values([i32::from_le_bytes(b)])) as ArrayRef
+                })?,
             DataType::Int64 => data
                 .get(0..8)
                 .with_context(|| anyhow!("not enough data for int64"))?
                 .try_into()
-                .map(|b| Arc::new(Int64Array::from_iter_values([i64::from_le_bytes(b)])))?,
+                .map(|b| {
+                    Arc::new(Int64Array::from_iter_values([i64::from_le_bytes(b)])) as ArrayRef
+                })?,
+            DataType::UInt8 => data
+                .first()
+                .map(|&v| Arc::new(UInt8Array::from_iter_values([v])) as ArrayRef)
+                .with_context(|| anyhow!("not enough data for uint8"))?,
+            DataType::UInt16 => data
+                .get(0..2)
+                .with_context(|| anyhow!("not enough data for uint16"))?
+                .try_into()
+                .map(|b| {
+                    Arc::new(UInt16Array::from_iter_values([u16::from_le_bytes(b)])) as ArrayRef
+                })?,
+            DataType::UInt32 => data
+                .get(0..4)
+                .with_context(|| anyhow!("not enough data for uint32"))?
+                .try_into()
+                .map(|b| {
+                    Arc::new(UInt32Array::from_iter_values([u32::from_le_bytes(b)])) as ArrayRef
+                })?,
+            DataType::UInt64 => data
+                .get(0..8)
+                .with_context(|| anyhow!("not enough data for uint64"))?
+                .try_into()
+                .map(|b| {
+                    Arc::new(UInt64Array::from_iter_values([u64::from_le_bytes(b)])) as ArrayRef
+                })?,
             // 4-byte (32-bit) IEEE-754 value
             DataType::Float32 => data
                 .get(0..4)
@@ -280,7 +376,51 @@ impl EntryValue {
 mod tests {
     use super::EntryValue;
     use hashbrown::HashMap;
-    use rerun::external::arrow::array::{Float64Array, Int64Array};
+    use rerun::external::arrow::array::{Array, Float64Array, Int64Array};
+
+    #[test]
+    fn parses_string_arrays_with_length_prefixes() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&2u32.to_le_bytes());
+        payload.extend_from_slice(&3u32.to_le_bytes());
+        payload.extend_from_slice(b"one");
+        payload.extend_from_slice(&3u32.to_le_bytes());
+        payload.extend_from_slice(b"two");
+
+        let value = EntryValue::parse_from_wpilog("string[]", &payload, &HashMap::new()).unwrap();
+        let EntryValue::Arrow(value) = value else {
+            panic!("expected one Arrow array");
+        };
+        let values = value
+            .as_any()
+            .downcast_ref::<rerun::external::arrow::array::StringArray>()
+            .unwrap();
+        assert_eq!(values.value(0), "one");
+        assert_eq!(values.value(1), "two");
+    }
+
+    #[test]
+    fn parses_empty_primitive_arrays() {
+        let value = EntryValue::parse_from_wpilog("double[]", &[], &HashMap::new()).unwrap();
+        let EntryValue::Arrow(value) = value else {
+            panic!("expected one Arrow array");
+        };
+        assert_eq!(value.len(), 0);
+    }
+
+    #[test]
+    fn parses_json_as_text() {
+        let value =
+            EntryValue::parse_from_wpilog("json", br#"{"ok":true}"#, &HashMap::new()).unwrap();
+        let EntryValue::Arrow(value) = value else {
+            panic!("expected one Arrow array");
+        };
+        let values = value
+            .as_any()
+            .downcast_ref::<rerun::external::arrow::array::StringArray>()
+            .unwrap();
+        assert_eq!(values.value(0), r#"{"ok":true}"#);
+    }
 
     #[test]
     fn parses_fixed_width_arrays_without_overlapping_elements() {

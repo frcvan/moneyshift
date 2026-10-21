@@ -34,6 +34,11 @@ impl TryInto<TimeInt> for Timestamp {
 
 pub struct EntryLog {
     entries: IntMap<EntityPath, BTreeMap<Timestamp, ArrayRef>>,
+    /// The WPILog type string for entries that were logged through [`EntryLog::add_entry`].
+    ///
+    /// This is what tells us whether a value is a plain primitive, an array, or one of
+    /// WPILib's native structs (e.g. `struct:Pose2d[]`).
+    types: IntMap<EntityPath, String>,
     changed: BTreeSet<(Timestamp, EntityPath)>,
     struct_map: HashMap<String, WpiLibStructSchema<UnresolvedWpiLibStructType>>,
     pub queued_structs: HashMap<String, Vec<(EntityPath, Timestamp, String, Vec<u8>)>>,
@@ -48,12 +53,32 @@ impl Default for EntryLog {
 impl EntryLog {
     #[must_use]
     pub fn new() -> Self {
+        let struct_map = WpiLibStructSchema::builtin_wpilib_schemas()
+            .into_iter()
+            .map(|(name, schema)| (name.to_owned(), schema))
+            .collect();
+
         Self {
             entries: IntMap::default(),
+            types: IntMap::default(),
             changed: BTreeSet::new(),
-            struct_map: HashMap::new(),
+            struct_map,
             queued_structs: HashMap::new(),
         }
+    }
+
+    /// The raw WPILog type of an entry, if it was added through [`Self::add_entry`].
+    #[must_use]
+    pub fn type_of(&self, key: &EntityPath) -> Option<&str> {
+        self.types.get(key).map(String::as_str)
+    }
+
+    #[must_use]
+    pub fn struct_schema(
+        &self,
+        name: &str,
+    ) -> Option<&WpiLibStructSchema<UnresolvedWpiLibStructType>> {
+        self.struct_map.get(name)
     }
 
     pub fn add_struct(
@@ -61,7 +86,17 @@ impl EntryLog {
         name: impl Into<String>,
         s: WpiLibStructSchema<UnresolvedWpiLibStructType>,
     ) {
-        self.struct_map.insert(name.into(), s);
+        let name = name.into();
+        let bare = name.strip_prefix("struct:").unwrap_or(&name).to_owned();
+        let prefixed = if name.starts_with("struct:") {
+            name.clone()
+        } else {
+            format!("struct:{name}")
+        };
+
+        self.struct_map.insert(name, s.clone());
+        self.struct_map.insert(bare, s.clone());
+        self.struct_map.insert(prefixed, s);
     }
 
     pub fn add_entry(
@@ -71,11 +106,16 @@ impl EntryLog {
         ty: &str,
         value: &[u8],
     ) -> Result<(), anyhow::Error> {
+        self.types.insert(key.clone(), ty.to_owned());
+
         match EntryValue::parse_from_wpilog(ty, value, &self.struct_map) {
             Ok(v) => self.add_entryvalue(key, timestamp, v),
             Err(EntryValueParseError::StructNotFound(s)) => {
                 re_log::info!("struct not found: {s} for key {key} at {}", timestamp.0);
-                self.queued_structs.entry(s).or_default().push((
+                // Queue under the bare name so it matches a later `.schema/struct:Name`
+                // entry regardless of whether the producer used the `struct:` prefix.
+                let queued_name = s.strip_prefix("struct:").unwrap_or(&s).to_owned();
+                self.queued_structs.entry(queued_name).or_default().push((
                     key,
                     timestamp,
                     ty.into(),
@@ -107,10 +147,14 @@ impl EntryLog {
 
                 re_log::info!("new struct schema {name} at {}", timestamp.0);
 
-                if let Some(queued) = self.queued_structs.remove(name) {
-                    for (key, timestamp, ty, data) in queued {
-                        re_log::info!("unqueued struct {name} for {key} at {}", timestamp.0);
-                        self.add_entry(key, timestamp, &ty, &data)?;
+                let bare = name.strip_prefix("struct:").unwrap_or(name).to_owned();
+                let prefixed = format!("struct:{name}");
+                for candidate in [name.to_owned(), bare, prefixed] {
+                    if let Some(queued) = self.queued_structs.remove(&candidate) {
+                        for (key, timestamp, ty, data) in queued {
+                            re_log::info!("unqueued struct {name} for {key} at {}", timestamp.0);
+                            self.add_entry(key, timestamp, &ty, &data)?;
+                        }
                     }
                 }
             }
@@ -129,7 +173,15 @@ impl EntryLog {
                 self.handle_array(&key, timestamp, m.into_iter().map(EntryValue::Map))?;
             }
             EntryValue::ArrayArrow(a) => {
-                self.handle_array(&key, timestamp, a.into_iter().map(EntryValue::Arrow))?;
+                // Keep primitive arrays as a single entry. Rerun components such as
+                // `Scalars` can represent many values at one timestamp, and this keeps
+                // the original shape of the logging data intact.
+                if a.is_empty() {
+                    return Ok(());
+                }
+                let arrays = a.iter().map(|array| &**array).collect::<Vec<_>>();
+                let array = arrow::compute::concat(&arrays)?;
+                self.add_entryvalue(key, timestamp, EntryValue::Arrow(array))?;
             }
         }
 
@@ -181,6 +233,21 @@ impl EntryLog {
     pub fn get_latest_entry(&self, key: &EntityPath) -> Option<(&Timestamp, &ArrayRef)> {
         self.entries.get(key).and_then(BTreeMap::last_key_value)
     }
+
+    /// Returns the latest value at or before `time`, for a path built from `root` and `parts`.
+    #[must_use]
+    pub fn get_latest_at(
+        &self,
+        root: &EntityPath,
+        parts: &[&str],
+        time: Timestamp,
+    ) -> Option<(&Timestamp, &ArrayRef)> {
+        let mut path = root.clone();
+        for part in parts {
+            path = path.join(&EntityPath::from_file_path(Path::new(part)));
+        }
+        self.get_latest_from(&path, time)
+    }
     #[must_use]
     pub fn get_latest_from(
         &self,
@@ -199,7 +266,7 @@ mod tests {
     use crate::values::parse::wpistruct::WpiLibStructSchema;
     use rerun::{
         EntityPath,
-        external::arrow::array::{Float64Array, Int64Array},
+        external::arrow::array::{Float64Array, Int64Array, StringArray},
     };
 
     #[test]
@@ -218,6 +285,23 @@ mod tests {
         assert_eq!(changed[0].0, key);
         let values = changed[0].2.as_any().downcast_ref::<Int64Array>().unwrap();
         assert_eq!(values.values(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn keeps_primitive_value_arrays_at_their_root() {
+        let mut log = EntryLog::new();
+        let key = EntityPath::from_single_string("values");
+        let payload = [
+            0x01, 0x00, 0x00, 0x00, // count
+            0x06, 0x00, 0x00, 0x00, b'S', b'c', b'a', b'l', b'a', b'r',
+        ];
+
+        log.add_entry(key.clone(), Timestamp(42), "string[]", &payload)
+            .unwrap();
+
+        let (_, value) = log.get_latest_entry(&key).unwrap();
+        let values = value.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(values.value(0), "Scalar");
     }
 
     #[test]

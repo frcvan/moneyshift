@@ -13,14 +13,14 @@ pub mod wpilog;
 
 use std::{path::Path, time::Duration};
 
-use conv::log_changes_to_chunks;
+use conv::{ConversionOptions, log_changes_to_chunks_with_options};
 use hashbrown::HashMap;
 
 use log::{EntryLog, Timestamp};
 use rerun::external::anyhow::Context;
 use rerun::external::re_log_types::{SetStoreInfo, StoreInfo, StoreSource};
 use rerun::{
-    ApplicationId, EntityPath, ImportedData, Importer, ImporterError, ImporterSettings, Timeline,
+    EntityPath, ImportedData, Importer, ImporterError, ImporterSettings, Timeline,
     external::{re_build_info, re_importer, re_log},
     log::{LogMsg, RowId},
 };
@@ -111,10 +111,10 @@ impl Importer for WpiLogLoader {
         path: std::path::PathBuf,
         tx: crossbeam::channel::Sender<ImportedData>,
     ) -> Result<(), ImporterError> {
-        let contents = std::fs::read(&path)?;
         if path.is_dir() {
             return Err(ImporterError::Incompatible(path));
         }
+        let contents = std::fs::read(&path)?;
         parse_and_log(settings, &tx, &path, &contents)
     }
 
@@ -195,7 +195,10 @@ fn fill_log<'file>(
 
             handle_data(ctx.ty, record.timestamp, key, data, nt_ctx);
         }
-        _ => (),
+        Payload::Finish { entry_id } => {
+            ctxs.remove(&entry_id);
+        }
+        Payload::SetMetadata { .. } => {}
     }
 }
 
@@ -219,46 +222,50 @@ fn parse_and_log(
         }),
     ));
 
+    // WPILog timestamps are microseconds since the robot program started, not wall-clock
+    // timestamps, so `robotime` is always a duration timeline.
     let timeline = Timeline::new_duration("robotime");
+    let recording_name = filepath
+        .file_stem()
+        .map(|name| name.to_string_lossy().into_owned());
+    let options = ConversionOptions {
+        entity_path_prefix: settings.entity_path_prefix.clone(),
+        timepoint: settings.timepoint.clone(),
+        timestamp_offset_ns: settings.timestamp_offset_ns,
+        recording_name,
+        view_coordinates: true,
+    };
 
     let contents = contents.to_vec();
     let tx = tx.clone();
-    let settings = settings.clone();
     std::thread::Builder::new()
         .name("WpiLogFile::parse".into())
         .spawn(move || {
             let tx = tx;
-            let settings = settings;
             let contents = contents;
 
             {
                 let mut ctxs = HashMap::new();
                 let mut nt_ctx = EntryLog::new();
 
-                let (_, _log) = WpiLogFile::parse(contents.as_slice(), |record| {
+                if let Err(error) = WpiLogFile::parse(contents.as_slice(), |record| {
                     fill_log(&mut ctxs, &mut nt_ctx, record);
-                })
-                .map_err(|e| {
-                    re_log::error!("WPI DataLog file error: {e}");
-                    ImporterError::Other(e.into())
-                })
-                .unwrap();
+                }) {
+                    re_log::error!("WPI DataLog file error: {error}");
+                    return;
+                }
 
-                for chunk in log_changes_to_chunks(
-                    &store_id,
-                    &settings
-                        .application_id
-                        .clone()
-                        .unwrap_or_else(ApplicationId::random),
-                    timeline,
-                    &mut nt_ctx,
-                ) {
-                    tx.send(ImportedData::Chunk(
-                        WpiLogLoader::name(&WpiLogLoader),
-                        store_id.clone(),
-                        chunk,
-                    ))
-                    .unwrap();
+                for chunk in log_changes_to_chunks_with_options(timeline, &mut nt_ctx, &options) {
+                    if tx
+                        .send(ImportedData::Chunk(
+                            WpiLogLoader::name(&WpiLogLoader),
+                            store_id.clone(),
+                            chunk,
+                        ))
+                        .is_err()
+                    {
+                        return;
+                    }
                 }
             }
 

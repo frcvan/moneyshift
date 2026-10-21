@@ -1,5 +1,3 @@
-cargo-features = ["codegen-backend"]
-
 [package]
 name = "firstrun"
 version = "0.1.0"

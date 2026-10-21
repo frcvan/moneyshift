@@ -176,6 +176,11 @@ pub fn identifier(input: &[u8]) -> IResult<&[u8], &[u8]> {
     .parse(input)
 }
 
+/// WPILib schemas spell nested struct types as `struct:Translation2d`.
+fn type_identifier(input: &[u8]) -> IResult<&[u8], &[u8]> {
+    recognize(pair(nom::combinator::opt(tag("struct:")), identifier)).parse(input)
+}
+
 fn struct_parser(
     data: &[u8],
 ) -> IResult<&[u8], (String, WpiLibStructData<UnresolvedWpiLibStructType>)> {
@@ -184,7 +189,7 @@ fn struct_parser(
         .unwrap_or((data, None));
 
     let (data, _) = multispace0(data)?;
-    let (data, typename) = identifier(data)?;
+    let (data, typename) = type_identifier(data)?;
     let (data, _) = multispace1(data)?;
     let (data, identifier_name) = identifier(data)?;
     let (data, _) = multispace0::<_, nom::error::Error<_>>(data)?;
@@ -265,6 +270,61 @@ fn enum_parser(data: &[u8]) -> IResult<&[u8], HashMap<String, i64>> {
 }
 
 impl WpiLibStructSchema<UnresolvedWpiLibStructType> {
+    /// Schemas for the geometry and kinematics structs built into WPILib.
+    ///
+    /// Some WPILogs reference these types without including a `.schema/` entry, so we
+    /// install their canonical layouts up front. Real schemas found in a log always
+    /// overwrite these fallbacks.
+    #[must_use]
+    pub fn builtin_wpilib_schemas() -> Vec<(&'static str, Self)> {
+        [
+            ("struct:Translation2d", "double x;double y;"),
+            ("struct:Translation3d", "double x;double y;double z;"),
+            ("struct:Rotation2d", "double value;"),
+            ("struct:Quaternion", "double w;double x;double y;double z;"),
+            ("struct:Rotation3d", "struct:Quaternion q;"),
+            (
+                "struct:Pose2d",
+                "struct:Translation2d translation;struct:Rotation2d rotation;",
+            ),
+            (
+                "struct:Pose3d",
+                "struct:Translation3d translation;struct:Rotation3d rotation;",
+            ),
+            (
+                "struct:Transform2d",
+                "struct:Translation2d translation;struct:Rotation2d rotation;",
+            ),
+            (
+                "struct:Transform3d",
+                "struct:Translation3d translation;struct:Rotation3d rotation;",
+            ),
+            ("struct:Twist2d", "double dx;double dy;double dtheta;"),
+            (
+                "struct:Twist3d",
+                "double dx;double dy;double dz;double rx;double ry;double rz;",
+            ),
+            ("struct:ChassisSpeeds", "double vx;double vy;double omega;"),
+            (
+                "struct:SwerveModuleState",
+                "double speed;struct:Rotation2d angle;",
+            ),
+            (
+                "struct:SwerveModulePosition",
+                "double distance;struct:Rotation2d angle;",
+            ),
+        ]
+        .into_iter()
+        .map(|(name, schema)| {
+            (
+                name,
+                Self::parse(schema.as_bytes())
+                    .expect("built-in WPILib struct schema must be valid"),
+            )
+        })
+        .collect()
+    }
+
     pub fn parse(mut data: &[u8]) -> Result<Self, anyhow::Error> {
         let mut fields = IndexMap::new();
 
@@ -312,6 +372,14 @@ impl WpiLibStructSchema<UnresolvedWpiLibStructType> {
                                     WpiLibStructType::Custom(
                                         struct_map
                                             .get(s)
+                                            .or_else(|| {
+                                                let prefixed = format!("struct:{s}");
+                                                struct_map.get(&prefixed)
+                                            })
+                                            .or_else(|| {
+                                                let bare = s.strip_prefix("struct:").unwrap_or(s);
+                                                struct_map.get(bare)
+                                            })
                                             .ok_or_else(|| s.clone())?
                                             .resolve(struct_map)?,
                                     )
@@ -372,6 +440,22 @@ mod test {
                     ty: UnresolvedWpiLibStructType::Primitive(WpiLibStructPrimitives::Double)
                 }
             )])
+        );
+    }
+
+    #[test]
+    fn nested_struct_without_prefix() {
+        // WPILib's Java struct schemas spell nested types without the `struct:` prefix.
+        let schema = b"Translation2d translation;Rotation2d rotation";
+        let wpistruct = WpiLibStructSchema::parse(schema).unwrap();
+        assert_eq!(wpistruct.fields.len(), 2);
+        assert_eq!(
+            wpistruct.fields["translation"].ty,
+            UnresolvedWpiLibStructType::Custom("Translation2d".into())
+        );
+        assert_eq!(
+            wpistruct.fields["rotation"].ty,
+            UnresolvedWpiLibStructType::Custom("Rotation2d".into())
         );
     }
 
