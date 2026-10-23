@@ -9,7 +9,7 @@ package org.teamvan.moneyshift.archetypes;
  * Number of scalars per timestamp is expected to be the same over time.
  * 
  * When used to produce a plot, this archetype is used to provide the data that
- * is referenced by {@link org.teamvan.moneyshift.archetypes.SeriesLines} or {@link org.teamvan.moneyshift.archetypes.SeriesPoints}. You can do
+ * is referenced by {@link org.teamvan.moneyshift.archetypes.SeriesLines rerun::archetypes::SeriesLines} or {@link org.teamvan.moneyshift.archetypes.SeriesPoints rerun::archetypes::SeriesPoints}. You can do
  * this by logging both archetypes to the same path, or alternatively configuring
  * the plot-specific archetypes through the blueprint.
  * 
@@ -26,32 +26,24 @@ public record Scalars(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Scalars";
     public static final int NUM_COMPONENTS = 1;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SCALARS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Scalars:scalars", "rerun.components.Scalar");
 
-    /**
-     * The scalar values to log.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorScalars() {
-        return DESCRIPTOR_SCALARS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorScalars());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Scalar.batch(descriptorScalars(), allocator, scalars));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!scalars.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("scalars").append('=').append(org.teamvan.moneyshift.components.Scalar.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!scalars.isEmpty()) {
+            org.teamvan.moneyshift.components.Scalar.writeColumnsStatic(w, "scalars", scalars);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

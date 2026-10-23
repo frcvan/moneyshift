@@ -9,15 +9,15 @@ package org.teamvan.moneyshift.archetypes;
  * 
  * The values are a 3D tensor with dimensions ordered {@code [z, y, x]}, i.e. the last dimension varies
  * fastest and runs along the local X axis. This matches the row-major layout of
- * {@link org.teamvan.moneyshift.archetypes.Image}, with slices stacked along the local Z axis.
+ * {@link org.teamvan.moneyshift.archetypes.Image rerun::archetypes::Image}, with slices stacked along the local Z axis.
  * The tensor element at {@code [k, j, i]} is thus the voxel with grid index {@code [i, j, k]}.
  * 
- * Voxels are positioned exactly like those of {@link org.teamvan.moneyshift.archetypes.VoxelGridMap}:
+ * Voxels are positioned exactly like those of {@link org.teamvan.moneyshift.archetypes.VoxelGridMap rerun::archetypes::VoxelGridMap}:
  * the minimum corner of the voxel with {@code [0, 0, 0]} index is located at the origin of the entity's
  * coordinate frame and can have an additional offset from there through the optional translation
  * and rotation fields, and a voxel center is at {@code (index + 0.5) * voxel_size} in local grid
  * coordinates (i.e. relative to the minimum corner).
- * This archetype and a {@link org.teamvan.moneyshift.archetypes.VoxelGridMap} with the same {@code voxel_size} and pose
+ * This archetype and a {@link org.teamvan.moneyshift.archetypes.VoxelGridMap rerun::archetypes::VoxelGridMap} with the same {@code voxel_size} and pose
  * therefore agree voxel for voxel, the dense volume covering indices {@code [0, 0, 0]} up to
  * {@code [width - 1, height - 1, depth - 1]}.
  * 
@@ -43,7 +43,7 @@ public record Volume3D(
     /**
      * Translation of the minimum corner of voxel {@code [0, 0, 0]}.
      * 
-     * Together with {@link org.teamvan.moneyshift.components.RotationQuat}, this defines the pose of the volume
+     * Together with {@link org.teamvan.moneyshift.components.RotationQuat rerun::components::RotationQuat}, this defines the pose of the volume
      * relative to the entity's coordinate frame.
      * 
      * If not set, the minimum corner is placed at the origin of the entity's coordinate frame.
@@ -52,7 +52,7 @@ public record Volume3D(
     /**
      * Rotation of the volume via quaternion.
      * 
-     * Together with {@link org.teamvan.moneyshift.components.Translation3D}, this defines the pose of the volume
+     * Together with {@link org.teamvan.moneyshift.components.Translation3D rerun::components::Translation3D}, this defines the pose of the volume
      * relative to the entity's coordinate frame.
      * The rotation is around the minimum corner of voxel {@code [0, 0, 0]}, and is applied before the
      * translation.
@@ -86,127 +86,66 @@ public record Volume3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Volume3D";
     public static final int NUM_COMPONENTS = 7;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VALUES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:values", "rerun.components.TensorData");
 
-    /**
-     * The scalar value of each voxel, as a 3D tensor with dimensions ordered {@code [z, y, x]}.
-     * 
-     * Currently only {@code f16} are supported.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorValues() {
-        return DESCRIPTOR_VALUES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VOXEL_SIZE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:voxel_size", "rerun.components.VoxelSize");
-
-    /**
-     * The scene-unit dimensions of a single voxel cell.
-     * 
-     * This defines the voxel size along the local grid X/Y/Z axes, and thus the total extent of the
-     * volume: {@code [width, height, depth] * voxel_size}.
-     * Anisotropic spacing (as is common for medical scans) is expressed here.
-     * Each dimension must be finite and positive.
-     * 
-     * Defaults to {@code [1.0, 1.0, 1.0]}.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVoxelSize() {
-        return DESCRIPTOR_VOXEL_SIZE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TRANSLATION = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:translation", "rerun.components.Translation3D");
-
-    /**
-     * Translation of the minimum corner of voxel {@code [0, 0, 0]}.
-     * 
-     * Together with {@link org.teamvan.moneyshift.components.RotationQuat}, this defines the pose of the volume
-     * relative to the entity's coordinate frame.
-     * 
-     * If not set, the minimum corner is placed at the origin of the entity's coordinate frame.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorTranslation() {
-        return DESCRIPTOR_TRANSLATION;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_QUATERNION = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:quaternion", "rerun.components.RotationQuat");
-
-    /**
-     * Rotation of the volume via quaternion.
-     * 
-     * Together with {@link org.teamvan.moneyshift.components.Translation3D}, this defines the pose of the volume
-     * relative to the entity's coordinate frame.
-     * The rotation is around the minimum corner of voxel {@code [0, 0, 0]}, and is applied before the
-     * translation.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorQuaternion() {
-        return DESCRIPTOR_QUATERNION;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VALUE_RANGE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:value_range", "rerun.components.ValueRange");
-
-    /**
-     * How to map {@code values} to opacity and color.
-     * 
-     * If not specified, the range is estimated from the data.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorValueRange() {
-        return DESCRIPTOR_VALUE_RANGE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORMAP = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:colormap", "rerun.components.Colormap");
-
-    /**
-     * Colormap applied to the values after mapping them through {@code value_range}.
-     * 
-     * Defaults to Turbo.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColormap() {
-        return DESCRIPTOR_COLORMAP;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_OPACITY = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Volume3D:opacity", "rerun.components.Opacity");
-
-    /**
-     * Overall opacity of the volume.
-     * 
-     * The opacity of a single voxel is its value (normalized through {@code value_range}) scaled by
-     * this, i.e. a linear ramp: low values are transparent, high values are opaque.
-     * Lowering this makes the interior of the volume visible.
-     * 
-     * Defaults to 1.0.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorOpacity() {
-        return DESCRIPTOR_OPACITY;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorValues());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorVoxelSize());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorTranslation(), descriptorQuaternion(), descriptorValueRange(), descriptorColormap(), descriptorOpacity());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.TensorData.batch(descriptorValues(), allocator, values));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("values").append('=').append(org.teamvan.moneyshift.components.TensorData.COMPONENT_TYPE);
+        }
         if (voxelSize != null) {
-            batches.add(org.teamvan.moneyshift.components.VoxelSize.batch(descriptorVoxelSize(), allocator, voxelSize));
+            if (components.length() > 0) components.append(',');
+            components.append("voxel_size").append('=').append(org.teamvan.moneyshift.components.VoxelSize.COMPONENT_TYPE);
         }
         if (translation != null) {
-            batches.add(org.teamvan.moneyshift.components.Translation3D.batch(descriptorTranslation(), allocator, translation));
+            if (components.length() > 0) components.append(',');
+            components.append("translation").append('=').append(org.teamvan.moneyshift.components.Translation3D.COMPONENT_TYPE);
         }
         if (quaternion != null) {
-            batches.add(org.teamvan.moneyshift.components.RotationQuat.batch(descriptorQuaternion(), allocator, quaternion));
+            if (components.length() > 0) components.append(',');
+            components.append("quaternion").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
         if (valueRange != null) {
-            batches.add(org.teamvan.moneyshift.components.ValueRange.batch(descriptorValueRange(), allocator, valueRange));
+            if (components.length() > 0) components.append(',');
+            components.append("value_range").append('=').append(org.teamvan.moneyshift.components.ValueRange.COMPONENT_TYPE);
         }
         if (colormap != null) {
-            batches.add(org.teamvan.moneyshift.components.Colormap.batch(descriptorColormap(), allocator, colormap));
+            if (components.length() > 0) components.append(',');
+            components.append("colormap").append('=').append(org.teamvan.moneyshift.components.Colormap.COMPONENT_TYPE);
         }
         if (opacity != null) {
-            batches.add(org.teamvan.moneyshift.components.Opacity.batch(descriptorOpacity(), allocator, opacity));
+            if (components.length() > 0) components.append(',');
+            components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.TensorData.writeColumnsStatic(w, "values", java.util.List.of(values));
+        }
+        if (voxelSize != null) {
+            org.teamvan.moneyshift.components.VoxelSize.writeColumnsStatic(w, "voxel_size", java.util.List.of(voxelSize));
+        }
+        if (translation != null) {
+            org.teamvan.moneyshift.components.Translation3D.writeColumnsStatic(w, "translation", java.util.List.of(translation));
+        }
+        if (quaternion != null) {
+            org.teamvan.moneyshift.components.RotationQuat.writeColumnsStatic(w, "quaternion", java.util.List.of(quaternion));
+        }
+        if (valueRange != null) {
+            org.teamvan.moneyshift.components.ValueRange.writeColumnsStatic(w, "value_range", java.util.List.of(valueRange));
+        }
+        if (colormap != null) {
+            org.teamvan.moneyshift.components.Colormap.writeColumnsStatic(w, "colormap", java.util.List.of(colormap));
+        }
+        if (opacity != null) {
+            org.teamvan.moneyshift.components.Opacity.writeColumnsStatic(w, "opacity", java.util.List.of(opacity));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

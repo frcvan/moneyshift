@@ -4,9 +4,9 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * A 3D triangle mesh as specified by its per-mesh and per-vertex properties.
  * 
- * See also {@link org.teamvan.moneyshift.archetypes.Asset3D}.
+ * See also {@link org.teamvan.moneyshift.archetypes.Asset3D rerun::archetypes::Asset3D}.
  * 
- * If there are multiple {@link org.teamvan.moneyshift.archetypes.InstancePoses3D} instances logged to the same entity as a mesh,
+ * If there are multiple {@link org.teamvan.moneyshift.archetypes.InstancePoses3D rerun::archetypes::InstancePoses3D} instances logged to the same entity as a mesh,
  * an instance of the mesh will be drawn for each transform.
  * 
  * For transparency ordering, as well as back face culling (disabled by default),
@@ -48,13 +48,13 @@ public record Mesh3D(
     /**
      * Determines which faces of the mesh are rendered.
      * 
-     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering#DoubleSided}, meaning both front and back faces are shown.
+     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering#DoubleSided rerun::components::MeshFaceRendering::DoubleSided}, meaning both front and back faces are shown.
      */
     org.teamvan.moneyshift.components.MeshFaceRendering faceRendering,
     /**
      * Optional albedo texture.
      * 
-     * Used with the {@link org.teamvan.moneyshift.components.Texcoord2D} of the mesh.
+     * Used with the {@link org.teamvan.moneyshift.components.Texcoord2D rerun::components::Texcoord2D} of the mesh.
      * 
      * Currently supports only sRGB(A) textures, ignoring alpha.
      * (meaning that the tensor must have 3 or 4 channels and use the {@code u8} format)
@@ -69,7 +69,7 @@ public record Mesh3D(
     /**
      * Optional class Ids for the vertices.
      * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
+     * The {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} provides colors and labels if not specified explicitly.
      */
     java.util.List<org.teamvan.moneyshift.components.ClassId> classIds
 ) implements org.teamvan.moneyshift.Archetype {
@@ -84,148 +84,87 @@ public record Mesh3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Mesh3D";
     public static final int NUM_COMPONENTS = 10;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VERTEX_POSITIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:vertex_positions", "rerun.components.Position3D");
 
-    /**
-     * The positions of each vertex.
-     * 
-     * If no {@code triangle_indices} are specified, then each triplet of positions is interpreted as a triangle.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVertexPositions() {
-        return DESCRIPTOR_VERTEX_POSITIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TRIANGLE_INDICES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:triangle_indices", "rerun.components.TriangleIndices");
-
-    /**
-     * Optional indices for the triangles that make up the mesh.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorTriangleIndices() {
-        return DESCRIPTOR_TRIANGLE_INDICES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VERTEX_NORMALS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:vertex_normals", "rerun.components.Vector3D");
-
-    /**
-     * An optional normal for each vertex.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVertexNormals() {
-        return DESCRIPTOR_VERTEX_NORMALS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VERTEX_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:vertex_colors", "rerun.components.Color");
-
-    /**
-     * An optional color for each vertex.
-     * 
-     * The alpha channel is ignored.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVertexColors() {
-        return DESCRIPTOR_VERTEX_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VERTEX_TEXCOORDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:vertex_texcoords", "rerun.components.Texcoord2D");
-
-    /**
-     * An optional uv texture coordinate for each vertex.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVertexTexcoords() {
-        return DESCRIPTOR_VERTEX_TEXCOORDS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ALBEDO_FACTOR = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:albedo_factor", "rerun.components.AlbedoFactor");
-
-    /**
-     * A color multiplier applied to the whole mesh.
-     * 
-     * Alpha channel governs the overall mesh transparency.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAlbedoFactor() {
-        return DESCRIPTOR_ALBEDO_FACTOR;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_FACE_RENDERING = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:face_rendering", "rerun.components.MeshFaceRendering");
-
-    /**
-     * Determines which faces of the mesh are rendered.
-     * 
-     * The default is {@link org.teamvan.moneyshift.components.MeshFaceRendering#DoubleSided}, meaning both front and back faces are shown.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorFaceRendering() {
-        return DESCRIPTOR_FACE_RENDERING;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ALBEDO_TEXTURE_BUFFER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:albedo_texture_buffer", "rerun.components.ImageBuffer");
-
-    /**
-     * Optional albedo texture.
-     * 
-     * Used with the {@link org.teamvan.moneyshift.components.Texcoord2D} of the mesh.
-     * 
-     * Currently supports only sRGB(A) textures, ignoring alpha.
-     * (meaning that the tensor must have 3 or 4 channels and use the {@code u8} format)
-     * 
-     * The alpha channel is ignored.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAlbedoTextureBuffer() {
-        return DESCRIPTOR_ALBEDO_TEXTURE_BUFFER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ALBEDO_TEXTURE_FORMAT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:albedo_texture_format", "rerun.components.ImageFormat");
-
-    /**
-     * The format of the {@code albedo_texture_buffer}, if any.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAlbedoTextureFormat() {
-        return DESCRIPTOR_ALBEDO_TEXTURE_FORMAT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CLASS_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Mesh3D:class_ids", "rerun.components.ClassId");
-
-    /**
-     * Optional class Ids for the vertices.
-     * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorClassIds() {
-        return DESCRIPTOR_CLASS_IDS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorVertexPositions());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorTriangleIndices(), descriptorVertexNormals());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorVertexColors(), descriptorVertexTexcoords(), descriptorAlbedoFactor(), descriptorFaceRendering(), descriptorAlbedoTextureBuffer(), descriptorAlbedoTextureFormat(), descriptorClassIds());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Position3D.batch(descriptorVertexPositions(), allocator, vertexPositions));
-        if (triangleIndices != null) {
-            batches.add(org.teamvan.moneyshift.components.TriangleIndices.batch(descriptorTriangleIndices(), allocator, triangleIndices));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!vertexPositions.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("vertex_positions").append('=').append(org.teamvan.moneyshift.components.Position3D.COMPONENT_TYPE);
         }
-        if (vertexNormals != null) {
-            batches.add(org.teamvan.moneyshift.components.Vector3D.batch(descriptorVertexNormals(), allocator, vertexNormals));
+        if (triangleIndices != null && !triangleIndices.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("triangle_indices").append('=').append(org.teamvan.moneyshift.components.TriangleIndices.COMPONENT_TYPE);
         }
-        if (vertexColors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorVertexColors(), allocator, vertexColors));
+        if (vertexNormals != null && !vertexNormals.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("vertex_normals").append('=').append(org.teamvan.moneyshift.components.Vector3D.COMPONENT_TYPE);
         }
-        if (vertexTexcoords != null) {
-            batches.add(org.teamvan.moneyshift.components.Texcoord2D.batch(descriptorVertexTexcoords(), allocator, vertexTexcoords));
+        if (vertexColors != null && !vertexColors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("vertex_colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
+        }
+        if (vertexTexcoords != null && !vertexTexcoords.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("vertex_texcoords").append('=').append(org.teamvan.moneyshift.components.Texcoord2D.COMPONENT_TYPE);
         }
         if (albedoFactor != null) {
-            batches.add(org.teamvan.moneyshift.components.AlbedoFactor.batch(descriptorAlbedoFactor(), allocator, albedoFactor));
+            if (components.length() > 0) components.append(',');
+            components.append("albedo_factor").append('=').append(org.teamvan.moneyshift.components.AlbedoFactor.COMPONENT_TYPE);
         }
         if (faceRendering != null) {
-            batches.add(org.teamvan.moneyshift.components.MeshFaceRendering.batch(descriptorFaceRendering(), allocator, faceRendering));
+            if (components.length() > 0) components.append(',');
+            components.append("face_rendering").append('=').append(org.teamvan.moneyshift.components.MeshFaceRendering.COMPONENT_TYPE);
         }
         if (albedoTextureBuffer != null) {
-            batches.add(org.teamvan.moneyshift.components.ImageBuffer.batch(descriptorAlbedoTextureBuffer(), allocator, albedoTextureBuffer));
+            if (components.length() > 0) components.append(',');
+            components.append("albedo_texture_buffer").append('=').append(org.teamvan.moneyshift.components.ImageBuffer.COMPONENT_TYPE);
         }
         if (albedoTextureFormat != null) {
-            batches.add(org.teamvan.moneyshift.components.ImageFormat.batch(descriptorAlbedoTextureFormat(), allocator, albedoTextureFormat));
+            if (components.length() > 0) components.append(',');
+            components.append("albedo_texture_format").append('=').append(org.teamvan.moneyshift.components.ImageFormat.COMPONENT_TYPE);
         }
-        if (classIds != null) {
-            batches.add(org.teamvan.moneyshift.components.ClassId.batch(descriptorClassIds(), allocator, classIds));
+        if (classIds != null && !classIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!vertexPositions.isEmpty()) {
+            org.teamvan.moneyshift.components.Position3D.writeColumnsStatic(w, "vertex_positions", vertexPositions);
+        }
+        if (triangleIndices != null && !triangleIndices.isEmpty()) {
+            org.teamvan.moneyshift.components.TriangleIndices.writeColumnsStatic(w, "triangle_indices", triangleIndices);
+        }
+        if (vertexNormals != null && !vertexNormals.isEmpty()) {
+            org.teamvan.moneyshift.components.Vector3D.writeColumnsStatic(w, "vertex_normals", vertexNormals);
+        }
+        if (vertexColors != null && !vertexColors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "vertex_colors", vertexColors);
+        }
+        if (vertexTexcoords != null && !vertexTexcoords.isEmpty()) {
+            org.teamvan.moneyshift.components.Texcoord2D.writeColumnsStatic(w, "vertex_texcoords", vertexTexcoords);
+        }
+        if (albedoFactor != null) {
+            org.teamvan.moneyshift.components.AlbedoFactor.writeColumnsStatic(w, "albedo_factor", java.util.List.of(albedoFactor));
+        }
+        if (faceRendering != null) {
+            org.teamvan.moneyshift.components.MeshFaceRendering.writeColumnsStatic(w, "face_rendering", java.util.List.of(faceRendering));
+        }
+        if (albedoTextureBuffer != null) {
+            org.teamvan.moneyshift.components.ImageBuffer.writeColumnsStatic(w, "albedo_texture_buffer", java.util.List.of(albedoTextureBuffer));
+        }
+        if (albedoTextureFormat != null) {
+            org.teamvan.moneyshift.components.ImageFormat.writeColumnsStatic(w, "albedo_texture_format", java.util.List.of(albedoTextureFormat));
+        }
+        if (classIds != null && !classIds.isEmpty()) {
+            org.teamvan.moneyshift.components.ClassId.writeColumnsStatic(w, "class_ids", classIds);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

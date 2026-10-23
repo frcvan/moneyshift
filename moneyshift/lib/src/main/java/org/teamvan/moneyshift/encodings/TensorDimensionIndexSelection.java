@@ -15,39 +15,43 @@ public record TensorDimensionIndexSelection(
      * The index along the dimension to use.
      */
     long index
-) {
+) implements org.teamvan.moneyshift.NtEncoding<TensorDimensionIndexSelection> {
     public TensorDimensionIndexSelection {
     }
     public static final java.lang.String NAME = "rerun.encodings.TensorDimensionIndexSelection";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Struct();
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.Struct(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("dimension", false, org.teamvan.moneyshift.ArrowFields.UINT32, java.util.List.of()), org.teamvan.moneyshift.ArrowFields.field("index", false, org.teamvan.moneyshift.ArrowFields.UINT64, java.util.List.of())));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<TensorDimensionIndexSelection> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            TensorDimensionIndexSelection value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.StructVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TensorDimensionIndexSelection> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.StructVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).dimension();
+            var value1 = v1_0;
+            column1[i] = value1 == null ? 0L : value1;
+        }
+        w.longs(path + "/dimension", column1);
+        long[] column2 = new long[n];
+        boolean unsigned2 = false;
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).index();
+            var value2 = v2_0;
+            column2[i] = value2 == null ? 0L : value2;
+            unsigned2 |= column2[i] < 0L;
+        }
+        w.u64(path + "/index", column2, unsigned2);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, TensorDimensionIndexSelection value) {
-        org.apache.arrow.vector.complex.StructVector struct = (org.apache.arrow.vector.complex.StructVector) vector;
-        struct.setIndexDefined(index);
-        long f0 = value.dimension();
-        ((org.apache.arrow.vector.UInt4Vector) (org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(0)).setSafe(index, (int) (long) f0);
-        long f1 = value.index();
-        ((org.apache.arrow.vector.UInt8Vector) (org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(1)).setSafe(index, f1);
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TensorDimensionIndexSelection> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

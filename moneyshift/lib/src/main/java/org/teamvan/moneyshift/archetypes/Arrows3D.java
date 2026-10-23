@@ -44,7 +44,7 @@ public record Arrows3D(
     /**
      * Optional class Ids for the points.
      * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
+     * The {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} provides colors and labels if not specified explicitly.
      */
     java.util.List<org.teamvan.moneyshift.components.ClassId> classIds
 ) implements org.teamvan.moneyshift.Archetype {
@@ -59,111 +59,66 @@ public record Arrows3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Arrows3D";
     public static final int NUM_COMPONENTS = 7;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VECTORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:vectors", "rerun.components.Vector3D");
 
-    /**
-     * All the vectors for each arrow in the batch.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVectors() {
-        return DESCRIPTOR_VECTORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ORIGINS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:origins", "rerun.components.Position3D");
-
-    /**
-     * All the origin (base) positions for each arrow in the batch.
-     * 
-     * If no origins are set, (0, 0, 0) is used as the origin for each arrow.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorOrigins() {
-        return DESCRIPTOR_ORIGINS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_RADII = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:radii", "rerun.components.Radius");
-
-    /**
-     * Optional radii for the arrows.
-     * 
-     * The shaft is rendered as a line with {@code radius = 0.5 * radius}.
-     * The tip is rendered with {@code height = 2.0 * radius} and {@code radius = 1.0 * radius}.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRadii() {
-        return DESCRIPTOR_RADII;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:colors", "rerun.components.Color");
-
-    /**
-     * Optional colors for the points.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:labels", "rerun.components.Text");
-
-    /**
-     * Optional text labels for the arrows.
-     * 
-     * If there's a single label present, it will be placed at the center of the entity.
-     * Otherwise, each instance will have its own label.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLabels() {
-        return DESCRIPTOR_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SHOW_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:show_labels", "rerun.components.ShowLabels");
-
-    /**
-     * Whether the text labels should be shown.
-     * 
-     * If not set, labels will automatically appear when there is exactly one label for this entity
-     * or the number of instances on this entity is under a certain threshold.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorShowLabels() {
-        return DESCRIPTOR_SHOW_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CLASS_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Arrows3D:class_ids", "rerun.components.ClassId");
-
-    /**
-     * Optional class Ids for the points.
-     * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorClassIds() {
-        return DESCRIPTOR_CLASS_IDS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorVectors());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorOrigins());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorRadii(), descriptorColors(), descriptorLabels(), descriptorShowLabels(), descriptorClassIds());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Vector3D.batch(descriptorVectors(), allocator, vectors));
-        if (origins != null) {
-            batches.add(org.teamvan.moneyshift.components.Position3D.batch(descriptorOrigins(), allocator, origins));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!vectors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("vectors").append('=').append(org.teamvan.moneyshift.components.Vector3D.COMPONENT_TYPE);
         }
-        if (radii != null) {
-            batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorRadii(), allocator, radii));
+        if (origins != null && !origins.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("origins").append('=').append(org.teamvan.moneyshift.components.Position3D.COMPONENT_TYPE);
         }
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+        if (radii != null && !radii.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        if (labels != null) {
-            batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorLabels(), allocator, labels));
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("labels").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
         }
         if (showLabels != null) {
-            batches.add(org.teamvan.moneyshift.components.ShowLabels.batch(descriptorShowLabels(), allocator, showLabels));
+            if (components.length() > 0) components.append(',');
+            components.append("show_labels").append('=').append(org.teamvan.moneyshift.components.ShowLabels.COMPONENT_TYPE);
         }
-        if (classIds != null) {
-            batches.add(org.teamvan.moneyshift.components.ClassId.batch(descriptorClassIds(), allocator, classIds));
+        if (classIds != null && !classIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!vectors.isEmpty()) {
+            org.teamvan.moneyshift.components.Vector3D.writeColumnsStatic(w, "vectors", vectors);
+        }
+        if (origins != null && !origins.isEmpty()) {
+            org.teamvan.moneyshift.components.Position3D.writeColumnsStatic(w, "origins", origins);
+        }
+        if (radii != null && !radii.isEmpty()) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "radii", radii);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "labels", labels);
+        }
+        if (showLabels != null) {
+            org.teamvan.moneyshift.components.ShowLabels.writeColumnsStatic(w, "show_labels", java.util.List.of(showLabels));
+        }
+        if (classIds != null && !classIds.isEmpty()) {
+            org.teamvan.moneyshift.components.ClassId.writeColumnsStatic(w, "class_ids", classIds);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

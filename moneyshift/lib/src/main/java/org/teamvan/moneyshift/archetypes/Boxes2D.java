@@ -44,9 +44,9 @@ public record Boxes2D(
      */
     org.teamvan.moneyshift.components.DrawOrder drawOrder,
     /**
-     * Optional {@link org.teamvan.moneyshift.components.ClassId}s for the boxes.
+     * Optional {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId}s for the boxes.
      * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
+     * The {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} provides colors and labels if not specified explicitly.
      */
     java.util.List<org.teamvan.moneyshift.components.ClassId> classIds
 ) implements org.teamvan.moneyshift.Archetype {
@@ -61,120 +61,73 @@ public record Boxes2D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Boxes2D";
     public static final int NUM_COMPONENTS = 8;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_HALF_SIZES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:half_sizes", "rerun.components.HalfSize2D");
 
-    /**
-     * All half-extents that make up the batch of boxes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorHalfSizes() {
-        return DESCRIPTOR_HALF_SIZES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CENTERS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:centers", "rerun.components.Position2D");
-
-    /**
-     * Optional center positions of the boxes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorCenters() {
-        return DESCRIPTOR_CENTERS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:colors", "rerun.components.Color");
-
-    /**
-     * Optional colors for the boxes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_RADII = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:radii", "rerun.components.Radius");
-
-    /**
-     * Optional radii for the lines that make up the boxes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRadii() {
-        return DESCRIPTOR_RADII;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:labels", "rerun.components.Text");
-
-    /**
-     * Optional text labels for the boxes.
-     * 
-     * If there's a single label present, it will be placed at the center of the entity.
-     * Otherwise, each instance will have its own label.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLabels() {
-        return DESCRIPTOR_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SHOW_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:show_labels", "rerun.components.ShowLabels");
-
-    /**
-     * Whether the text labels should be shown.
-     * 
-     * If not set, labels will automatically appear when there is exactly one label for this entity
-     * or the number of instances on this entity is under a certain threshold.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorShowLabels() {
-        return DESCRIPTOR_SHOW_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DRAW_ORDER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:draw_order", "rerun.components.DrawOrder");
-
-    /**
-     * An optional floating point value that specifies the 2D drawing order.
-     * 
-     * Objects with higher values are drawn on top of those with lower values.
-     * Defaults to {@code 10.0}.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDrawOrder() {
-        return DESCRIPTOR_DRAW_ORDER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CLASS_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Boxes2D:class_ids", "rerun.components.ClassId");
-
-    /**
-     * Optional {@link org.teamvan.moneyshift.components.ClassId}s for the boxes.
-     * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorClassIds() {
-        return DESCRIPTOR_CLASS_IDS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorHalfSizes());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorCenters(), descriptorColors());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorRadii(), descriptorLabels(), descriptorShowLabels(), descriptorDrawOrder(), descriptorClassIds());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.HalfSize2D.batch(descriptorHalfSizes(), allocator, halfSizes));
-        if (centers != null) {
-            batches.add(org.teamvan.moneyshift.components.Position2D.batch(descriptorCenters(), allocator, centers));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!halfSizes.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("half_sizes").append('=').append(org.teamvan.moneyshift.components.HalfSize2D.COMPONENT_TYPE);
         }
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+        if (centers != null && !centers.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("centers").append('=').append(org.teamvan.moneyshift.components.Position2D.COMPONENT_TYPE);
         }
-        if (radii != null) {
-            batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorRadii(), allocator, radii));
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        if (labels != null) {
-            batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorLabels(), allocator, labels));
+        if (radii != null && !radii.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("labels").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
         }
         if (showLabels != null) {
-            batches.add(org.teamvan.moneyshift.components.ShowLabels.batch(descriptorShowLabels(), allocator, showLabels));
+            if (components.length() > 0) components.append(',');
+            components.append("show_labels").append('=').append(org.teamvan.moneyshift.components.ShowLabels.COMPONENT_TYPE);
         }
         if (drawOrder != null) {
-            batches.add(org.teamvan.moneyshift.components.DrawOrder.batch(descriptorDrawOrder(), allocator, drawOrder));
+            if (components.length() > 0) components.append(',');
+            components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
-        if (classIds != null) {
-            batches.add(org.teamvan.moneyshift.components.ClassId.batch(descriptorClassIds(), allocator, classIds));
+        if (classIds != null && !classIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!halfSizes.isEmpty()) {
+            org.teamvan.moneyshift.components.HalfSize2D.writeColumnsStatic(w, "half_sizes", halfSizes);
+        }
+        if (centers != null && !centers.isEmpty()) {
+            org.teamvan.moneyshift.components.Position2D.writeColumnsStatic(w, "centers", centers);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (radii != null && !radii.isEmpty()) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "radii", radii);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "labels", labels);
+        }
+        if (showLabels != null) {
+            org.teamvan.moneyshift.components.ShowLabels.writeColumnsStatic(w, "show_labels", java.util.List.of(showLabels));
+        }
+        if (drawOrder != null) {
+            org.teamvan.moneyshift.components.DrawOrder.writeColumnsStatic(w, "draw_order", java.util.List.of(drawOrder));
+        }
+        if (classIds != null && !classIds.isEmpty()) {
+            org.teamvan.moneyshift.components.ClassId.writeColumnsStatic(w, "class_ids", classIds);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

@@ -4,17 +4,17 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * A monochrome or color image.
  * 
- * See also {@link org.teamvan.moneyshift.archetypes.DepthImage} and {@link org.teamvan.moneyshift.archetypes.SegmentationImage}.
+ * See also {@link org.teamvan.moneyshift.archetypes.DepthImage rerun::archetypes::DepthImage} and {@link org.teamvan.moneyshift.archetypes.SegmentationImage rerun::archetypes::SegmentationImage}.
  * 
- * Rerun also supports compressed images (JPEG, PNG, …), using {@link org.teamvan.moneyshift.archetypes.EncodedImage}.
- * For images that refer to video frames see {@link org.teamvan.moneyshift.archetypes.VideoFrameReference}.
+ * Rerun also supports compressed images (JPEG, PNG, …), using {@link org.teamvan.moneyshift.archetypes.EncodedImage rerun::archetypes::EncodedImage}.
+ * For images that refer to video frames see {@link org.teamvan.moneyshift.archetypes.VideoFrameReference rerun::archetypes::VideoFrameReference}.
  * Compressing images or using video data instead can save a lot of bandwidth and memory.
  * 
- * The raw image data is stored as a single buffer of bytes in a {@link org.teamvan.moneyshift.components.Blob}.
- * The meaning of these bytes is determined by the {@link org.teamvan.moneyshift.components.ImageFormat} which specifies the resolution
+ * The raw image data is stored as a single buffer of bytes in a {@link org.teamvan.moneyshift.components.Blob rerun::components::Blob}.
+ * The meaning of these bytes is determined by the {@link org.teamvan.moneyshift.components.ImageFormat rerun::components::ImageFormat} which specifies the resolution
  * and the pixel format (e.g. RGB, RGBA, …).
  * 
- * The order of dimensions in the underlying {@link org.teamvan.moneyshift.components.Blob} follows the typical
+ * The order of dimensions in the underlying {@link org.teamvan.moneyshift.components.Blob rerun::components::Blob} follows the typical
  * row-major, interleaved-pixel image format.
  * 
  * 
@@ -52,79 +52,52 @@ public record Image(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Image";
     public static final int NUM_COMPONENTS = 5;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_BUFFER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Image:buffer", "rerun.components.ImageBuffer");
 
-    /**
-     * The raw image data.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorBuffer() {
-        return DESCRIPTOR_BUFFER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_FORMAT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Image:format", "rerun.components.ImageFormat");
-
-    /**
-     * The format of the image.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorFormat() {
-        return DESCRIPTOR_FORMAT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_OPACITY = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Image:opacity", "rerun.components.Opacity");
-
-    /**
-     * Opacity of the image, useful for layering several media.
-     * 
-     * Defaults to 1.0 (fully opaque).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorOpacity() {
-        return DESCRIPTOR_OPACITY;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DRAW_ORDER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Image:draw_order", "rerun.components.DrawOrder");
-
-    /**
-     * An optional floating point value that specifies the 2D drawing order.
-     * 
-     * Objects with higher values are drawn on top of those with lower values.
-     * Defaults to {@code -10.0}.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDrawOrder() {
-        return DESCRIPTOR_DRAW_ORDER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MAGNIFICATION_FILTER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Image:magnification_filter", "rerun.components.MagnificationFilter");
-
-    /**
-     * Optional filter used when a texel is magnified (displayed larger than a screen pixel).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMagnificationFilter() {
-        return DESCRIPTOR_MAGNIFICATION_FILTER;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorBuffer(), descriptorFormat());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorOpacity(), descriptorDrawOrder(), descriptorMagnificationFilter());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.ImageBuffer.batch(descriptorBuffer(), allocator, buffer));
-        batches.add(org.teamvan.moneyshift.components.ImageFormat.batch(descriptorFormat(), allocator, format));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("buffer").append('=').append(org.teamvan.moneyshift.components.ImageBuffer.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("format").append('=').append(org.teamvan.moneyshift.components.ImageFormat.COMPONENT_TYPE);
+        }
         if (opacity != null) {
-            batches.add(org.teamvan.moneyshift.components.Opacity.batch(descriptorOpacity(), allocator, opacity));
+            if (components.length() > 0) components.append(',');
+            components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
         }
         if (drawOrder != null) {
-            batches.add(org.teamvan.moneyshift.components.DrawOrder.batch(descriptorDrawOrder(), allocator, drawOrder));
+            if (components.length() > 0) components.append(',');
+            components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
         if (magnificationFilter != null) {
-            batches.add(org.teamvan.moneyshift.components.MagnificationFilter.batch(descriptorMagnificationFilter(), allocator, magnificationFilter));
+            if (components.length() > 0) components.append(',');
+            components.append("magnification_filter").append('=').append(org.teamvan.moneyshift.components.MagnificationFilter.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.ImageBuffer.writeColumnsStatic(w, "buffer", java.util.List.of(buffer));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.ImageFormat.writeColumnsStatic(w, "format", java.util.List.of(format));
+        }
+        if (opacity != null) {
+            org.teamvan.moneyshift.components.Opacity.writeColumnsStatic(w, "opacity", java.util.List.of(opacity));
+        }
+        if (drawOrder != null) {
+            org.teamvan.moneyshift.components.DrawOrder.writeColumnsStatic(w, "draw_order", java.util.List.of(drawOrder));
+        }
+        if (magnificationFilter != null) {
+            org.teamvan.moneyshift.components.MagnificationFilter.writeColumnsStatic(w, "magnification_filter", java.util.List.of(magnificationFilter));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

@@ -4,7 +4,7 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * A depth image encoded with a codec (e.g. RVL, PNG, or TIFF).
  * 
- * Rerun also supports uncompressed depth images with the {@link org.teamvan.moneyshift.archetypes.DepthImage}.
+ * Rerun also supports uncompressed depth images with the {@link org.teamvan.moneyshift.archetypes.DepthImage archetypes.DepthImage}.
  * 
  */
 public record EncodedDepthImage(
@@ -61,124 +61,73 @@ public record EncodedDepthImage(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.EncodedDepthImage";
     public static final int NUM_COMPONENTS = 8;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_BLOB = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:blob", "rerun.components.Blob");
 
-    /**
-     * The encoded depth payload.
-     * 
-     * Supported are:
-     * * single channel PNG
-     * * single channel TIFF with {@code U8}, {@code U16}, or {@code F32} samples
-     * * RVL with ROS2 metadata (for details see &lt;https://github.com/ros-perception/image_transport_plugins/tree/jazzy&gt;)
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorBlob() {
-        return DESCRIPTOR_BLOB;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MEDIA_TYPE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:media_type", "rerun.components.MediaType");
-
-    /**
-     * Media type of the blob, e.g.:
-     * 
-     *  * {@code application/rvl} (RVL-compressed 16-bit)
-     *  * {@code image/png}
-     *  * {@code image/tiff}
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMediaType() {
-        return DESCRIPTOR_MEDIA_TYPE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_METER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:meter", "rerun.components.DepthMeter");
-
-    /**
-     * Conversion from native units to meters (e.g. {@code 0.001} for millimeters).
-     * 
-     * If omitted, the Viewer defaults to {@code 1.0} for floating-point depth formats and {@code 1000.0} for integer formats (millimeters).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMeter() {
-        return DESCRIPTOR_METER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORMAP = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:colormap", "rerun.components.Colormap");
-
-    /**
-     * Optional colormap for visualization of decoded depth.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColormap() {
-        return DESCRIPTOR_COLORMAP;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DEPTH_RANGE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:depth_range", "rerun.components.ValueRange");
-
-    /**
-     * Optional visualization range for depth values.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDepthRange() {
-        return DESCRIPTOR_DEPTH_RANGE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_POINT_FILL_RATIO = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:point_fill_ratio", "rerun.components.FillRatio");
-
-    /**
-     * Optional point fill ratio for point-cloud projection.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorPointFillRatio() {
-        return DESCRIPTOR_POINT_FILL_RATIO;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DRAW_ORDER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:draw_order", "rerun.components.DrawOrder");
-
-    /**
-     * Optional 2D draw order.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDrawOrder() {
-        return DESCRIPTOR_DRAW_ORDER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MAGNIFICATION_FILTER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedDepthImage:magnification_filter", "rerun.components.MagnificationFilter");
-
-    /**
-     * Optional filter used when a texel is magnified (displayed larger than a screen pixel) in 2D views.
-     * 
-     * The filter is applied to the scalar values *before* they are mapped to color via the colormap.
-     * 
-     * Has no effect in 3D views.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMagnificationFilter() {
-        return DESCRIPTOR_MAGNIFICATION_FILTER;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorBlob());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorMediaType(), descriptorMeter());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorColormap(), descriptorDepthRange(), descriptorPointFillRatio(), descriptorDrawOrder(), descriptorMagnificationFilter());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Blob.batch(descriptorBlob(), allocator, blob));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("blob").append('=').append(org.teamvan.moneyshift.components.Blob.COMPONENT_TYPE);
+        }
         if (mediaType != null) {
-            batches.add(org.teamvan.moneyshift.components.MediaType.batch(descriptorMediaType(), allocator, mediaType));
+            if (components.length() > 0) components.append(',');
+            components.append("media_type").append('=').append(org.teamvan.moneyshift.components.MediaType.COMPONENT_TYPE);
         }
         if (meter != null) {
-            batches.add(org.teamvan.moneyshift.components.DepthMeter.batch(descriptorMeter(), allocator, meter));
+            if (components.length() > 0) components.append(',');
+            components.append("meter").append('=').append(org.teamvan.moneyshift.components.DepthMeter.COMPONENT_TYPE);
         }
         if (colormap != null) {
-            batches.add(org.teamvan.moneyshift.components.Colormap.batch(descriptorColormap(), allocator, colormap));
+            if (components.length() > 0) components.append(',');
+            components.append("colormap").append('=').append(org.teamvan.moneyshift.components.Colormap.COMPONENT_TYPE);
         }
         if (depthRange != null) {
-            batches.add(org.teamvan.moneyshift.components.ValueRange.batch(descriptorDepthRange(), allocator, depthRange));
+            if (components.length() > 0) components.append(',');
+            components.append("depth_range").append('=').append(org.teamvan.moneyshift.components.ValueRange.COMPONENT_TYPE);
         }
         if (pointFillRatio != null) {
-            batches.add(org.teamvan.moneyshift.components.FillRatio.batch(descriptorPointFillRatio(), allocator, pointFillRatio));
+            if (components.length() > 0) components.append(',');
+            components.append("point_fill_ratio").append('=').append(org.teamvan.moneyshift.components.FillRatio.COMPONENT_TYPE);
         }
         if (drawOrder != null) {
-            batches.add(org.teamvan.moneyshift.components.DrawOrder.batch(descriptorDrawOrder(), allocator, drawOrder));
+            if (components.length() > 0) components.append(',');
+            components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
         if (magnificationFilter != null) {
-            batches.add(org.teamvan.moneyshift.components.MagnificationFilter.batch(descriptorMagnificationFilter(), allocator, magnificationFilter));
+            if (components.length() > 0) components.append(',');
+            components.append("magnification_filter").append('=').append(org.teamvan.moneyshift.components.MagnificationFilter.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Blob.writeColumnsStatic(w, "blob", java.util.List.of(blob));
+        }
+        if (mediaType != null) {
+            org.teamvan.moneyshift.components.MediaType.writeColumnsStatic(w, "media_type", java.util.List.of(mediaType));
+        }
+        if (meter != null) {
+            org.teamvan.moneyshift.components.DepthMeter.writeColumnsStatic(w, "meter", java.util.List.of(meter));
+        }
+        if (colormap != null) {
+            org.teamvan.moneyshift.components.Colormap.writeColumnsStatic(w, "colormap", java.util.List.of(colormap));
+        }
+        if (depthRange != null) {
+            org.teamvan.moneyshift.components.ValueRange.writeColumnsStatic(w, "depth_range", java.util.List.of(depthRange));
+        }
+        if (pointFillRatio != null) {
+            org.teamvan.moneyshift.components.FillRatio.writeColumnsStatic(w, "point_fill_ratio", java.util.List.of(pointFillRatio));
+        }
+        if (drawOrder != null) {
+            org.teamvan.moneyshift.components.DrawOrder.writeColumnsStatic(w, "draw_order", java.util.List.of(drawOrder));
+        }
+        if (magnificationFilter != null) {
+            org.teamvan.moneyshift.components.MagnificationFilter.writeColumnsStatic(w, "magnification_filter", java.util.List.of(magnificationFilter));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

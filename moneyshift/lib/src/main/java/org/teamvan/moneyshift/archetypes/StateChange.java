@@ -5,7 +5,7 @@ package org.teamvan.moneyshift.archetypes;
  * A state change, representing a transition of an entity into a new state.
  * 
  * Useful for representing discrete state machines, mode transitions, or
- * state changes over time. Each logged {@link org.teamvan.moneyshift.archetypes.StateChange} marks a new state
+ * state changes over time. Each logged {@link org.teamvan.moneyshift.archetypes.StateChange rerun::archetypes::StateChange} marks a new state
  * at the given time. A {@code null} state resets the state, showing a gap in the state timeline view.
  * 
  * The state timeline view displays these as horizontal colored lanes over time.
@@ -29,38 +29,24 @@ public record StateChange(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.StateChange";
     public static final int NUM_COMPONENTS = 1;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_STATE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "StateChange:state", "rerun.components.Text");
 
-    /**
-     * The new state values; each instance gets its own lane in the state timeline view.
-     * 
-     * A reset ends the previous state and shows a gap in the state timeline view until the
-     * next state. An empty string, a null array entry, and an empty state array (e.g. from
-     * clearing the field) all act as resets.
-     * 
-     * The length of the state array should not change over time.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorState() {
-        return DESCRIPTOR_STATE;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorState());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorState(), allocator, state));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!state.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("state").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!state.isEmpty()) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "state", state);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

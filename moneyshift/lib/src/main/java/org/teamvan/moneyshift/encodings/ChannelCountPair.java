@@ -13,7 +13,7 @@ public record ChannelCountPair(
      * The message count for this channel.
      */
     org.teamvan.moneyshift.encodings.UInt64 messageCount
-) {
+) implements org.teamvan.moneyshift.NtEncoding<ChannelCountPair> {
     public ChannelCountPair {
         java.util.Objects.requireNonNull(channelId, "channelId");
         java.util.Objects.requireNonNull(messageCount, "messageCount");
@@ -26,34 +26,40 @@ public record ChannelCountPair(
 
     public static final java.lang.String NAME = "rerun.encodings.ChannelCountPair";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Struct();
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.Struct(), java.util.List.of(org.teamvan.moneyshift.encodings.UInt16.arrowField("channel_id", false), org.teamvan.moneyshift.encodings.UInt64.arrowField("message_count", false)));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<ChannelCountPair> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            ChannelCountPair value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.StructVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ChannelCountPair> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.StructVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).channelId();
+            var v1_1 = v1_0 == null ? null : v1_0.value();
+            var value1 = v1_1;
+            column1[i] = value1 == null ? 0L : value1;
+        }
+        w.longs(path + "/channel_id", column1);
+        long[] column2 = new long[n];
+        boolean unsigned2 = false;
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).messageCount();
+            var v2_1 = v2_0 == null ? null : v2_0.value();
+            var value2 = v2_1;
+            column2[i] = value2 == null ? 0L : value2;
+            unsigned2 |= column2[i] < 0L;
+        }
+        w.u64(path + "/message_count", column2, unsigned2);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, ChannelCountPair value) {
-        org.apache.arrow.vector.complex.StructVector struct = (org.apache.arrow.vector.complex.StructVector) vector;
-        struct.setIndexDefined(index);
-        org.teamvan.moneyshift.encodings.UInt16 f0 = value.channelId();
-        org.teamvan.moneyshift.encodings.UInt16.writeOne((org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(0), index, f0);
-        org.teamvan.moneyshift.encodings.UInt64 f1 = value.messageCount();
-        org.teamvan.moneyshift.encodings.UInt64.writeOne((org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(1), index, f1);
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ChannelCountPair> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

@@ -2,7 +2,7 @@
 package org.teamvan.moneyshift.encodings;
 
 /**
- * Two {@link org.teamvan.moneyshift.encodings.TimeInt} describing a range of time.
+ * Two {@code rerun::encodings::TimeInt} describing a range of time.
  */
 public record AbsoluteTimeRange(
     /**
@@ -13,7 +13,7 @@ public record AbsoluteTimeRange(
      * End of the range (inclusive).
      */
     org.teamvan.moneyshift.encodings.TimeInt max
-) {
+) implements org.teamvan.moneyshift.NtEncoding<AbsoluteTimeRange> {
     public AbsoluteTimeRange {
         java.util.Objects.requireNonNull(min, "min");
         java.util.Objects.requireNonNull(max, "max");
@@ -26,34 +26,38 @@ public record AbsoluteTimeRange(
 
     public static final java.lang.String NAME = "rerun.encodings.AbsoluteTimeRange";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Struct();
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.Struct(), java.util.List.of(org.teamvan.moneyshift.encodings.TimeInt.arrowField("min", false), org.teamvan.moneyshift.encodings.TimeInt.arrowField("max", false)));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<AbsoluteTimeRange> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            AbsoluteTimeRange value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.StructVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<AbsoluteTimeRange> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.StructVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).min();
+            var v1_1 = v1_0 == null ? null : v1_0.value();
+            var value1 = v1_1;
+            column1[i] = value1 == null ? 0L : value1;
+        }
+        w.longs(path + "/min", column1);
+        long[] column2 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).max();
+            var v2_1 = v2_0 == null ? null : v2_0.value();
+            var value2 = v2_1;
+            column2[i] = value2 == null ? 0L : value2;
+        }
+        w.longs(path + "/max", column2);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, AbsoluteTimeRange value) {
-        org.apache.arrow.vector.complex.StructVector struct = (org.apache.arrow.vector.complex.StructVector) vector;
-        struct.setIndexDefined(index);
-        org.teamvan.moneyshift.encodings.TimeInt f0 = value.min();
-        org.teamvan.moneyshift.encodings.TimeInt.writeOne((org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(0), index, f0);
-        org.teamvan.moneyshift.encodings.TimeInt f1 = value.max();
-        org.teamvan.moneyshift.encodings.TimeInt.writeOne((org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(1), index, f1);
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<AbsoluteTimeRange> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

@@ -9,7 +9,7 @@ package org.teamvan.moneyshift.encodings;
  */
 public record AnnotationInfo(
     /**
-     * {@link org.teamvan.moneyshift.encodings.ClassId} or {@link org.teamvan.moneyshift.encodings.KeypointId} to which this annotation info belongs.
+     * {@link org.teamvan.moneyshift.encodings.ClassId rerun::encodings::ClassId} or {@link org.teamvan.moneyshift.encodings.KeypointId rerun::encodings::KeypointId} to which this annotation info belongs.
      */
     int id,
     /**
@@ -20,7 +20,7 @@ public record AnnotationInfo(
      * The color that will be applied to the annotated entity.
      */
     org.teamvan.moneyshift.encodings.Rgba32 color
-) {
+) implements org.teamvan.moneyshift.NtEncoding<AnnotationInfo> {
     public AnnotationInfo {
     }
 
@@ -31,44 +31,63 @@ public record AnnotationInfo(
 
     public static final java.lang.String NAME = "rerun.encodings.AnnotationInfo";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Struct();
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<AnnotationInfo> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
+        }
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).id();
+            var value1 = v1_0;
+            column1[i] = value1 == null ? 0L : value1;
+        }
+        w.longs(path + "/id", column1);
+        boolean[] present2 = new boolean[n];
+        boolean anyNull2 = false;
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).label();
+            boolean ok2 = (v2_0) != null;
+            present2[i] = ok2;
+            anyNull2 |= !ok2;
+        }
+        w.present(path + "/label", present2, anyNull2);
+        java.lang.String[] column3 = new java.lang.String[n];
+        for (int i = 0; i < n; i++) {
+            var v3_0 = values.get(i) == null ? null : values.get(i).label();
+            var v3_1 = v3_0 == null ? null : v3_0.value();
+            java.lang.String value3 = v3_1;
+            column3[i] = value3 == null ? "" : value3;
+        }
+        w.strings(path + "/label", column3);
+        boolean[] present4 = new boolean[n];
+        boolean anyNull4 = false;
+        for (int i = 0; i < n; i++) {
+            var v4_0 = values.get(i) == null ? null : values.get(i).color();
+            boolean ok4 = (v4_0) != null;
+            present4[i] = ok4;
+            anyNull4 |= !ok4;
+        }
+        w.present(path + "/color", present4, anyNull4);
+        long[] column5 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v5_0 = values.get(i) == null ? null : values.get(i).color();
+            var v5_1 = v5_0 == null ? null : v5_0.rgba();
+            var value5 = v5_1;
+            column5[i] = value5 == null ? 0L : value5;
+        }
+        w.longs(path + "/color", column5);
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.Struct(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("id", false, org.teamvan.moneyshift.ArrowFields.UINT16, java.util.List.of()), org.teamvan.moneyshift.encodings.Utf8.arrowField("label", true), org.teamvan.moneyshift.encodings.Rgba32.arrowField("color", true)));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<AnnotationInfo> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            AnnotationInfo value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.StructVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
-        }
-        ((org.apache.arrow.vector.complex.StructVector) vector).setValueCount(count);
-    }
-
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, AnnotationInfo value) {
-        org.apache.arrow.vector.complex.StructVector struct = (org.apache.arrow.vector.complex.StructVector) vector;
-        struct.setIndexDefined(index);
-        int f0 = value.id();
-        ((org.apache.arrow.vector.UInt2Vector) (org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(0)).setSafe(index, (int) f0);
-        org.teamvan.moneyshift.encodings.Utf8 f1 = value.label();
-        if (f1 == null) {
-            ((org.apache.arrow.vector.VarCharVector) (org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(1)).setNull(index);
-        } else {
-            org.teamvan.moneyshift.encodings.Utf8.writeOne((org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(1), index, f1);
-        }
-        org.teamvan.moneyshift.encodings.Rgba32 f2 = value.color();
-        if (f2 == null) {
-            ((org.apache.arrow.vector.UInt4Vector) (org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(2)).setNull(index);
-        } else {
-            org.teamvan.moneyshift.encodings.Rgba32.writeOne((org.apache.arrow.vector.FieldVector) struct.getChildByOrdinal(2), index, f2);
-        }
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<AnnotationInfo> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

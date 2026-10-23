@@ -9,8 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.teamvan.moneyshift.archetypes.AnnotationContext;
 import org.teamvan.moneyshift.archetypes.Points3D;
 import org.teamvan.moneyshift.archetypes.TextLog;
-import org.teamvan.moneyshift.blueprint.archetypes.ViewBlueprint;
-import org.teamvan.moneyshift.blueprint.components.ViewClass;
 import org.teamvan.moneyshift.components.ClassId;
 import org.teamvan.moneyshift.components.Color;
 import org.teamvan.moneyshift.components.Position3D;
@@ -34,7 +32,6 @@ class ErgonomicApiTest {
         assertEquals(
                 new Radius(new org.teamvan.moneyshift.encodings.Float32(0.25f)), new Radius(0.25f));
         assertEquals(new Text(new Utf8("hello")), new Text("hello"));
-        assertEquals(new ViewClass(new Utf8("3D")), new ViewClass("3D"));
         assertEquals(
                 new AnnotationInfo(1, new Utf8("thing"), new Rgba32(0xFF00FFFFL)),
                 new AnnotationInfo(1, "thing", 0xFF00FFFFL));
@@ -108,11 +105,6 @@ class ErgonomicApiTest {
                         .withLevel("INFO")
                         .withColor(0xFF32D74BL)
                         .build());
-        assertEquals(
-                ViewBlueprint.builder()
-                        .withClassIdentifier(new ViewClass(new Utf8("3D")))
-                        .build(),
-                ViewBlueprint.builder().withClassIdentifier("3D").build());
     }
 
     private static ClassDescription classDescription() {

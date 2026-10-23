@@ -19,7 +19,7 @@ public record Mat3x3(
      * Flat list of matrix coefficients in column-major order.
      */
     float[] flatColumns
-) {
+) implements org.teamvan.moneyshift.NtEncoding<Mat3x3> {
     public Mat3x3 {
     }
 
@@ -36,43 +36,95 @@ public record Mat3x3(
     }
     public static final java.lang.String NAME = "rerun.encodings.Mat3x3";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList(9);
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList(9), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.FLOAT32, java.util.List.of())));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<Mat3x3> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            Mat3x3 value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.FixedSizeListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Mat3x3> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.FixedSizeListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        double[] column1 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v1_1 = v1_0 == null ? null : v1_0[0];
+            var value1 = v1_1;
+            column1[i] = value1 == null ? 0.0 : value1;
+        }
+        w.doubles(path + "/0", column1);
+        double[] column2 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v2_1 = v2_0 == null ? null : v2_0[1];
+            var value2 = v2_1;
+            column2[i] = value2 == null ? 0.0 : value2;
+        }
+        w.doubles(path + "/1", column2);
+        double[] column3 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v3_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v3_1 = v3_0 == null ? null : v3_0[2];
+            var value3 = v3_1;
+            column3[i] = value3 == null ? 0.0 : value3;
+        }
+        w.doubles(path + "/2", column3);
+        double[] column4 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v4_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v4_1 = v4_0 == null ? null : v4_0[3];
+            var value4 = v4_1;
+            column4[i] = value4 == null ? 0.0 : value4;
+        }
+        w.doubles(path + "/3", column4);
+        double[] column5 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v5_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v5_1 = v5_0 == null ? null : v5_0[4];
+            var value5 = v5_1;
+            column5[i] = value5 == null ? 0.0 : value5;
+        }
+        w.doubles(path + "/4", column5);
+        double[] column6 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v6_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v6_1 = v6_0 == null ? null : v6_0[5];
+            var value6 = v6_1;
+            column6[i] = value6 == null ? 0.0 : value6;
+        }
+        w.doubles(path + "/5", column6);
+        double[] column7 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v7_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v7_1 = v7_0 == null ? null : v7_0[6];
+            var value7 = v7_1;
+            column7[i] = value7 == null ? 0.0 : value7;
+        }
+        w.doubles(path + "/6", column7);
+        double[] column8 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v8_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v8_1 = v8_0 == null ? null : v8_0[7];
+            var value8 = v8_1;
+            column8[i] = value8 == null ? 0.0 : value8;
+        }
+        w.doubles(path + "/7", column8);
+        double[] column9 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v9_0 = values.get(i) == null ? null : values.get(i).flatColumns();
+            var v9_1 = v9_0 == null ? null : v9_0[8];
+            var value9 = v9_1;
+            column9[i] = value9 == null ? 0.0 : value9;
+        }
+        w.doubles(path + "/8", column9);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, Mat3x3 value) {
-        {
-            org.apache.arrow.vector.complex.FixedSizeListVector list0 = (org.apache.arrow.vector.complex.FixedSizeListVector) vector;
-            int start0 = list0.startNewValue(index);
-            org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 0, value.flatColumns()[0]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 1, value.flatColumns()[1]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 2, value.flatColumns()[2]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 3, value.flatColumns()[3]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 4, value.flatColumns()[4]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 5, value.flatColumns()[5]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 6, value.flatColumns()[6]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 7, value.flatColumns()[7]);
-            ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + 8, value.flatColumns()[8]);
-        }
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Mat3x3> values) {
+        writeColumnsStatic(w, path, values);
     }
 
     public static Mat3x3 of(float... values) {

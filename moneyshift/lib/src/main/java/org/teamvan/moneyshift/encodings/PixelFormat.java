@@ -2,19 +2,19 @@
 package org.teamvan.moneyshift.encodings;
 
 /**
- * Specifieds a particular format of an {@link org.teamvan.moneyshift.archetypes.Image}.
+ * Specifieds a particular format of an {@link org.teamvan.moneyshift.archetypes.Image rerun::archetypes::Image}.
  * 
- * Most images can be described by a {@link org.teamvan.moneyshift.encodings.ColorModel} and a {@link org.teamvan.moneyshift.encodings.ChannelDatatype},
+ * Most images can be described by a {@link org.teamvan.moneyshift.encodings.ColorModel rerun::encodings::ColorModel} and a {@link org.teamvan.moneyshift.encodings.ChannelDatatype rerun::encodings::ChannelDatatype},
  * e.g. {@code RGB} and {@code U8} respectively.
  * 
  * However, some image formats has chroma downsampling and/or
- * use differing number of bits per channel, and that is what this {@link org.teamvan.moneyshift.encodings.PixelFormat} is for.
+ * use differing number of bits per channel, and that is what this {@link org.teamvan.moneyshift.encodings.PixelFormat rerun::encodings::PixelFormat} is for.
  * 
  * All these formats support random access.
  * 
- * For more compressed image formats, see {@link org.teamvan.moneyshift.archetypes.EncodedImage}.
+ * For more compressed image formats, see {@link org.teamvan.moneyshift.archetypes.EncodedImage rerun::archetypes::EncodedImage}.
  */
-public enum PixelFormat {
+public enum PixelFormat implements org.teamvan.moneyshift.NtEncoding<PixelFormat> {
     /**
      * {@code Y_U_V12} is a YUV 4:2:0 fully planar YUV format without chroma downsampling, also known as {@code I420}.
      * 
@@ -44,7 +44,7 @@ public enum PixelFormat {
     /**
      * Monochrome Y plane only, essentially a YUV 4:0:0 planar format.
      * 
-     * Also known as just "gray". This is virtually identical to a 8bit luminance/grayscale (see {@link org.teamvan.moneyshift.encodings.ColorModel}).
+     * Also known as just "gray". This is virtually identical to a 8bit luminance/grayscale (see {@link org.teamvan.moneyshift.encodings.ColorModel rerun::encodings::ColorModel}).
      * 
      * This uses entire range YUV, i.e. Y is expected to be within This uses entire range YUV, i.e. Y is expected to be within [0, 255].
      * (as opposed to "limited range" YUV as used e.g. in NV12).
@@ -73,7 +73,7 @@ public enum PixelFormat {
      * Also known as just "gray".
      * 
      * This uses limited range YUV, i.e. Y is expected to be within This uses limited range YUV, i.e. Y is expected to be within [16, 235].
-     * If not for this range limitation/remapping, this is almost identical to 8bit luminace/grayscale (see {@link org.teamvan.moneyshift.encodings.ColorModel}).
+     * If not for this range limitation/remapping, this is almost identical to 8bit luminace/grayscale (see {@link org.teamvan.moneyshift.encodings.ColorModel rerun::encodings::ColorModel}).
      */
     Y8_LimitedRange(41L),
     /**
@@ -124,29 +124,24 @@ public enum PixelFormat {
     }
 
     public static final java.lang.String NAME = "rerun.encodings.PixelFormat";
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.UINT8;
-    }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, arrowType(), java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<PixelFormat> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<PixelFormat> values) {
+        int n = values.size();
+        long[] column = new long[n];
+        boolean[] present = new boolean[n];
+        boolean anyNull = false;
+        for (int i = 0; i < n; i++) {
             PixelFormat value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.UInt1Vector) vector).setNull(i);
-            } else {
-                ((org.apache.arrow.vector.UInt1Vector) vector).setSafe(i, (int) value.value());
-            }
+            present[i] = value != null;
+            anyNull |= value == null;
+            column[i] = value == null ? 0L : value.value();
         }
-        ((org.apache.arrow.vector.UInt1Vector) vector).setValueCount(count);
+        w.present(path, present, anyNull);
+        w.longs(path, column);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, PixelFormat value) {
-        ((org.apache.arrow.vector.UInt1Vector) vector).setSafe(index, (int) value.value());
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<PixelFormat> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

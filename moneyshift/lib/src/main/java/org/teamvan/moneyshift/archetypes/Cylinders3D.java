@@ -5,9 +5,9 @@ package org.teamvan.moneyshift.archetypes;
  * 3D cylinders with flat caps.
  * 
  * This archetype is for cylinder primitives defined by their axial length and radius.
- * For points whose radii are for visualization purposes, use {@link org.teamvan.moneyshift.archetypes.Points3D} instead.
+ * For points whose radii are for visualization purposes, use {@link org.teamvan.moneyshift.archetypes.Points3D rerun::archetypes::Points3D} instead.
  * 
- * Orienting and placing cylinders forms a separate transform that is applied prior to {@link org.teamvan.moneyshift.archetypes.InstancePoses3D} and {@link org.teamvan.moneyshift.archetypes.Transform3D}.
+ * Orienting and placing cylinders forms a separate transform that is applied prior to {@link org.teamvan.moneyshift.archetypes.InstancePoses3D rerun::archetypes::InstancePoses3D} and {@link org.teamvan.moneyshift.archetypes.Transform3D rerun::archetypes::Transform3D}.
  * 
  */
 public record Cylinders3D(
@@ -84,153 +84,94 @@ public record Cylinders3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Cylinders3D";
     public static final int NUM_COMPONENTS = 11;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LENGTHS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:lengths", "rerun.components.Length");
 
-    /**
-     * The total axial length of the cylinder, measured as the straight-line distance between the centers of its two endcaps.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLengths() {
-        return DESCRIPTOR_LENGTHS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_RADII = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:radii", "rerun.components.Radius");
-
-    /**
-     * Radii of the cylinders.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRadii() {
-        return DESCRIPTOR_RADII;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CENTERS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:centers", "rerun.components.Translation3D");
-
-    /**
-     * Optional centers of the cylinders.
-     * 
-     * If not specified, each cylinder will be centered at (0, 0, 0).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorCenters() {
-        return DESCRIPTOR_CENTERS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ROTATION_AXIS_ANGLES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:rotation_axis_angles", "rerun.components.RotationAxisAngle");
-
-    /**
-     * Rotations via axis + angle.
-     * 
-     * If no rotation is specified, the cylinders align with the +Z axis of the local coordinate system.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRotationAxisAngles() {
-        return DESCRIPTOR_ROTATION_AXIS_ANGLES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_QUATERNIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:quaternions", "rerun.components.RotationQuat");
-
-    /**
-     * Rotations via quaternion.
-     * 
-     * If no rotation is specified, the cylinders align with the +Z axis of the local coordinate system.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorQuaternions() {
-        return DESCRIPTOR_QUATERNIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:colors", "rerun.components.Color");
-
-    /**
-     * Optional colors for the cylinders.
-     * 
-     * Alpha channel is used for transparency for solid fill-mode.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LINE_RADII = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:line_radii", "rerun.components.Radius");
-
-    /**
-     * Optional radii for the lines used when the cylinder is rendered as a wireframe.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLineRadii() {
-        return DESCRIPTOR_LINE_RADII;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_FILL_MODE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:fill_mode", "rerun.components.FillMode");
-
-    /**
-     * Optionally choose whether the cylinders are drawn with lines or solid.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorFillMode() {
-        return DESCRIPTOR_FILL_MODE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:labels", "rerun.components.Text");
-
-    /**
-     * Optional text labels for the cylinders, which will be located at their centers.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLabels() {
-        return DESCRIPTOR_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SHOW_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:show_labels", "rerun.components.ShowLabels");
-
-    /**
-     * Whether the text labels should be shown.
-     * 
-     * If not set, labels will automatically appear when there is exactly one label for this entity
-     * or the number of instances on this entity is under a certain threshold.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorShowLabels() {
-        return DESCRIPTOR_SHOW_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CLASS_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Cylinders3D:class_ids", "rerun.components.ClassId");
-
-    /**
-     * Optional class ID for the ellipsoids.
-     * 
-     * The class ID provides colors and labels if not specified explicitly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorClassIds() {
-        return DESCRIPTOR_CLASS_IDS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorLengths(), descriptorRadii());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorCenters(), descriptorColors());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorRotationAxisAngles(), descriptorQuaternions(), descriptorLineRadii(), descriptorFillMode(), descriptorLabels(), descriptorShowLabels(), descriptorClassIds());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Length.batch(descriptorLengths(), allocator, lengths));
-        batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorRadii(), allocator, radii));
-        if (centers != null) {
-            batches.add(org.teamvan.moneyshift.components.Translation3D.batch(descriptorCenters(), allocator, centers));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!lengths.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("lengths").append('=').append(org.teamvan.moneyshift.components.Length.COMPONENT_TYPE);
         }
-        if (rotationAxisAngles != null) {
-            batches.add(org.teamvan.moneyshift.components.RotationAxisAngle.batch(descriptorRotationAxisAngles(), allocator, rotationAxisAngles));
+        if (!radii.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        if (quaternions != null) {
-            batches.add(org.teamvan.moneyshift.components.RotationQuat.batch(descriptorQuaternions(), allocator, quaternions));
+        if (centers != null && !centers.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("centers").append('=').append(org.teamvan.moneyshift.components.Translation3D.COMPONENT_TYPE);
         }
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+        if (rotationAxisAngles != null && !rotationAxisAngles.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("rotation_axis_angles").append('=').append(org.teamvan.moneyshift.components.RotationAxisAngle.COMPONENT_TYPE);
         }
-        if (lineRadii != null) {
-            batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorLineRadii(), allocator, lineRadii));
+        if (quaternions != null && !quaternions.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("quaternions").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
+        }
+        if (lineRadii != null && !lineRadii.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("line_radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
         if (fillMode != null) {
-            batches.add(org.teamvan.moneyshift.components.FillMode.batch(descriptorFillMode(), allocator, fillMode));
+            if (components.length() > 0) components.append(',');
+            components.append("fill_mode").append('=').append(org.teamvan.moneyshift.components.FillMode.COMPONENT_TYPE);
         }
-        if (labels != null) {
-            batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorLabels(), allocator, labels));
+        if (labels != null && !labels.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("labels").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
         }
         if (showLabels != null) {
-            batches.add(org.teamvan.moneyshift.components.ShowLabels.batch(descriptorShowLabels(), allocator, showLabels));
+            if (components.length() > 0) components.append(',');
+            components.append("show_labels").append('=').append(org.teamvan.moneyshift.components.ShowLabels.COMPONENT_TYPE);
         }
-        if (classIds != null) {
-            batches.add(org.teamvan.moneyshift.components.ClassId.batch(descriptorClassIds(), allocator, classIds));
+        if (classIds != null && !classIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!lengths.isEmpty()) {
+            org.teamvan.moneyshift.components.Length.writeColumnsStatic(w, "lengths", lengths);
+        }
+        if (!radii.isEmpty()) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "radii", radii);
+        }
+        if (centers != null && !centers.isEmpty()) {
+            org.teamvan.moneyshift.components.Translation3D.writeColumnsStatic(w, "centers", centers);
+        }
+        if (rotationAxisAngles != null && !rotationAxisAngles.isEmpty()) {
+            org.teamvan.moneyshift.components.RotationAxisAngle.writeColumnsStatic(w, "rotation_axis_angles", rotationAxisAngles);
+        }
+        if (quaternions != null && !quaternions.isEmpty()) {
+            org.teamvan.moneyshift.components.RotationQuat.writeColumnsStatic(w, "quaternions", quaternions);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (lineRadii != null && !lineRadii.isEmpty()) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "line_radii", lineRadii);
+        }
+        if (fillMode != null) {
+            org.teamvan.moneyshift.components.FillMode.writeColumnsStatic(w, "fill_mode", java.util.List.of(fillMode));
+        }
+        if (labels != null && !labels.isEmpty()) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "labels", labels);
+        }
+        if (showLabels != null) {
+            org.teamvan.moneyshift.components.ShowLabels.writeColumnsStatic(w, "show_labels", java.util.List.of(showLabels));
+        }
+        if (classIds != null && !classIds.isEmpty()) {
+            org.teamvan.moneyshift.components.ClassId.writeColumnsStatic(w, "class_ids", classIds);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

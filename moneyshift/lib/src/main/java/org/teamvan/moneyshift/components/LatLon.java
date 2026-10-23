@@ -6,7 +6,7 @@ package org.teamvan.moneyshift.components;
  */
 public record LatLon(
     org.teamvan.moneyshift.encodings.DVec2D latLon
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<LatLon> {
     public LatLon {
         java.util.Objects.requireNonNull(latLon, "latLon");
     }
@@ -16,44 +16,49 @@ public record LatLon(
         this(new org.teamvan.moneyshift.encodings.DVec2D(xy));
     }
 
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.LatLon";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.encodings.DVec2D.arrowType();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.encodings.DVec2D.arrowField(name, nullable);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<LatLon> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, LatLon::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, LatLon value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, LatLon value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<LatLon> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            LatLon value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.FixedSizeListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<LatLon> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).latLon();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.FixedSizeListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        double[] column1 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).latLon();
+            var v1_1 = v1_0 == null ? null : v1_0.xy();
+            var v1_2 = v1_1 == null ? null : v1_1[0];
+            var value1 = v1_2;
+            column1[i] = value1 == null ? 0.0 : value1;
+        }
+        w.doubles(path + "/0", column1);
+        double[] column2 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).latLon();
+            var v2_1 = v2_0 == null ? null : v2_0.xy();
+            var v2_2 = v2_1 == null ? null : v2_1[1];
+            var value2 = v2_2;
+            column2[i] = value2 == null ? 0.0 : value2;
+        }
+        w.doubles(path + "/1", column2);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, LatLon value) {
-        org.teamvan.moneyshift.encodings.DVec2D.writeOne(vector, index, value.latLon());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<LatLon> values) {
+        writeColumnsStatic(w, path, values);
     }
 
     public static LatLon of(double... values) {

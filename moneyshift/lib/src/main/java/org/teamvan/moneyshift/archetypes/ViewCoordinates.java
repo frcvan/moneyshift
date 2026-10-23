@@ -27,32 +27,24 @@ public record ViewCoordinates(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.ViewCoordinates";
     public static final int NUM_COMPONENTS = 1;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_XYZ = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "ViewCoordinates:xyz", "rerun.components.ViewCoordinates");
 
-    /**
-     * The directions of the The directions of the [x, y, z] axes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorXyz() {
-        return DESCRIPTOR_XYZ;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorXyz());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.ViewCoordinates.batch(descriptorXyz(), allocator, xyz));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("xyz").append('=').append(org.teamvan.moneyshift.components.ViewCoordinates.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.ViewCoordinates.writeColumnsStatic(w, "xyz", java.util.List.of(xyz));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

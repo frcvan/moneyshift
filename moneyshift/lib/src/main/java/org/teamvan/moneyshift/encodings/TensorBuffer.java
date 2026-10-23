@@ -2,11 +2,11 @@
 package org.teamvan.moneyshift.encodings;
 
 /**
- * The underlying storage for {@link org.teamvan.moneyshift.archetypes.Tensor}.
+ * The underlying storage for {@link org.teamvan.moneyshift.archetypes.Tensor rerun::archetypes::Tensor}.
  * 
  * Tensor elements are stored in a contiguous buffer of a single type.
  */
-public sealed interface TensorBuffer permits
+public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<TensorBuffer> permits
     TensorBuffer.U8,
     TensorBuffer.U16,
     TensorBuffer.U32,
@@ -87,237 +87,330 @@ public sealed interface TensorBuffer permits
 
     java.lang.String NAME = "rerun.encodings.TensorBuffer";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Union(org.apache.arrow.vector.types.UnionMode.Dense, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
+    @Override
+    default void writeColumns(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TensorBuffer> values) {
+        writeColumnsStatic(w, path, values);
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.Union(org.apache.arrow.vector.types.UnionMode.Dense, new int[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("_null_markers", true, org.teamvan.moneyshift.ArrowFields.NULL, java.util.List.of()), org.teamvan.moneyshift.ArrowFields.field("U8", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.UINT8, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("U16", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.UINT16, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("U32", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.UINT32, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("U64", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.UINT64, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("I8", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.INT8, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("I16", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.INT16, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("I32", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.INT32, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("I64", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.INT64, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("F16", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.FLOAT16, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("F32", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.FLOAT32, java.util.List.of()))), org.teamvan.moneyshift.ArrowFields.field("F64", false, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.FLOAT64, java.util.List.of())))));
-    }
-
-    public static int typeId(TensorBuffer value) {
-        if (value == null) return 0;
-        return switch (value) {
-            case TensorBuffer.U8 ignored -> 1;
-            case TensorBuffer.U16 ignored -> 2;
-            case TensorBuffer.U32 ignored -> 3;
-            case TensorBuffer.U64 ignored -> 4;
-            case TensorBuffer.I8 ignored -> 5;
-            case TensorBuffer.I16 ignored -> 6;
-            case TensorBuffer.I32 ignored -> 7;
-            case TensorBuffer.I64 ignored -> 8;
-            case TensorBuffer.F16 ignored -> 9;
-            case TensorBuffer.F32 ignored -> 10;
-            case TensorBuffer.F64 ignored -> 11;
-        };
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<TensorBuffer> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            writeOne(vector, i, values.get(i));
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TensorBuffer> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.DenseUnionVector) vector).setValueCount(count);
-    }
-
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, TensorBuffer value) {
-        org.apache.arrow.vector.complex.DenseUnionVector union = (org.apache.arrow.vector.complex.DenseUnionVector) vector;
-        if (value == null) {
-            org.apache.arrow.vector.FieldVector nullMarkers = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 0);
-            int nullOffset = nullMarkers.getValueCount();
-            union.setTypeId(index, (byte) 0);
-            union.setOffset(index, nullOffset);
-            nullMarkers.setValueCount(nullOffset + 1);
-            return;
+        w.present(path, present0, anyNull0);
+        long[] variants1 = new long[n];
+        java.util.ArrayList<java.util.List<java.lang.Short>> payload1_0 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Integer>> payload1_1 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Long>> payload1_2 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Long>> payload1_3 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Byte>> payload1_4 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Short>> payload1_5 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Integer>> payload1_6 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Long>> payload1_7 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Float>> payload1_8 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Float>> payload1_9 = new java.util.ArrayList<>();
+        java.util.ArrayList<java.util.List<java.lang.Double>> payload1_10 = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            org.teamvan.moneyshift.encodings.TensorBuffer value1 = values.get(i);
+            if (value1 == null) {
+                variants1[i] = -1L;
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.U8 variant1_0) {
+                variants1[i] = 0L;
+                payload1_0.add(variant1_0.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.U16 variant1_1) {
+                variants1[i] = 1L;
+                payload1_1.add(variant1_1.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.U32 variant1_2) {
+                variants1[i] = 2L;
+                payload1_2.add(variant1_2.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.U64 variant1_3) {
+                variants1[i] = 3L;
+                payload1_3.add(variant1_3.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.I8 variant1_4) {
+                variants1[i] = 4L;
+                payload1_4.add(variant1_4.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.I16 variant1_5) {
+                variants1[i] = 5L;
+                payload1_5.add(variant1_5.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.I32 variant1_6) {
+                variants1[i] = 6L;
+                payload1_6.add(variant1_6.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.I64 variant1_7) {
+                variants1[i] = 7L;
+                payload1_7.add(variant1_7.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.F16 variant1_8) {
+                variants1[i] = 8L;
+                payload1_8.add(variant1_8.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.F32 variant1_9) {
+                variants1[i] = 9L;
+                payload1_9.add(variant1_9.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TensorBuffer.F64 variant1_10) {
+                variants1[i] = 10L;
+                payload1_10.add(variant1_10.value());
+            } else {
+                variants1[i] = -1L;
+            }
         }
-        switch (value) {
-            case TensorBuffer.U8 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 1);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 1);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Short> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.UInt1Vector) child0).setSafe(start0 + j0, (int) values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.U16 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 2);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 2);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Integer> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.UInt2Vector) child0).setSafe(start0 + j0, (int) values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.U32 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 3);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 3);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Long> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.UInt4Vector) child0).setSafe(start0 + j0, (int) (long) values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.U64 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 4);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 4);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Long> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.UInt8Vector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.I8 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 5);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 5);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Byte> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.TinyIntVector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.I16 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 6);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 6);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Short> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.SmallIntVector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.I32 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 7);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 7);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Integer> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.IntVector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.I64 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 8);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 8);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Long> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.BigIntVector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.F16 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 9);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 9);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Float> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.Float2Vector) child0).setSafe(start0 + j0, java.lang.Float.floatToFloat16(values0.get(j0)));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.F32 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 10);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 10);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Float> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.Float4Vector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
-            case TensorBuffer.F64 variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 11);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 11);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                {
-                    org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) child;
-                    int start0 = list0.startNewValue(offset);
-                    org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-                    java.util.List<java.lang.Double> values0 = variant.value();
-                    for (int j0 = 0; j0 < values0.size(); j0++) {
-                        ((org.apache.arrow.vector.Float8Vector) child0).setSafe(start0 + j0, values0.get(j0));
-                    }
-                    list0.endValue(offset, values0.size());
-                }
-            }
+        w.longs(path + "/.variant", variants1);
+        if (!payload1_0.isEmpty()) {
+            int payloadCount1_0 = payload1_0.size();
+        long[] counts2 = new long[payloadCount1_0];
+        int total2 = 0;
+        for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
+            java.util.List<java.lang.Short> list2 = payload1_0.get(k1_0);
+            counts2[k1_0] = list2 == null ? 0L : list2.size();
+            total2 += (int) counts2[k1_0];
+        }
+        w.longs(path + "/U8" + "/.count", counts2);
+        java.util.ArrayList<java.lang.Short> items2 = new java.util.ArrayList<>(total2);
+        for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
+            java.util.List<java.lang.Short> list2 = payload1_0.get(k1_0);
+            if (list2 != null) items2.addAll(list2);
+        }
+        int itemCount2 = items2.size();
+        long[] column3 = new long[itemCount2];
+        for (int j2 = 0; j2 < itemCount2; j2++) {
+            long value3 = items2.get(j2);
+            column3[j2] = value3;
+        }
+        w.longs(path + "/U8/.items", column3);
+        }
+        if (!payload1_1.isEmpty()) {
+            int payloadCount1_1 = payload1_1.size();
+        long[] counts4 = new long[payloadCount1_1];
+        int total4 = 0;
+        for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
+            java.util.List<java.lang.Integer> list4 = payload1_1.get(k1_1);
+            counts4[k1_1] = list4 == null ? 0L : list4.size();
+            total4 += (int) counts4[k1_1];
+        }
+        w.longs(path + "/U16" + "/.count", counts4);
+        java.util.ArrayList<java.lang.Integer> items4 = new java.util.ArrayList<>(total4);
+        for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
+            java.util.List<java.lang.Integer> list4 = payload1_1.get(k1_1);
+            if (list4 != null) items4.addAll(list4);
+        }
+        int itemCount4 = items4.size();
+        long[] column5 = new long[itemCount4];
+        for (int j4 = 0; j4 < itemCount4; j4++) {
+            long value5 = items4.get(j4);
+            column5[j4] = value5;
+        }
+        w.longs(path + "/U16/.items", column5);
+        }
+        if (!payload1_2.isEmpty()) {
+            int payloadCount1_2 = payload1_2.size();
+        long[] counts6 = new long[payloadCount1_2];
+        int total6 = 0;
+        for (int k1_2 = 0; k1_2 < payloadCount1_2; k1_2++) {
+            java.util.List<java.lang.Long> list6 = payload1_2.get(k1_2);
+            counts6[k1_2] = list6 == null ? 0L : list6.size();
+            total6 += (int) counts6[k1_2];
+        }
+        w.longs(path + "/U32" + "/.count", counts6);
+        java.util.ArrayList<java.lang.Long> items6 = new java.util.ArrayList<>(total6);
+        for (int k1_2 = 0; k1_2 < payloadCount1_2; k1_2++) {
+            java.util.List<java.lang.Long> list6 = payload1_2.get(k1_2);
+            if (list6 != null) items6.addAll(list6);
+        }
+        int itemCount6 = items6.size();
+        long[] column7 = new long[itemCount6];
+        for (int j6 = 0; j6 < itemCount6; j6++) {
+            long value7 = items6.get(j6);
+            column7[j6] = value7;
+        }
+        w.longs(path + "/U32/.items", column7);
+        }
+        if (!payload1_3.isEmpty()) {
+            int payloadCount1_3 = payload1_3.size();
+        long[] counts8 = new long[payloadCount1_3];
+        int total8 = 0;
+        for (int k1_3 = 0; k1_3 < payloadCount1_3; k1_3++) {
+            java.util.List<java.lang.Long> list8 = payload1_3.get(k1_3);
+            counts8[k1_3] = list8 == null ? 0L : list8.size();
+            total8 += (int) counts8[k1_3];
+        }
+        w.longs(path + "/U64" + "/.count", counts8);
+        java.util.ArrayList<java.lang.Long> items8 = new java.util.ArrayList<>(total8);
+        for (int k1_3 = 0; k1_3 < payloadCount1_3; k1_3++) {
+            java.util.List<java.lang.Long> list8 = payload1_3.get(k1_3);
+            if (list8 != null) items8.addAll(list8);
+        }
+        int itemCount8 = items8.size();
+        long[] column9 = new long[itemCount8];
+        boolean unsigned9 = false;
+        for (int j8 = 0; j8 < itemCount8; j8++) {
+            long value9 = items8.get(j8);
+            column9[j8] = value9;
+            unsigned9 |= column9[j8] < 0L;
+        }
+        w.u64(path + "/U64/.items", column9, unsigned9);
+        }
+        if (!payload1_4.isEmpty()) {
+            int payloadCount1_4 = payload1_4.size();
+        long[] counts10 = new long[payloadCount1_4];
+        int total10 = 0;
+        for (int k1_4 = 0; k1_4 < payloadCount1_4; k1_4++) {
+            java.util.List<java.lang.Byte> list10 = payload1_4.get(k1_4);
+            counts10[k1_4] = list10 == null ? 0L : list10.size();
+            total10 += (int) counts10[k1_4];
+        }
+        w.longs(path + "/I8" + "/.count", counts10);
+        java.util.ArrayList<java.lang.Byte> items10 = new java.util.ArrayList<>(total10);
+        for (int k1_4 = 0; k1_4 < payloadCount1_4; k1_4++) {
+            java.util.List<java.lang.Byte> list10 = payload1_4.get(k1_4);
+            if (list10 != null) items10.addAll(list10);
+        }
+        int itemCount10 = items10.size();
+        long[] column11 = new long[itemCount10];
+        for (int j10 = 0; j10 < itemCount10; j10++) {
+            long value11 = items10.get(j10);
+            column11[j10] = value11;
+        }
+        w.longs(path + "/I8/.items", column11);
+        }
+        if (!payload1_5.isEmpty()) {
+            int payloadCount1_5 = payload1_5.size();
+        long[] counts12 = new long[payloadCount1_5];
+        int total12 = 0;
+        for (int k1_5 = 0; k1_5 < payloadCount1_5; k1_5++) {
+            java.util.List<java.lang.Short> list12 = payload1_5.get(k1_5);
+            counts12[k1_5] = list12 == null ? 0L : list12.size();
+            total12 += (int) counts12[k1_5];
+        }
+        w.longs(path + "/I16" + "/.count", counts12);
+        java.util.ArrayList<java.lang.Short> items12 = new java.util.ArrayList<>(total12);
+        for (int k1_5 = 0; k1_5 < payloadCount1_5; k1_5++) {
+            java.util.List<java.lang.Short> list12 = payload1_5.get(k1_5);
+            if (list12 != null) items12.addAll(list12);
+        }
+        int itemCount12 = items12.size();
+        long[] column13 = new long[itemCount12];
+        for (int j12 = 0; j12 < itemCount12; j12++) {
+            long value13 = items12.get(j12);
+            column13[j12] = value13;
+        }
+        w.longs(path + "/I16/.items", column13);
+        }
+        if (!payload1_6.isEmpty()) {
+            int payloadCount1_6 = payload1_6.size();
+        long[] counts14 = new long[payloadCount1_6];
+        int total14 = 0;
+        for (int k1_6 = 0; k1_6 < payloadCount1_6; k1_6++) {
+            java.util.List<java.lang.Integer> list14 = payload1_6.get(k1_6);
+            counts14[k1_6] = list14 == null ? 0L : list14.size();
+            total14 += (int) counts14[k1_6];
+        }
+        w.longs(path + "/I32" + "/.count", counts14);
+        java.util.ArrayList<java.lang.Integer> items14 = new java.util.ArrayList<>(total14);
+        for (int k1_6 = 0; k1_6 < payloadCount1_6; k1_6++) {
+            java.util.List<java.lang.Integer> list14 = payload1_6.get(k1_6);
+            if (list14 != null) items14.addAll(list14);
+        }
+        int itemCount14 = items14.size();
+        long[] column15 = new long[itemCount14];
+        for (int j14 = 0; j14 < itemCount14; j14++) {
+            long value15 = items14.get(j14);
+            column15[j14] = value15;
+        }
+        w.longs(path + "/I32/.items", column15);
+        }
+        if (!payload1_7.isEmpty()) {
+            int payloadCount1_7 = payload1_7.size();
+        long[] counts16 = new long[payloadCount1_7];
+        int total16 = 0;
+        for (int k1_7 = 0; k1_7 < payloadCount1_7; k1_7++) {
+            java.util.List<java.lang.Long> list16 = payload1_7.get(k1_7);
+            counts16[k1_7] = list16 == null ? 0L : list16.size();
+            total16 += (int) counts16[k1_7];
+        }
+        w.longs(path + "/I64" + "/.count", counts16);
+        java.util.ArrayList<java.lang.Long> items16 = new java.util.ArrayList<>(total16);
+        for (int k1_7 = 0; k1_7 < payloadCount1_7; k1_7++) {
+            java.util.List<java.lang.Long> list16 = payload1_7.get(k1_7);
+            if (list16 != null) items16.addAll(list16);
+        }
+        int itemCount16 = items16.size();
+        long[] column17 = new long[itemCount16];
+        for (int j16 = 0; j16 < itemCount16; j16++) {
+            long value17 = items16.get(j16);
+            column17[j16] = value17;
+        }
+        w.longs(path + "/I64/.items", column17);
+        }
+        if (!payload1_8.isEmpty()) {
+            int payloadCount1_8 = payload1_8.size();
+        long[] counts18 = new long[payloadCount1_8];
+        int total18 = 0;
+        for (int k1_8 = 0; k1_8 < payloadCount1_8; k1_8++) {
+            java.util.List<java.lang.Float> list18 = payload1_8.get(k1_8);
+            counts18[k1_8] = list18 == null ? 0L : list18.size();
+            total18 += (int) counts18[k1_8];
+        }
+        w.longs(path + "/F16" + "/.count", counts18);
+        java.util.ArrayList<java.lang.Float> items18 = new java.util.ArrayList<>(total18);
+        for (int k1_8 = 0; k1_8 < payloadCount1_8; k1_8++) {
+            java.util.List<java.lang.Float> list18 = payload1_8.get(k1_8);
+            if (list18 != null) items18.addAll(list18);
+        }
+        int itemCount18 = items18.size();
+        double[] column19 = new double[itemCount18];
+        for (int j18 = 0; j18 < itemCount18; j18++) {
+            double value19 = items18.get(j18);
+            column19[j18] = value19;
+        }
+        w.doubles(path + "/F16/.items", column19);
+        }
+        if (!payload1_9.isEmpty()) {
+            int payloadCount1_9 = payload1_9.size();
+        long[] counts20 = new long[payloadCount1_9];
+        int total20 = 0;
+        for (int k1_9 = 0; k1_9 < payloadCount1_9; k1_9++) {
+            java.util.List<java.lang.Float> list20 = payload1_9.get(k1_9);
+            counts20[k1_9] = list20 == null ? 0L : list20.size();
+            total20 += (int) counts20[k1_9];
+        }
+        w.longs(path + "/F32" + "/.count", counts20);
+        java.util.ArrayList<java.lang.Float> items20 = new java.util.ArrayList<>(total20);
+        for (int k1_9 = 0; k1_9 < payloadCount1_9; k1_9++) {
+            java.util.List<java.lang.Float> list20 = payload1_9.get(k1_9);
+            if (list20 != null) items20.addAll(list20);
+        }
+        int itemCount20 = items20.size();
+        double[] column21 = new double[itemCount20];
+        for (int j20 = 0; j20 < itemCount20; j20++) {
+            double value21 = items20.get(j20);
+            column21[j20] = value21;
+        }
+        w.doubles(path + "/F32/.items", column21);
+        }
+        if (!payload1_10.isEmpty()) {
+            int payloadCount1_10 = payload1_10.size();
+        long[] counts22 = new long[payloadCount1_10];
+        int total22 = 0;
+        for (int k1_10 = 0; k1_10 < payloadCount1_10; k1_10++) {
+            java.util.List<java.lang.Double> list22 = payload1_10.get(k1_10);
+            counts22[k1_10] = list22 == null ? 0L : list22.size();
+            total22 += (int) counts22[k1_10];
+        }
+        w.longs(path + "/F64" + "/.count", counts22);
+        java.util.ArrayList<java.lang.Double> items22 = new java.util.ArrayList<>(total22);
+        for (int k1_10 = 0; k1_10 < payloadCount1_10; k1_10++) {
+            java.util.List<java.lang.Double> list22 = payload1_10.get(k1_10);
+            if (list22 != null) items22.addAll(list22);
+        }
+        int itemCount22 = items22.size();
+        double[] column23 = new double[itemCount22];
+        for (int j22 = 0; j22 < itemCount22; j22++) {
+            double value23 = items22.get(j22);
+            column23[j22] = value23;
+        }
+        w.doubles(path + "/F64/.items", column23);
         }
     }
 }

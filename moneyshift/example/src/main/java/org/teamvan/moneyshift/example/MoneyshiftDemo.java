@@ -1,18 +1,9 @@
 package org.teamvan.moneyshift.example;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
-import org.teamvan.moneyshift.FileTransport;
-import org.teamvan.moneyshift.RecordingStream;
-import org.teamvan.moneyshift.RecordingStreamBuilder;
-import org.teamvan.moneyshift.Transport;
+import org.teamvan.moneyshift.NtRecorder;
 import org.teamvan.moneyshift.archetypes.AnnotationContext;
 import org.teamvan.moneyshift.archetypes.Boxes3D;
 import org.teamvan.moneyshift.archetypes.LineStrips3D;
@@ -21,7 +12,6 @@ import org.teamvan.moneyshift.archetypes.Scalars;
 import org.teamvan.moneyshift.archetypes.SeriesLines;
 import org.teamvan.moneyshift.archetypes.TextLog;
 import org.teamvan.moneyshift.archetypes.Transform3D;
-import org.teamvan.moneyshift.blueprint.archetypes.ViewBlueprint;
 import org.teamvan.moneyshift.components.HalfSize3D;
 import org.teamvan.moneyshift.components.LineStrip3D;
 import org.teamvan.moneyshift.components.Position3D;
@@ -33,22 +23,27 @@ import org.teamvan.moneyshift.encodings.AnnotationInfo;
 import org.teamvan.moneyshift.encodings.ClassDescription;
 import org.teamvan.moneyshift.encodings.ClassDescriptionMapElem;
 import org.teamvan.moneyshift.encodings.Vec3D;
-import org.teamvan.moneyshift.proto.log_msg.v1alpha1.LogMsg;
+import org.wpilib.networktables.NetworkTableInstance;
 
 /**
- * A small "sensor sweep" simulation that exercises the moneyshift public API.
+ * A small "sensor sweep" simulation that publishes Rerun data through NetworkTables.
  *
- * <p>It logs moving points, line strips, boxes, transforms, time series and text logs on three
- * timelines, ships a blueprint alongside the recording, and writes the same kind of data to
- * three different sinks: a shared RRD file, a plain file sink, and an in-memory sink.
+ * <p>By default it starts an embedded NT4 server, publishes the scene and a number of frames, and
+ * prints the command that connects the Rust bridge:
+ *
+ * <pre>{@code
+ * cargo run --bin rerun-importer-firstrun -- --nt --save /tmp/live.rrd
+ * }</pre>
+ *
+ * <p>Use {@code --client <host>} to publish to a server that already exists (for example the one
+ * the robot runs), or {@code --linger <seconds>} to keep the embedded server alive for inspection.
  */
 public final class MoneyshiftDemo {
-    private static final String APP_ID = "moneyshift-example";
     private static final int DEFAULT_FRAMES = 60;
+    private static final int DEFAULT_PORT = 5810;
     private static final int POINT_COUNT = 96;
     private static final int SCAN_POINTS = 64;
     private static final float TAU = (float) (Math.PI * 2.0);
-    private static final Instant START = Instant.parse("2026-01-01T00:00:00Z");
 
     private static final long CYAN = 0xFF00E5FFL;
     private static final long MAGENTA = 0xFFFF2D95L;
@@ -58,22 +53,18 @@ public final class MoneyshiftDemo {
 
     private MoneyshiftDemo() {}
 
-    /** Paths and counts produced by {@link #writeAll(Path, int)}. */
-    public record Artifacts(
-            Path demoRecording,
-            Path fileSinkRecording,
-            Path memoryRecording,
-            int frames,
-            int memoryBytes) {}
-
     public static void main(String[] args) throws Exception {
-        Path outDir = Path.of("build", "moneyshift-example");
-        String connectEndpoint = null;
+        int frames = DEFAULT_FRAMES;
+        int port = DEFAULT_PORT;
+        int lingerSeconds = 0;
+        String clientHost = null;
 
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
-                case "--out" -> outDir = Path.of(requireValue(args, ++i, "--out"));
-                case "--connect" -> connectEndpoint = requireValue(args, ++i, "--connect");
+                case "--frames" -> frames = Integer.parseInt(requireValue(args, ++i, "--frames"));
+                case "--port" -> port = Integer.parseInt(requireValue(args, ++i, "--port"));
+                case "--linger" -> lingerSeconds = Integer.parseInt(requireValue(args, ++i, "--linger"));
+                case "--client" -> clientHost = requireValue(args, ++i, "--client");
                 case "--help", "-h" -> {
                     printUsage();
                     return;
@@ -86,147 +77,54 @@ public final class MoneyshiftDemo {
             }
         }
 
-        Artifacts artifacts = writeAll(outDir);
-        System.out.printf(
-                "wrote %s (%d frames, %d bytes), %s (%d bytes) and %s (%d bytes)%n",
-                artifacts.demoRecording(),
-                artifacts.frames(),
-                Files.size(artifacts.demoRecording()),
-                artifacts.fileSinkRecording(),
-                Files.size(artifacts.fileSinkRecording()),
-                artifacts.memoryRecording(),
-                artifacts.memoryBytes());
-        System.out.println("open the recording with: rerun " + artifacts.demoRecording());
-
-        if (connectEndpoint != null) {
-            streamToViewer(connectEndpoint);
+        NetworkTableInstance instance = NetworkTableInstance.create();
+        if (clientHost == null) {
+            instance.startServer("", "", "", port);
+        } else {
+            instance.setServer(clientHost);
         }
+
+        try {
+            NtRecorder.setInstance(instance);
+            publish(NtRecorder.getInstance(), frames);
+            NtRecorder.getInstance().flush();
+        } finally {
+            NtRecorder.setInstance(null);
+        }
+
+        System.out.printf(
+                "published %d frames to %s%n",
+                frames, clientHost == null ? "the embedded NT server on port " + port : clientHost);
+        System.out.println("connect the Rust bridge with:");
+        System.out.println("  cargo run --bin rerun-importer-firstrun -- --nt --save /tmp/live.rrd");
+        System.out.println("then open the recording with: rerun --load /tmp/live.rrd");
+
+        if (lingerSeconds > 0) {
+            System.out.println("keeping the server alive for " + lingerSeconds + "s");
+            Thread.sleep(lingerSeconds * 1000L);
+        }
+        instance.close();
     }
 
-    /**
-     * Writes the demo recordings into {@code outDir}.
-     *
-     * <p>The first file contains both a blueprint store and a recording store, followed by a
-     * blueprint activation command. The second uses {@code save(Path)} directly, and the third is
-     * produced entirely in memory with {@code memory()} plus {@code toRrdBytes()}.
-     */
-    public static Artifacts writeAll(Path outDir) throws IOException {
-        return writeAll(outDir, DEFAULT_FRAMES);
-    }
-
-    public static Artifacts writeAll(Path outDir, int frames) throws IOException {
-        Objects.requireNonNull(outDir, "outDir");
+    /** Publishes the static scene and `frames` dynamic frames through the given recorder. */
+    public static void publish(NtRecorder recorder, int frames) {
         if (frames < 1) {
             throw new IllegalArgumentException("frames must be at least 1");
         }
-        Files.createDirectories(outDir);
-
-        Path demoPath = outDir.resolve("demo.rrd");
-        Path fileSinkPath = outDir.resolve("recording.rrd");
-        Path memoryPath = outDir.resolve("memory.rrd");
-
-        writeBlueprintAndRecording(demoPath, frames);
-        writeFileSink(fileSinkPath, Math.min(frames, 12));
-
-        byte[] memoryBytes = writeMemorySink(Math.min(frames, 8));
-        Files.write(memoryPath, memoryBytes);
-
-        return new Artifacts(demoPath, fileSinkPath, memoryPath, frames, memoryBytes.length);
-    }
-
-    /** A blueprint and a recording in one RRD file, using a custom shared {@link Transport}. */
-    private static void writeBlueprintAndRecording(Path path, int frames) {
-        SharedFileTransport transport = new SharedFileTransport(path);
-        try {
-            try (RecordingStream blueprint = RecordingStreamBuilder.newBlueprint(APP_ID)
-                    .recordingId("bp_sensor_sweep")
-                    .transport(transport)
-                    .build()) {
-                logBlueprint(blueprint);
-
-                try (RecordingStream recording = RecordingStreamBuilder.newRecording(APP_ID)
-                        .recordingId("rec_sensor_sweep")
-                        .transport(transport)
-                        .build()) {
-                    logStaticScene(recording);
-                    for (int frame = 0; frame < frames; frame++) {
-                        logFrame(recording, frame, frames);
-                    }
-                    logSimulationFinished(recording, frames);
-                    // Ask the viewer to use the blueprint store that precedes this recording.
-                    recording.activateBlueprint(blueprint, true, false);
-                }
-            }
-        } finally {
-            transport.finish();
+        logStaticScene(recorder);
+        for (int frame = 0; frame < frames; frame++) {
+            logFrame(recorder, frame, frames);
         }
-    }
-
-    private static void writeFileSink(Path path, int frames) {
-        try (RecordingStream recording = RecordingStreamBuilder.newRecording(APP_ID)
-                .recordingId("rec_file_sink")
-                .save(path)
-                .build()) {
-            logStaticScene(recording);
-            for (int frame = 0; frame < frames; frame++) {
-                logFrame(recording, frame, frames);
-            }
-        }
-    }
-
-    private static byte[] writeMemorySink(int frames) {
-        try (RecordingStream recording = RecordingStreamBuilder.newRecording(APP_ID)
-                .recordingId("rec_memory_sink")
-                .memory()
-                .build()) {
-            logStaticScene(recording);
-            for (int frame = 0; frame < frames; frame++) {
-                logFrame(recording, frame, frames);
-            }
-            return recording.toRrdBytes();
-        }
-    }
-
-    /** Optional live path: stream the same simulation to a running viewer over gRPC. */
-    private static void streamToViewer(String endpoint) throws InterruptedException {
-        System.out.println("streaming live to " + endpoint + " (Ctrl-C to stop)");
-        try (RecordingStream recording = RecordingStreamBuilder.newRecording(APP_ID)
-                .recordingId("rec_live")
-                .connectGrpc(endpoint)
-                .build()) {
-            logStaticScene(recording);
-            for (int frame = 0; frame < 120; frame++) {
-                logFrame(recording, frame, 120);
-                Thread.sleep(50);
-            }
-        }
-    }
-
-    private static void logBlueprint(RecordingStream blueprint) {
-        // The class identifiers match the viewer's built-in view names.
-        blueprint.logStatic(
-                "view/0",
-                ViewBlueprint.builder()
-                        .withClassIdentifier("3D")
-                        .withDisplayName("Sensor sweep")
+        recorder.log(
+                "logs/simulation",
+                TextLog.builder()
+                        .withText("simulation finished after " + frames + " frames")
+                        .withLevel("DEBUG")
                         .build());
-        blueprint.logStatic(
-                "view/1",
-                ViewBlueprint.builder()
-                        .withClassIdentifier("TimeSeries")
-                        .withDisplayName("Signals")
-                        .build());
-        blueprint.logStatic(
-                "view/2",
-                ViewBlueprint.builder()
-                        .withClassIdentifier("TextLog")
-                        .withDisplayName("Simulation log")
-                        .build());
-        blueprint.flushBlocking();
     }
 
-    private static void logStaticScene(RecordingStream recording) {
-        recording.logStatic(
+    private static void logStaticScene(NtRecorder recorder) {
+        recorder.logStatic(
                 "world/annotations",
                 AnnotationContext.builder()
                         .withContext(
@@ -244,32 +142,19 @@ public final class MoneyshiftDemo {
                                                 List.of())))
                         .build());
 
-        recording.logStatic(
-                "plots/amplitude",
-                SeriesLines.builder()
-                        .withNames("amplitude")
-                        .withColors(CYAN)
-                        .withWidths(2.0f)
-                        .build());
-        recording.logStatic(
-                "plots/phase",
-                SeriesLines.builder()
-                        .withNames("phase")
-                        .withColors(MAGENTA)
-                        .withWidths(2.0f)
-                        .build());
+        recorder.logStatic(
+                "plots/style/amplitude",
+                SeriesLines.builder().withNames("amplitude").withColors(CYAN).withWidths(2.0f).build());
+        recorder.logStatic(
+                "plots/style/phase",
+                SeriesLines.builder().withNames("phase").withColors(MAGENTA).withWidths(2.0f).build());
     }
 
-    private static void logFrame(RecordingStream recording, int frame, int frames) {
+    private static void logFrame(NtRecorder recorder, int frame, int frames) {
         float phase = TAU * frame / frames;
 
-        // Three different timeline types on the same log calls.
-        recording.setTimeSequence("frame", frame);
-        recording.setTimeDuration("sim_time", Duration.ofMillis(frame * 50L));
-        recording.setTimeTimestamp("wall_time", START.plusMillis(frame * 50L));
-
         // The robot moves in a circle; everything below "world/robot" inherits this transform.
-        recording.log(
+        recorder.log(
                 "world/robot",
                 Transform3D.builder()
                         .withTranslation(Translation3D.of(
@@ -291,7 +176,7 @@ public final class MoneyshiftDemo {
             positions.add(Position3D.of(radius * (float) Math.cos(angle), radius * (float) Math.sin(angle), z));
             colors[i] = lerpRgba(CYAN, MAGENTA, t);
         }
-        recording.log(
+        recorder.log(
                 "world/robot/sensor/returns",
                 Points3D.builder()
                         .withPositions(positions)
@@ -310,7 +195,7 @@ public final class MoneyshiftDemo {
                     radius * (float) Math.sin(angle),
                     0.5f * t * (float) Math.sin(2.0f * phase)));
         }
-        recording.log(
+        recorder.log(
                 "world/robot/sensor/scan",
                 LineStrips3D.builder()
                         .withStrips(new LineStrip3D(scan))
@@ -318,7 +203,7 @@ public final class MoneyshiftDemo {
                         .withRadii(0.01f)
                         .build());
 
-        recording.log(
+        recorder.log(
                 "world/obstacles",
                 Boxes3D.builder()
                         .withHalfSizes(HalfSize3D.of(0.3f, 0.3f, 0.5f), HalfSize3D.of(0.2f, 0.4f, 0.2f))
@@ -330,11 +215,18 @@ public final class MoneyshiftDemo {
                         .build());
 
         double amplitude = Math.sin(3.0 * phase);
-        recording.log("plots/amplitude", Scalars.builder().withScalars(amplitude).build());
-        recording.log("plots/phase", Scalars.builder().withScalars(phase).build());
+        recorder.log("plots/amplitude", Scalars.builder().withScalars(amplitude).build());
+        recorder.log("plots/phase", Scalars.builder().withScalars(phase).build());
+
+        // Plain NT topics are not part of the Rerun protocol; the Rust bridge maps them with the
+        // same heuristics it uses for AdvantageKit logs, so robot code can keep publishing
+        // normally. This one shows up as a scalar graph while the bridge runs.
+        recorder.instance()
+                .getEntry("/Demo/Drive/Speed")
+                .setDouble(Math.cos(phase));
 
         if (frame % 10 == 0) {
-            recording.log(
+            recorder.log(
                     "logs/simulation",
                     TextLog.builder()
                             .withText(String.format(
@@ -343,15 +235,6 @@ public final class MoneyshiftDemo {
                             .withColor(GREEN)
                             .build());
         }
-    }
-
-    private static void logSimulationFinished(RecordingStream recording, int frames) {
-        recording.log(
-                "logs/simulation",
-                TextLog.builder()
-                        .withText("simulation finished after " + frames + " frames")
-                        .withLevel("DEBUG")
-                        .build());
     }
 
     /** Linearly blends two packed RGBA colors. */
@@ -375,44 +258,10 @@ public final class MoneyshiftDemo {
     }
 
     private static void printUsage() {
-        System.out.println("usage: moneyshift-demo [--out <dir>] [--connect <rerun-url>]");
-        System.out.println("  --out      directory for the generated .rrd files (default: build/moneyshift-example)");
-        System.out.println("  --connect  also stream live to a viewer, e.g. rerun+http://127.0.0.1:9876/proxy");
-    }
-
-    /**
-     * A transport shared by two recording streams (blueprint and recording) that writes both
-     * stores into a single RRD stream. {@link RecordingStream#close()} closes its transport, so
-     * this wrapper defers the real close until both streams are done.
-     */
-    private static final class SharedFileTransport implements Transport {
-        private final FileTransport file;
-        private boolean finished;
-
-        SharedFileTransport(Path path) {
-            this.file = new FileTransport(path);
-        }
-
-        @Override
-        public synchronized void send(LogMsg msg) {
-            file.send(msg);
-        }
-
-        @Override
-        public synchronized void flush(long timeoutMillis) {
-            file.flush(timeoutMillis);
-        }
-
-        @Override
-        public synchronized void close() {
-            // One of the two streams finished; the owner calls finish() after both are closed.
-        }
-
-        synchronized void finish() {
-            if (!finished) {
-                finished = true;
-                file.close();
-            }
-        }
+        System.out.println("usage: moneyshift-demo [--frames <n>] [--port <n>] [--linger <seconds>] [--client <host>]");
+        System.out.println("  --frames   number of frames to publish (default: " + DEFAULT_FRAMES + ")");
+        System.out.println("  --port     port of the embedded NT server (default: " + DEFAULT_PORT + ")");
+        System.out.println("  --linger   keep the embedded server alive after publishing");
+        System.out.println("  --client   publish to an existing NT server instead of starting one");
     }
 }

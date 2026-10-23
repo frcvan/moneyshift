@@ -9,8 +9,8 @@ package org.teamvan.moneyshift.archetypes;
  * The binary payload represents sensor data, commands, or other information encoded according
  * to the format specified by the associated channel.
  * 
- * See {@link org.teamvan.moneyshift.archetypes.McapChannel} for channel definitions that specify message encoding,
- * {@link org.teamvan.moneyshift.archetypes.McapSchema} for data structure definitions, and the
+ * See {@link org.teamvan.moneyshift.archetypes.McapChannel rerun::archetypes::McapChannel} for channel definitions that specify message encoding,
+ * {@link org.teamvan.moneyshift.archetypes.McapSchema rerun::archetypes::McapSchema} for data structure definitions, and the
  * <a href="https://mcap.dev/">MCAP specification</a> for complete format details.
  * 
  */
@@ -30,37 +30,24 @@ public record McapMessage(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.McapMessage";
     public static final int NUM_COMPONENTS = 1;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DATA = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapMessage:data", "rerun.components.Blob");
 
-    /**
-     * The raw message payload as a binary blob.
-     * 
-     * This contains the actual message data encoded according to the format specified
-     * by the associated channel's {@code message_encoding} field. The structure and interpretation
-     * of this binary data depends on the encoding format (e.g., ros1, cdr, protobuf)
-     * and the message schema defined for the channel.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorData() {
-        return DESCRIPTOR_DATA;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorData());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Blob.batch(descriptorData(), allocator, data));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("data").append('=').append(org.teamvan.moneyshift.components.Blob.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Blob.writeColumnsStatic(w, "data", java.util.List.of(data));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

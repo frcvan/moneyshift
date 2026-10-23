@@ -2,7 +2,7 @@
 package org.teamvan.moneyshift.archetypes;
 
 /**
- * A visual representation of a {@link org.teamvan.moneyshift.archetypes.Transform3D}.
+ * A visual representation of a {@link org.teamvan.moneyshift.archetypes.Transform3D rerun::archetypes::Transform3D}.
  * 
  */
 public record TransformAxes3D(
@@ -23,46 +23,31 @@ public record TransformAxes3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.TransformAxes3D";
     public static final int NUM_COMPONENTS = 2;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_AXIS_LENGTH = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TransformAxes3D:axis_length", "rerun.components.AxisLength");
 
-    /**
-     * Visual length of the 3 axes.
-     * 
-     * The length is interpreted in the local coordinate system of the transform.
-     * If the transform is scaled, the axes will be scaled accordingly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAxisLength() {
-        return DESCRIPTOR_AXIS_LENGTH;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SHOW_FRAME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TransformAxes3D:show_frame", "rerun.components.ShowLabels");
-
-    /**
-     * Whether to show a text label with the corresponding frame.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorShowFrame() {
-        return DESCRIPTOR_SHOW_FRAME;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorAxisLength());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorShowFrame());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.AxisLength.batch(descriptorAxisLength(), allocator, axisLength));
-        if (showFrame != null) {
-            batches.add(org.teamvan.moneyshift.components.ShowLabels.batch(descriptorShowFrame(), allocator, showFrame));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("axis_length").append('=').append(org.teamvan.moneyshift.components.AxisLength.COMPONENT_TYPE);
         }
-        return batches;
+        if (showFrame != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("show_frame").append('=').append(org.teamvan.moneyshift.components.ShowLabels.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.AxisLength.writeColumnsStatic(w, "axis_length", java.util.List.of(axisLength));
+        }
+        if (showFrame != null) {
+            org.teamvan.moneyshift.components.ShowLabels.writeColumnsStatic(w, "show_frame", java.util.List.of(showFrame));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

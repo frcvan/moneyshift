@@ -8,7 +8,7 @@ package org.teamvan.moneyshift.archetypes;
  * Changes over time are supported for most but not all its fields (see respective fields for details),
  * it's generally recommended to log this type as static.
  * 
- * The underlying data needs to be logged to the same entity-path using {@link org.teamvan.moneyshift.archetypes.Scalars}.
+ * The underlying data needs to be logged to the same entity-path using {@link org.teamvan.moneyshift.archetypes.Scalars rerun::archetypes::Scalars}.
  * Dimensionality of the scalar arrays logged at each time point is assumed to be the same over time.
  * 
  */
@@ -58,90 +58,52 @@ public record SeriesPoints(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.SeriesPoints";
     public static final int NUM_COMPONENTS = 5;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SeriesPoints:colors", "rerun.components.Color");
 
-    /**
-     * Color for the corresponding series.
-     * 
-     * May change over time, but can cause discontinuities in the line.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MARKERS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SeriesPoints:markers", "rerun.components.MarkerShape");
-
-    /**
-     * What shape to use to represent the point
-     * 
-     * May change over time.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMarkers() {
-        return DESCRIPTOR_MARKERS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_NAMES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SeriesPoints:names", "rerun.components.Name");
-
-    /**
-     * Display name of the series.
-     * 
-     * Used in the legend. Expected to be unchanging over time.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorNames() {
-        return DESCRIPTOR_NAMES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VISIBLE_SERIES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SeriesPoints:visible_series", "rerun.components.Visible");
-
-    /**
-     * Which lines are visible.
-     * 
-     * If not set, all line series on this entity are visible.
-     * Unlike with the regular visibility property of the entire entity, any series that is hidden
-     * via this property will still be visible in the legend.
-     * 
-     * May change over time.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVisibleSeries() {
-        return DESCRIPTOR_VISIBLE_SERIES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MARKER_SIZES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SeriesPoints:marker_sizes", "rerun.components.MarkerSize");
-
-    /**
-     * Sizes of the markers.
-     * 
-     * May change over time.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMarkerSizes() {
-        return DESCRIPTOR_MARKER_SIZES;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorMarkers());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorColors(), descriptorNames(), descriptorVisibleSeries(), descriptorMarkerSizes());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        batches.add(org.teamvan.moneyshift.components.MarkerShape.batch(descriptorMarkers(), allocator, markers));
-        if (names != null) {
-            batches.add(org.teamvan.moneyshift.components.Name.batch(descriptorNames(), allocator, names));
+        if (!markers.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("markers").append('=').append(org.teamvan.moneyshift.components.MarkerShape.COMPONENT_TYPE);
         }
-        if (visibleSeries != null) {
-            batches.add(org.teamvan.moneyshift.components.Visible.batch(descriptorVisibleSeries(), allocator, visibleSeries));
+        if (names != null && !names.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("names").append('=').append(org.teamvan.moneyshift.components.Name.COMPONENT_TYPE);
         }
-        if (markerSizes != null) {
-            batches.add(org.teamvan.moneyshift.components.MarkerSize.batch(descriptorMarkerSizes(), allocator, markerSizes));
+        if (visibleSeries != null && !visibleSeries.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("visible_series").append('=').append(org.teamvan.moneyshift.components.Visible.COMPONENT_TYPE);
         }
-        return batches;
+        if (markerSizes != null && !markerSizes.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("marker_sizes").append('=').append(org.teamvan.moneyshift.components.MarkerSize.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (!markers.isEmpty()) {
+            org.teamvan.moneyshift.components.MarkerShape.writeColumnsStatic(w, "markers", markers);
+        }
+        if (names != null && !names.isEmpty()) {
+            org.teamvan.moneyshift.components.Name.writeColumnsStatic(w, "names", names);
+        }
+        if (visibleSeries != null && !visibleSeries.isEmpty()) {
+            org.teamvan.moneyshift.components.Visible.writeColumnsStatic(w, "visible_series", visibleSeries);
+        }
+        if (markerSizes != null && !markerSizes.isEmpty()) {
+            org.teamvan.moneyshift.components.MarkerSize.writeColumnsStatic(w, "marker_sizes", markerSizes);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

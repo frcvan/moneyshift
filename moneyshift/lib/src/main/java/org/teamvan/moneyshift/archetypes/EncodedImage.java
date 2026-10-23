@@ -4,8 +4,8 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * An image encoded as e.g. a JPEG or PNG.
  * 
- * Rerun also supports uncompressed images with the {@link org.teamvan.moneyshift.archetypes.Image}.
- * For images that refer to video frames see {@link org.teamvan.moneyshift.archetypes.VideoFrameReference}.
+ * Rerun also supports uncompressed images with the {@link org.teamvan.moneyshift.archetypes.Image rerun::archetypes::Image}.
+ * For images that refer to video frames see {@link org.teamvan.moneyshift.archetypes.VideoFrameReference rerun::archetypes::VideoFrameReference}.
  * 
  * 
  */
@@ -47,87 +47,52 @@ public record EncodedImage(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.EncodedImage";
     public static final int NUM_COMPONENTS = 5;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_BLOB = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedImage:blob", "rerun.components.Blob");
 
-    /**
-     * The encoded content of some image file, e.g. a PNG or JPEG.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorBlob() {
-        return DESCRIPTOR_BLOB;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MEDIA_TYPE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedImage:media_type", "rerun.components.MediaType");
-
-    /**
-     * The Media Type of the asset.
-     * 
-     * Supported values:
-     * * {@code image/jpeg}
-     * * {@code image/png}
-     * 
-     * If omitted, the viewer will try to guess from the data blob.
-     * If it cannot guess, it won't be able to render the asset.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMediaType() {
-        return DESCRIPTOR_MEDIA_TYPE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_OPACITY = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedImage:opacity", "rerun.components.Opacity");
-
-    /**
-     * Opacity of the image, useful for layering several media.
-     * 
-     * Defaults to 1.0 (fully opaque).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorOpacity() {
-        return DESCRIPTOR_OPACITY;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DRAW_ORDER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedImage:draw_order", "rerun.components.DrawOrder");
-
-    /**
-     * An optional floating point value that specifies the 2D drawing order.
-     * 
-     * Objects with higher values are drawn on top of those with lower values.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDrawOrder() {
-        return DESCRIPTOR_DRAW_ORDER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MAGNIFICATION_FILTER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "EncodedImage:magnification_filter", "rerun.components.MagnificationFilter");
-
-    /**
-     * Optional filter used when a texel is magnified (displayed larger than a screen pixel).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMagnificationFilter() {
-        return DESCRIPTOR_MAGNIFICATION_FILTER;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorBlob());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorMediaType());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorOpacity(), descriptorDrawOrder(), descriptorMagnificationFilter());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Blob.batch(descriptorBlob(), allocator, blob));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("blob").append('=').append(org.teamvan.moneyshift.components.Blob.COMPONENT_TYPE);
+        }
         if (mediaType != null) {
-            batches.add(org.teamvan.moneyshift.components.MediaType.batch(descriptorMediaType(), allocator, mediaType));
+            if (components.length() > 0) components.append(',');
+            components.append("media_type").append('=').append(org.teamvan.moneyshift.components.MediaType.COMPONENT_TYPE);
         }
         if (opacity != null) {
-            batches.add(org.teamvan.moneyshift.components.Opacity.batch(descriptorOpacity(), allocator, opacity));
+            if (components.length() > 0) components.append(',');
+            components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
         }
         if (drawOrder != null) {
-            batches.add(org.teamvan.moneyshift.components.DrawOrder.batch(descriptorDrawOrder(), allocator, drawOrder));
+            if (components.length() > 0) components.append(',');
+            components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
         if (magnificationFilter != null) {
-            batches.add(org.teamvan.moneyshift.components.MagnificationFilter.batch(descriptorMagnificationFilter(), allocator, magnificationFilter));
+            if (components.length() > 0) components.append(',');
+            components.append("magnification_filter").append('=').append(org.teamvan.moneyshift.components.MagnificationFilter.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Blob.writeColumnsStatic(w, "blob", java.util.List.of(blob));
+        }
+        if (mediaType != null) {
+            org.teamvan.moneyshift.components.MediaType.writeColumnsStatic(w, "media_type", java.util.List.of(mediaType));
+        }
+        if (opacity != null) {
+            org.teamvan.moneyshift.components.Opacity.writeColumnsStatic(w, "opacity", java.util.List.of(opacity));
+        }
+        if (drawOrder != null) {
+            org.teamvan.moneyshift.components.DrawOrder.writeColumnsStatic(w, "draw_order", java.util.List.of(drawOrder));
+        }
+        if (magnificationFilter != null) {
+            org.teamvan.moneyshift.components.MagnificationFilter.writeColumnsStatic(w, "magnification_filter", java.util.List.of(magnificationFilter));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

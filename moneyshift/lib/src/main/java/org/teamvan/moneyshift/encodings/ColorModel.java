@@ -2,11 +2,11 @@
 package org.teamvan.moneyshift.encodings;
 
 /**
- * Specifies what color components are present in an {@link org.teamvan.moneyshift.archetypes.Image}.
+ * Specifies what color components are present in an {@link org.teamvan.moneyshift.archetypes.Image rerun::archetypes::Image}.
  * 
- * This combined with {@link org.teamvan.moneyshift.encodings.ChannelDatatype} determines the pixel format of an image.
+ * This combined with {@link org.teamvan.moneyshift.encodings.ChannelDatatype rerun::encodings::ChannelDatatype} determines the pixel format of an image.
  */
-public enum ColorModel {
+public enum ColorModel implements org.teamvan.moneyshift.NtEncoding<ColorModel> {
     /**
      * Grayscale luminance intencity/brightness/value, sometimes called {@code Y}
      */
@@ -46,29 +46,24 @@ public enum ColorModel {
     }
 
     public static final java.lang.String NAME = "rerun.encodings.ColorModel";
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.UINT8;
-    }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, arrowType(), java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<ColorModel> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ColorModel> values) {
+        int n = values.size();
+        long[] column = new long[n];
+        boolean[] present = new boolean[n];
+        boolean anyNull = false;
+        for (int i = 0; i < n; i++) {
             ColorModel value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.UInt1Vector) vector).setNull(i);
-            } else {
-                ((org.apache.arrow.vector.UInt1Vector) vector).setSafe(i, (int) value.value());
-            }
+            present[i] = value != null;
+            anyNull |= value == null;
+            column[i] = value == null ? 0L : value.value();
         }
-        ((org.apache.arrow.vector.UInt1Vector) vector).setValueCount(count);
+        w.present(path, present, anyNull);
+        w.longs(path, column);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, ColorModel value) {
-        ((org.apache.arrow.vector.UInt1Vector) vector).setSafe(index, (int) value.value());
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ColorModel> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

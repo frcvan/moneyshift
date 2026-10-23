@@ -17,56 +17,74 @@ package org.teamvan.moneyshift.components;
  */
 public record LineStrip3D(
     java.util.List<org.teamvan.moneyshift.encodings.Vec3D> points
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<LineStrip3D> {
     public LineStrip3D {
         points = java.util.List.copyOf(points);
     }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.LineStrip3D";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.List();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.encodings.Vec3D.arrowField("item", false)));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<LineStrip3D> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, LineStrip3D::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, LineStrip3D value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, LineStrip3D value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<LineStrip3D> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            LineStrip3D value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.ListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<LineStrip3D> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).points();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.ListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] counts1 = new long[n];
+        int total1 = 0;
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).points();
+            java.util.List<org.teamvan.moneyshift.encodings.Vec3D> list1 = v1_0;
+            counts1[i] = list1 == null ? 0L : list1.size();
+            total1 += (int) counts1[i];
+        }
+        w.longs(path + "/.count", counts1);
+        java.util.ArrayList<org.teamvan.moneyshift.encodings.Vec3D> items1 = new java.util.ArrayList<>(total1);
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).points();
+            java.util.List<org.teamvan.moneyshift.encodings.Vec3D> list1 = v1_0;
+            if (list1 != null) items1.addAll(list1);
+        }
+        int itemCount1 = items1.size();
+        double[] column2 = new double[itemCount1];
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            var v2_0 = items1.get(j1).xyz();
+            var v2_1 = v2_0[0];
+            double value2 = v2_1;
+            column2[j1] = value2;
+        }
+        w.doubles(path + "/.items/0", column2);
+        double[] column3 = new double[itemCount1];
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            var v3_0 = items1.get(j1).xyz();
+            var v3_1 = v3_0[1];
+            double value3 = v3_1;
+            column3[j1] = value3;
+        }
+        w.doubles(path + "/.items/1", column3);
+        double[] column4 = new double[itemCount1];
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            var v4_0 = items1.get(j1).xyz();
+            var v4_1 = v4_0[2];
+            double value4 = v4_1;
+            column4[j1] = value4;
+        }
+        w.doubles(path + "/.items/2", column4);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, LineStrip3D value) {
-        {
-            org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) vector;
-            int start0 = list0.startNewValue(index);
-            org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-            java.util.List<org.teamvan.moneyshift.encodings.Vec3D> values0 = value.points();
-            for (int j0 = 0; j0 < values0.size(); j0++) {
-                org.teamvan.moneyshift.encodings.Vec3D.writeOne(child0, start0 + j0, values0.get(j0));
-            }
-            list0.endValue(index, values0.size());
-        }
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<LineStrip3D> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

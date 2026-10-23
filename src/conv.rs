@@ -199,10 +199,8 @@ pub fn metadata_chunks_for(recording_name: Option<String>) -> Vec<Chunk> {
 #[cfg(test)]
 mod tests {
     use arrow::array::Array as _;
-    use rerun::{
-        EntityPath, Timeline,
-        external::arrow::array::{Float64Array, Int64Array, StringArray},
-    };
+    use arrow::array::{Float64Array, Int64Array, StringArray};
+    use re_log_types::{EntityPath, Timeline};
 
     use super::{ConversionOptions, log_changes_to_chunks_with_options};
     use crate::{

@@ -2,14 +2,14 @@
 package org.teamvan.moneyshift.archetypes;
 
 /**
- * An image made up of integer {@link org.teamvan.moneyshift.components.ClassId}s.
+ * An image made up of integer {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId}s.
  * 
- * Each pixel corresponds to a {@link org.teamvan.moneyshift.components.ClassId} that will be mapped to a color based on {@link org.teamvan.moneyshift.archetypes.AnnotationContext}.
+ * Each pixel corresponds to a {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} that will be mapped to a color based on {@link org.teamvan.moneyshift.archetypes.AnnotationContext rerun::archetypes::AnnotationContext}.
  * 
  * In the case of floating point images, the label will be looked up based on rounding to the nearest
  * integer value.
  * 
- * Use {@link org.teamvan.moneyshift.archetypes.AnnotationContext} to associate each class with a color and a label.
+ * Use {@link org.teamvan.moneyshift.archetypes.AnnotationContext rerun::archetypes::AnnotationContext} to associate each class with a color and a label.
  * 
  * 
  */
@@ -42,68 +42,45 @@ public record SegmentationImage(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.SegmentationImage";
     public static final int NUM_COMPONENTS = 4;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_BUFFER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SegmentationImage:buffer", "rerun.components.ImageBuffer");
 
-    /**
-     * The raw image data.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorBuffer() {
-        return DESCRIPTOR_BUFFER;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_FORMAT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SegmentationImage:format", "rerun.components.ImageFormat");
-
-    /**
-     * The format of the image.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorFormat() {
-        return DESCRIPTOR_FORMAT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_OPACITY = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SegmentationImage:opacity", "rerun.components.Opacity");
-
-    /**
-     * Opacity of the image, useful for layering the segmentation image on top of another image.
-     * 
-     * Defaults to 0.5 if there's any other images in the scene, otherwise 1.0.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorOpacity() {
-        return DESCRIPTOR_OPACITY;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DRAW_ORDER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "SegmentationImage:draw_order", "rerun.components.DrawOrder");
-
-    /**
-     * An optional floating point value that specifies the 2D drawing order.
-     * 
-     * Objects with higher values are drawn on top of those with lower values.
-     * Defaults to {@code 0.0}.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDrawOrder() {
-        return DESCRIPTOR_DRAW_ORDER;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorBuffer(), descriptorFormat());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorOpacity(), descriptorDrawOrder());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.ImageBuffer.batch(descriptorBuffer(), allocator, buffer));
-        batches.add(org.teamvan.moneyshift.components.ImageFormat.batch(descriptorFormat(), allocator, format));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("buffer").append('=').append(org.teamvan.moneyshift.components.ImageBuffer.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("format").append('=').append(org.teamvan.moneyshift.components.ImageFormat.COMPONENT_TYPE);
+        }
         if (opacity != null) {
-            batches.add(org.teamvan.moneyshift.components.Opacity.batch(descriptorOpacity(), allocator, opacity));
+            if (components.length() > 0) components.append(',');
+            components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
         }
         if (drawOrder != null) {
-            batches.add(org.teamvan.moneyshift.components.DrawOrder.batch(descriptorDrawOrder(), allocator, drawOrder));
+            if (components.length() > 0) components.append(',');
+            components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.ImageBuffer.writeColumnsStatic(w, "buffer", java.util.List.of(buffer));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.ImageFormat.writeColumnsStatic(w, "format", java.util.List.of(format));
+        }
+        if (opacity != null) {
+            org.teamvan.moneyshift.components.Opacity.writeColumnsStatic(w, "opacity", java.util.List.of(opacity));
+        }
+        if (drawOrder != null) {
+            org.teamvan.moneyshift.components.DrawOrder.writeColumnsStatic(w, "draw_order", java.util.List.of(drawOrder));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

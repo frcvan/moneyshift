@@ -11,56 +11,68 @@ public record ChannelMessageCounts(
      * The channel ID to message count pairs.
      */
     java.util.List<org.teamvan.moneyshift.encodings.ChannelCountPair> counts
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<ChannelMessageCounts> {
     public ChannelMessageCounts {
         counts = java.util.List.copyOf(counts);
     }
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.ChannelMessageCounts";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.List();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.encodings.ChannelCountPair.arrowField("item", false)));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<ChannelMessageCounts> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, ChannelMessageCounts::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, ChannelMessageCounts value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, ChannelMessageCounts value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<ChannelMessageCounts> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            ChannelMessageCounts value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.ListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ChannelMessageCounts> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).counts();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.ListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] counts1 = new long[n];
+        int total1 = 0;
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).counts();
+            java.util.List<org.teamvan.moneyshift.encodings.ChannelCountPair> list1 = v1_0;
+            counts1[i] = list1 == null ? 0L : list1.size();
+            total1 += (int) counts1[i];
+        }
+        w.longs(path + "/.count", counts1);
+        java.util.ArrayList<org.teamvan.moneyshift.encodings.ChannelCountPair> items1 = new java.util.ArrayList<>(total1);
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).counts();
+            java.util.List<org.teamvan.moneyshift.encodings.ChannelCountPair> list1 = v1_0;
+            if (list1 != null) items1.addAll(list1);
+        }
+        int itemCount1 = items1.size();
+        long[] column2 = new long[itemCount1];
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            var v2_0 = items1.get(j1).channelId();
+            var v2_1 = v2_0.value();
+            long value2 = v2_1;
+            column2[j1] = value2;
+        }
+        w.longs(path + "/.items/channel_id", column2);
+        long[] column3 = new long[itemCount1];
+        boolean unsigned3 = false;
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            var v3_0 = items1.get(j1).messageCount();
+            var v3_1 = v3_0.value();
+            long value3 = v3_1;
+            column3[j1] = value3;
+            unsigned3 |= column3[j1] < 0L;
+        }
+        w.u64(path + "/.items/message_count", column3, unsigned3);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, ChannelMessageCounts value) {
-        {
-            org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) vector;
-            int start0 = list0.startNewValue(index);
-            org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-            java.util.List<org.teamvan.moneyshift.encodings.ChannelCountPair> values0 = value.counts();
-            for (int j0 = 0; j0 < values0.size(); j0++) {
-                org.teamvan.moneyshift.encodings.ChannelCountPair.writeOne(child0, start0 + j0, values0.get(j0));
-            }
-            list0.endValue(index, values0.size());
-        }
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ChannelMessageCounts> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

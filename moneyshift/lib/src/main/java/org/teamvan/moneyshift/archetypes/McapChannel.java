@@ -8,8 +8,8 @@ package org.teamvan.moneyshift.archetypes;
  * Each channel has a unique identifier and specifies the message schema and encoding used
  * for all messages published to that topic.
  * 
- * See also {@link org.teamvan.moneyshift.archetypes.McapMessage} for individual messages within a channel,
- * {@link org.teamvan.moneyshift.archetypes.McapSchema} for the data structure definitions, and the
+ * See also {@link org.teamvan.moneyshift.archetypes.McapMessage rerun::archetypes::McapMessage} for individual messages within a channel,
+ * {@link org.teamvan.moneyshift.archetypes.McapSchema rerun::archetypes::McapSchema} for the data structure definitions, and the
  * <a href="https://mcap.dev/">MCAP specification</a> for complete format details.
  * 
  */
@@ -54,77 +54,45 @@ public record McapChannel(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.McapChannel";
     public static final int NUM_COMPONENTS = 4;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ID = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapChannel:id", "rerun.components.ChannelId");
 
-    /**
-     * Unique identifier for this channel within the MCAP file.
-     * 
-     * Channel IDs must be unique within a single MCAP file and are used to associate
-     * messages with their corresponding channel definition.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorId() {
-        return DESCRIPTOR_ID;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TOPIC = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapChannel:topic", "rerun.components.Text");
-
-    /**
-     * The topic name that this channel publishes to.
-     * 
-     * Topics are hierarchical paths from the original robotics system (e.g., "/sensors/camera/image")
-     * that categorize and organize different data streams.
-     * Topics are separate from Rerun's entity paths, but they often can be mapped to them.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorTopic() {
-        return DESCRIPTOR_TOPIC;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MESSAGE_ENCODING = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapChannel:message_encoding", "rerun.components.Text");
-
-    /**
-     * The encoding format used for messages in this channel.
-     * 
-     * Common encodings include:
-     * * {@code ros1} - ROS1 message format
-     * * {@code cdr} - Common Data Representation (CDR) message format, used by ROS2
-     * * {@code protobuf} - Protocol Buffers
-     * * {@code json} - JSON encoding
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMessageEncoding() {
-        return DESCRIPTOR_MESSAGE_ENCODING;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_METADATA = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapChannel:metadata", "rerun.components.KeyValuePairs");
-
-    /**
-     * Additional metadata for this channel stored as key-value pairs.
-     * 
-     * This can include channel-specific configuration, description, units, coordinate frames,
-     * or any other contextual information that helps interpret the data in this channel.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMetadata() {
-        return DESCRIPTOR_METADATA;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorId(), descriptorTopic(), descriptorMessageEncoding());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorMetadata());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.ChannelId.batch(descriptorId(), allocator, id));
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorTopic(), allocator, topic));
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorMessageEncoding(), allocator, messageEncoding));
-        if (metadata != null) {
-            batches.add(org.teamvan.moneyshift.components.KeyValuePairs.batch(descriptorMetadata(), allocator, metadata));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("id").append('=').append(org.teamvan.moneyshift.components.ChannelId.COMPONENT_TYPE);
         }
-        return batches;
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("topic").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("message_encoding").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
+        }
+        if (metadata != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("metadata").append('=').append(org.teamvan.moneyshift.components.KeyValuePairs.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.ChannelId.writeColumnsStatic(w, "id", java.util.List.of(id));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "topic", java.util.List.of(topic));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "message_encoding", java.util.List.of(messageEncoding));
+        }
+        if (metadata != null) {
+            org.teamvan.moneyshift.components.KeyValuePairs.writeColumnsStatic(w, "metadata", java.util.List.of(metadata));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

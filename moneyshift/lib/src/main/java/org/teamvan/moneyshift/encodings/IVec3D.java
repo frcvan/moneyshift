@@ -6,7 +6,7 @@ package org.teamvan.moneyshift.encodings;
  */
 public record IVec3D(
     int[] xyz
-) {
+) implements org.teamvan.moneyshift.NtEncoding<IVec3D> {
     public IVec3D {
     }
 
@@ -23,37 +23,47 @@ public record IVec3D(
     }
     public static final java.lang.String NAME = "rerun.encodings.IVec3D";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList(3);
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList(3), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.INT32, java.util.List.of())));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<IVec3D> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            IVec3D value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.FixedSizeListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<IVec3D> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.FixedSizeListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).xyz();
+            var v1_1 = v1_0 == null ? null : v1_0[0];
+            var value1 = v1_1;
+            column1[i] = value1 == null ? 0L : value1;
+        }
+        w.longs(path + "/0", column1);
+        long[] column2 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v2_0 = values.get(i) == null ? null : values.get(i).xyz();
+            var v2_1 = v2_0 == null ? null : v2_0[1];
+            var value2 = v2_1;
+            column2[i] = value2 == null ? 0L : value2;
+        }
+        w.longs(path + "/1", column2);
+        long[] column3 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v3_0 = values.get(i) == null ? null : values.get(i).xyz();
+            var v3_1 = v3_0 == null ? null : v3_0[2];
+            var value3 = v3_1;
+            column3[i] = value3 == null ? 0L : value3;
+        }
+        w.longs(path + "/2", column3);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, IVec3D value) {
-        {
-            org.apache.arrow.vector.complex.FixedSizeListVector list0 = (org.apache.arrow.vector.complex.FixedSizeListVector) vector;
-            int start0 = list0.startNewValue(index);
-            org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-            ((org.apache.arrow.vector.IntVector) child0).setSafe(start0 + 0, value.xyz()[0]);
-            ((org.apache.arrow.vector.IntVector) child0).setSafe(start0 + 1, value.xyz()[1]);
-            ((org.apache.arrow.vector.IntVector) child0).setSafe(start0 + 2, value.xyz()[2]);
-        }
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<IVec3D> values) {
+        writeColumnsStatic(w, path, values);
     }
 
     public static IVec3D of(int... values) {

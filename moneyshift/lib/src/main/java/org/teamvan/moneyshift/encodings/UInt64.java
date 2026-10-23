@@ -6,34 +6,36 @@ package org.teamvan.moneyshift.encodings;
  */
 public record UInt64(
     long value
-) {
+) implements org.teamvan.moneyshift.NtEncoding<UInt64> {
     public UInt64 {
     }
     public static final java.lang.String NAME = "rerun.encodings.UInt64";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.UINT64;
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, org.teamvan.moneyshift.ArrowFields.UINT64, java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<UInt64> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            UInt64 value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.UInt8Vector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<UInt64> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.UInt8Vector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        boolean unsigned1 = false;
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).value();
+            var value1 = v1_0;
+            column1[i] = value1 == null ? 0L : value1;
+            unsigned1 |= column1[i] < 0L;
+        }
+        w.u64(path, column1, unsigned1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, UInt64 value) {
-        ((org.apache.arrow.vector.UInt8Vector) vector).setSafe(index, value.value());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<UInt64> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

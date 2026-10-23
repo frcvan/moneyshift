@@ -2,7 +2,7 @@
 package org.teamvan.moneyshift.components;
 
 /**
- * Whether the entity's {@link org.teamvan.moneyshift.components.Text} label is shown.
+ * Whether the entity's {@link org.teamvan.moneyshift.components.Text rerun::components::Text} label is shown.
  * 
  * The main purpose of this component existing separately from the labels themselves
  * is to be overridden when desired, to allow hiding and showing from the viewer and
@@ -10,10 +10,10 @@ package org.teamvan.moneyshift.components;
  */
 public record ShowLabels(
     /**
-     * Whether the entity's {@link org.teamvan.moneyshift.components.Text} label is shown.
+     * Whether the entity's {@link org.teamvan.moneyshift.components.Text rerun::components::Text} label is shown.
      */
     org.teamvan.moneyshift.encodings.Bool showLabels
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<ShowLabels> {
     public ShowLabels {
         java.util.Objects.requireNonNull(showLabels, "showLabels");
     }
@@ -23,43 +23,38 @@ public record ShowLabels(
         this(new org.teamvan.moneyshift.encodings.Bool(value));
     }
 
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.ShowLabels";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.encodings.Bool.arrowType();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.encodings.Bool.arrowField(name, nullable);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<ShowLabels> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, ShowLabels::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, ShowLabels value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, ShowLabels value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<ShowLabels> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            ShowLabels value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.BitVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ShowLabels> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).showLabels();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.BitVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        boolean[] column1 = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).showLabels();
+            var v1_1 = v1_0 == null ? null : v1_0.value();
+            var value1 = v1_1;
+            column1[i] = value1 == null ? false : value1;
+        }
+        w.booleans(path, column1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, ShowLabels value) {
-        org.teamvan.moneyshift.encodings.Bool.writeOne(vector, index, value.showLabels());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ShowLabels> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

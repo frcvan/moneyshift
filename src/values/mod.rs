@@ -375,8 +375,8 @@ impl EntryValue {
 #[cfg(test)]
 mod tests {
     use super::EntryValue;
+    use arrow::array::{Array, Float64Array, Int64Array};
     use hashbrown::HashMap;
-    use rerun::external::arrow::array::{Array, Float64Array, Int64Array};
 
     #[test]
     fn parses_string_arrays_with_length_prefixes() {
@@ -393,7 +393,7 @@ mod tests {
         };
         let values = value
             .as_any()
-            .downcast_ref::<rerun::external::arrow::array::StringArray>()
+            .downcast_ref::<arrow::array::StringArray>()
             .unwrap();
         assert_eq!(values.value(0), "one");
         assert_eq!(values.value(1), "two");
@@ -417,7 +417,7 @@ mod tests {
         };
         let values = value
             .as_any()
-            .downcast_ref::<rerun::external::arrow::array::StringArray>()
+            .downcast_ref::<arrow::array::StringArray>()
             .unwrap();
         assert_eq!(values.value(0), r#"{"ok":true}"#);
     }

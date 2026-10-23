@@ -9,27 +9,21 @@ import org.gradle.external.javadoc.StandardJavadocDocletOptions
 plugins {
     `java-library`
     `maven-publish`
+    id("org.wpilib.WPILibRepositoriesPlugin")
 }
 
 repositories {
     mavenCentral()
 }
+wpilibRepositories.addAllReleaseRepositories(project)
+
+val nativesDir = rootProject.layout.buildDirectory.dir("natives")
 
 dependencies {
-    api(libs.arrow.vector)
-    api(libs.arrow.memory.core)
-    api(libs.grpc.api)
-    api(libs.grpc.core)
-    api(libs.grpc.stub)
-    api(libs.grpc.protobuf)
-    api(libs.protobuf.java)
-
-    implementation(libs.lz4.java)
-    runtimeOnly(libs.grpc.netty.shaded)
-    runtimeOnly(libs.arrow.memory.unsafe)
+    api(libs.ntcore.java)
+    api(libs.wpiutil.java)
 
     testImplementation(libs.junit.jupiter)
-    testImplementation(libs.grpc.netty.shaded)
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
@@ -97,12 +91,11 @@ tasks.named("check") {
 
 tasks.test {
     useJUnitPlatform()
-    // Arrow uses direct memory and requires reflective access on modern JDKs.
-    jvmArgs(
-        "--add-opens=java.base/java.nio=ALL-UNNAMED",
-        "--add-opens=java.base/java.lang=ALL-UNNAMED",
-        "-Dio.netty.tryReflectionSetAccessible=true",
-    )
+    dependsOn(rootProject.tasks.named("extractWpilibNatives"))
+    // WPILib's RuntimeLoader resolves `libntcorejni` through java.library.path; the JNI library
+    // finds its siblings through an $ORIGIN runpath.
+    systemProperty("java.library.path", nativesDir.get().asFile.absolutePath)
+    environment("LD_LIBRARY_PATH", nativesDir.get().asFile.absolutePath)
 }
 
 publishing {

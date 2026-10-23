@@ -6,35 +6,35 @@ package org.teamvan.moneyshift.encodings;
  */
 public record Utf8(
     java.lang.String value
-) {
+) implements org.teamvan.moneyshift.NtEncoding<Utf8> {
     public Utf8 {
         java.util.Objects.requireNonNull(value, "value");
     }
     public static final java.lang.String NAME = "rerun.encodings.Utf8";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.UTF8;
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, org.teamvan.moneyshift.ArrowFields.UTF8, java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<Utf8> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            Utf8 value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.VarCharVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Utf8> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.VarCharVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        java.lang.String[] column1 = new java.lang.String[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).value();
+            java.lang.String value1 = v1_0;
+            column1[i] = value1 == null ? "" : value1;
+        }
+        w.strings(path, column1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, Utf8 value) {
-        ((org.apache.arrow.vector.VarCharVector) vector).setSafe(index, value.value().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Utf8> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

@@ -6,44 +6,50 @@ package org.teamvan.moneyshift.encodings;
  */
 public record Blob(
     java.util.List<java.lang.Short> data
-) {
+) implements org.teamvan.moneyshift.NtEncoding<Blob> {
     public Blob {
         data = java.util.List.copyOf(data);
     }
     public static final java.lang.String NAME = "rerun.encodings.Blob";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.List();
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.List(), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("item", false, org.teamvan.moneyshift.ArrowFields.UINT8, java.util.List.of())));
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<Blob> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            Blob value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.ListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Blob> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.ListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] counts1 = new long[n];
+        int total1 = 0;
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).data();
+            java.util.List<java.lang.Short> list1 = v1_0;
+            counts1[i] = list1 == null ? 0L : list1.size();
+            total1 += (int) counts1[i];
+        }
+        w.longs(path + "/.count", counts1);
+        java.util.ArrayList<java.lang.Short> items1 = new java.util.ArrayList<>(total1);
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).data();
+            java.util.List<java.lang.Short> list1 = v1_0;
+            if (list1 != null) items1.addAll(list1);
+        }
+        int itemCount1 = items1.size();
+        long[] column2 = new long[itemCount1];
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            long value2 = items1.get(j1);
+            column2[j1] = value2;
+        }
+        w.longs(path + "/.items", column2);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, Blob value) {
-        {
-            org.apache.arrow.vector.complex.ListVector list0 = (org.apache.arrow.vector.complex.ListVector) vector;
-            int start0 = list0.startNewValue(index);
-            org.apache.arrow.vector.FieldVector child0 = list0.getDataVector();
-            java.util.List<java.lang.Short> values0 = value.data();
-            for (int j0 = 0; j0 < values0.size(); j0++) {
-                ((org.apache.arrow.vector.UInt1Vector) child0).setSafe(start0 + j0, (int) values0.get(j0));
-            }
-            list0.endValue(index, values0.size());
-        }
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Blob> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

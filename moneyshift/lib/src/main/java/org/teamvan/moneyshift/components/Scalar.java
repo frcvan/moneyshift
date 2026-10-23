@@ -8,7 +8,7 @@ package org.teamvan.moneyshift.components;
  */
 public record Scalar(
     org.teamvan.moneyshift.encodings.Float64 value
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<Scalar> {
     public Scalar {
         java.util.Objects.requireNonNull(value, "value");
     }
@@ -18,43 +18,38 @@ public record Scalar(
         this(new org.teamvan.moneyshift.encodings.Float64(value));
     }
 
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.Scalar";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.encodings.Float64.arrowType();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.encodings.Float64.arrowField(name, nullable);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<Scalar> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, Scalar::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, Scalar value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, Scalar value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<Scalar> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            Scalar value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.Float8Vector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Scalar> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).value();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.Float8Vector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        double[] column1 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).value();
+            var v1_1 = v1_0 == null ? null : v1_0.value();
+            var value1 = v1_1;
+            column1[i] = value1 == null ? 0.0 : value1;
+        }
+        w.doubles(path, column1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, Scalar value) {
-        org.teamvan.moneyshift.encodings.Float64.writeOne(vector, index, value.value());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Scalar> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

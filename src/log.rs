@@ -234,6 +234,19 @@ impl EntryLog {
         self.entries.get(key).and_then(BTreeMap::last_key_value)
     }
 
+    /// Drops history older than `cutoff`, always keeping the latest value of every entry.
+    ///
+    /// Live sessions run for a whole match, so the log must not grow without bound. Metadata
+    /// (types and struct schemas) is retained. Call this after a flush, when `changed` is empty.
+    pub fn prune_older_than(&mut self, cutoff: Timestamp) {
+        for entry in self.entries.values_mut() {
+            let Some(latest) = entry.keys().next_back().copied() else {
+                continue;
+            };
+            entry.retain(|timestamp, _| *timestamp >= cutoff || *timestamp == latest);
+        }
+    }
+
     /// Returns the latest value at or before `time`, for a path built from `root` and `parts`.
     #[must_use]
     pub fn get_latest_at(
@@ -264,10 +277,8 @@ impl EntryLog {
 mod tests {
     use super::{EntryLog, Timestamp};
     use crate::values::parse::wpistruct::WpiLibStructSchema;
-    use rerun::{
-        EntityPath,
-        external::arrow::array::{Float64Array, Int64Array, StringArray},
-    };
+    use arrow::array::{Float64Array, Int64Array, StringArray};
+    use re_log_types::EntityPath;
 
     #[test]
     fn keeps_primitive_arrays_as_one_changed_entry() {
@@ -358,8 +369,43 @@ mod tests {
 
     #[test]
     fn rejects_timestamps_that_do_not_fit_rerun_time() {
-        let result: Result<rerun::time::TimeInt, _> = Timestamp(u64::MAX).try_into();
+        let result: Result<re_log_types::TimeInt, _> = Timestamp(u64::MAX).try_into();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn pruning_keeps_the_latest_value_for_every_entry() {
+        let mut log = EntryLog::new();
+        let key = EntityPath::from_single_string("value");
+        for (timestamp, value) in [(10u64, 1.0f64), (20, 2.0), (30, 3.0)] {
+            log.add_entry(
+                key.clone(),
+                Timestamp(timestamp),
+                "double",
+                &value.to_le_bytes(),
+            )
+            .unwrap();
+        }
+        log.get_changed();
+
+        log.prune_older_than(Timestamp(25));
+
+        let entries = log.get_entry(&key).unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries.keys().next().copied(), Some(Timestamp(30)));
+    }
+
+    #[test]
+    fn pruning_keeps_an_old_latest_value() {
+        let mut log = EntryLog::new();
+        let key = EntityPath::from_single_string("stale");
+        log.add_entry(key.clone(), Timestamp(1), "double", &1.0f64.to_le_bytes())
+            .unwrap();
+        log.get_changed();
+
+        log.prune_older_than(Timestamp(1_000));
+
+        assert!(log.get_latest_entry(&key).is_some());
     }
 
     #[test]

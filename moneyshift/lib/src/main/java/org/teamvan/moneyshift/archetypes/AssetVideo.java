@@ -8,7 +8,7 @@ package org.teamvan.moneyshift.archetypes;
  * 
  * See &lt;https://rerun.io/docs/reference/video&gt; for codec support and more general information.
  * 
- * In order to display a video, you also need to log a {@link org.teamvan.moneyshift.archetypes.VideoFrameReference} for each frame.
+ * In order to display a video, you also need to log a {@link org.teamvan.moneyshift.archetypes.VideoFrameReference rerun::archetypes::VideoFrameReference} for each frame.
  * 
  */
 public record AssetVideo(
@@ -32,49 +32,31 @@ public record AssetVideo(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.AssetVideo";
     public static final int NUM_COMPONENTS = 2;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_BLOB = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "AssetVideo:blob", "rerun.components.Blob");
 
-    /**
-     * The asset's bytes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorBlob() {
-        return DESCRIPTOR_BLOB;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MEDIA_TYPE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "AssetVideo:media_type", "rerun.components.MediaType");
-
-    /**
-     * The Media Type of the asset.
-     * 
-     * Supported values:
-     * * {@code video/mp4}
-     * 
-     * If omitted, the viewer will try to guess from the data blob.
-     * If it cannot guess, it won't be able to render the asset.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMediaType() {
-        return DESCRIPTOR_MEDIA_TYPE;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorBlob());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorMediaType());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Blob.batch(descriptorBlob(), allocator, blob));
-        if (mediaType != null) {
-            batches.add(org.teamvan.moneyshift.components.MediaType.batch(descriptorMediaType(), allocator, mediaType));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("blob").append('=').append(org.teamvan.moneyshift.components.Blob.COMPONENT_TYPE);
         }
-        return batches;
+        if (mediaType != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("media_type").append('=').append(org.teamvan.moneyshift.components.MediaType.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Blob.writeColumnsStatic(w, "blob", java.util.List.of(blob));
+        }
+        if (mediaType != null) {
+            org.teamvan.moneyshift.components.MediaType.writeColumnsStatic(w, "media_type", java.util.List.of(mediaType));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

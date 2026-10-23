@@ -24,7 +24,7 @@ public record GeoPoints(
     /**
      * Optional class Ids for the points.
      * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors if not specified explicitly.
+     * The {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} provides colors if not specified explicitly.
      */
     java.util.List<org.teamvan.moneyshift.components.ClassId> classIds
 ) implements org.teamvan.moneyshift.Archetype {
@@ -37,70 +37,45 @@ public record GeoPoints(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.GeoPoints";
     public static final int NUM_COMPONENTS = 4;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_POSITIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GeoPoints:positions", "rerun.components.LatLon");
 
-    /**
-     * The <a href="https://epsg.io/4326">EPSG:4326</a> coordinates for the points (North/East-positive degrees).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorPositions() {
-        return DESCRIPTOR_POSITIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_RADII = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GeoPoints:radii", "rerun.components.Radius");
-
-    /**
-     * Optional radii for the points, effectively turning them into circles.
-     * 
-     * *Note*: scene units radiii are interpreted as meters.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRadii() {
-        return DESCRIPTOR_RADII;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GeoPoints:colors", "rerun.components.Color");
-
-    /**
-     * Optional colors for the points.
-     * 
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CLASS_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GeoPoints:class_ids", "rerun.components.ClassId");
-
-    /**
-     * Optional class Ids for the points.
-     * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors if not specified explicitly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorClassIds() {
-        return DESCRIPTOR_CLASS_IDS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorPositions());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorRadii(), descriptorColors());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorClassIds());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.LatLon.batch(descriptorPositions(), allocator, positions));
-        if (radii != null) {
-            batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorRadii(), allocator, radii));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!positions.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("positions").append('=').append(org.teamvan.moneyshift.components.LatLon.COMPONENT_TYPE);
         }
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+        if (radii != null && !radii.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        if (classIds != null) {
-            batches.add(org.teamvan.moneyshift.components.ClassId.batch(descriptorClassIds(), allocator, classIds));
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        return batches;
+        if (classIds != null && !classIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!positions.isEmpty()) {
+            org.teamvan.moneyshift.components.LatLon.writeColumnsStatic(w, "positions", positions);
+        }
+        if (radii != null && !radii.isEmpty()) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "radii", radii);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (classIds != null && !classIds.isEmpty()) {
+            org.teamvan.moneyshift.components.ClassId.writeColumnsStatic(w, "class_ids", classIds);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

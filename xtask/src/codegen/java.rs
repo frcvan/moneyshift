@@ -3,10 +3,9 @@ use std::fs;
 
 use anyhow::{Context as _, Result};
 use camino::{Utf8Path, Utf8PathBuf};
-use re_types_builder::data_type::{DataType, UnionMode};
 use re_types_builder::{
-    AtomicDataType, Docs, EnumIntegerType, Object, ObjectClass, ObjectKind, Objects, RerunAttr,
-    Type, TypeRegistry,
+    AtomicDataType, Docs, EnumIntegerType, Object, ObjectClass, Objects, RerunAttr, Type,
+    TypeRegistry,
 };
 
 const JAVA_PACKAGE_PREFIX: &str = "org.teamvan.moneyshift";
@@ -21,10 +20,14 @@ fn is_skipped(fqname: &str) -> bool {
     SKIPPED_NAMESPACES
         .iter()
         .any(|prefix| fqname.starts_with(prefix))
+        // Blueprints are not part of the NetworkTables surface: they are viewer configuration, not
+        // robot telemetry. Views exist only to describe blueprints, so they go too.
+        || fqname.starts_with("rerun.blueprint.")
+        || fqname.starts_with("rerun.views.")
 }
 
 /// Java types that can be passed to the generated code without an encoding wrapper.
-const PRIMITIVE_JAVA_TYPES: [&str; 9] = [
+const PRIMITIVE_JAVA_TYPES: [&str; 8] = [
     "boolean",
     "byte",
     "short",
@@ -32,7 +35,6 @@ const PRIMITIVE_JAVA_TYPES: [&str; 9] = [
     "long",
     "float",
     "double",
-    "char",
     "java.lang.String",
 ];
 
@@ -48,9 +50,8 @@ pub fn generate(
 
     // Remove previous generated trees so that a renamed, deleted, or newly skipped definition
     // cannot leave a stale Java class behind. This includes the trees of skipped namespaces, so
-    // that e.g. an earlier run's `testing` package is dropped. Only the top-level packages
-    // implied by the definitions are touched; the hand-written core and the protobuf bindings
-    // live elsewhere.
+    // that e.g. an earlier run's `blueprint` package is dropped. Only the top-level packages
+    // implied by the definitions are touched; the hand-written core lives elsewhere.
     let mut generated_roots = std::collections::BTreeSet::new();
     for object in objects.values() {
         let package = java_package(&object.fqname);
@@ -83,6 +84,66 @@ pub fn generate(
         }
         fs::write(&path, generator.render(object)?).with_context(|| format!("writing {path}"))?;
     }
+
+    validate_representable(objects)?;
+    Ok(())
+}
+
+/// Every datatype in the tree must have a NetworkTables column layout.
+///
+/// The layout covers everything Rerun defines today; if a future Rerun version adds a new atomic
+/// type, fail loudly at generation time instead of silently dropping data at runtime.
+fn validate_representable(objects: &Objects) -> Result<()> {
+    for object in objects
+        .values()
+        .filter(|object| !is_skipped(&object.fqname))
+    {
+        if matches!(object.class, ObjectClass::Enum(_)) {
+            // Enum variants are integers; a `null` variant is just a zero payload.
+            continue;
+        }
+        let inside_union = matches!(object.class, ObjectClass::Union);
+        for field in &object.fields {
+            validate_type(&object.fqname, &field.typ, objects, inside_union)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_type(owner: &str, typ: &Type, objects: &Objects, inside_union: bool) -> Result<()> {
+    match typ {
+        Type::Atomic(AtomicDataType::Null) => {
+            if !inside_union {
+                anyhow::bail!(
+                    "{owner} contains a bare `null` field, which the NetworkTables layout cannot represent"
+                );
+            }
+        }
+        Type::Atomic(_) | Type::Binary | Type::Utf8 => {}
+        Type::FixedSizeList { elem_type, .. } => {
+            validate_type(owner, elem_type, objects, false)?;
+        }
+        Type::List { elem_type } => {
+            validate_type(owner, elem_type, objects, false)?;
+        }
+        Type::Object { fqname } => {
+            let object = objects
+                .get(fqname.as_str())
+                .with_context(|| format!("{owner} refers to unknown definition {fqname}"))?;
+            if matches!(object.class, ObjectClass::Enum(_)) {
+                // Enum variants are integers; a `null` variant is just the zero payload case.
+                return Ok(());
+            }
+            for field in &object.fields {
+                validate_type(
+                    &object.fqname,
+                    &field.typ,
+                    objects,
+                    matches!(object.class, ObjectClass::Union),
+                )?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -97,7 +158,7 @@ fn output_path(output_dir: &Utf8Path, object: &Object) -> Utf8PathBuf {
         .join(format!("{}.java", java_class_name(&object.name)))
 }
 
-/// Maps `rerun.blueprint.archetypes.X` to `org.teamvan.moneyshift.blueprint.archetypes`.
+/// Maps `rerun.components.Position2D` to `org.teamvan.moneyshift.components`.
 fn java_package(fqname: &str) -> String {
     let parent = fqname.rsplit_once('.').map_or(fqname, |(parent, _)| parent);
     format!(
@@ -122,19 +183,13 @@ impl<'a> JavaGenerator<'a> {
             re_types_builder::ObjectKind::Encoding => self.render_encoding(object),
             re_types_builder::ObjectKind::Component => self.render_component(object),
             re_types_builder::ObjectKind::Archetype => self.render_archetype(object),
-            re_types_builder::ObjectKind::View => self.render_view(object),
+            re_types_builder::ObjectKind::View => {
+                anyhow::bail!("views are not generated for the NetworkTables SDK")
+            }
         }
     }
 
     // ---------------------------------------------------------------- types
-
-    fn data_type_for_object(&self, object: &Object) -> DataType {
-        self.registry.get(&object.fqname)
-    }
-
-    fn data_type_for_field(&self, field: &re_types_builder::ObjectField) -> DataType {
-        self.registry.get(&field.fqname)
-    }
 
     fn java_type(&self, typ: &Type, nullable: bool) -> String {
         match typ {
@@ -198,177 +253,6 @@ impl<'a> JavaGenerator<'a> {
         java_identifier(&snake_to_camel(&field.name))
     }
 
-    fn vector_class(&self, typ: &Type) -> String {
-        match typ {
-            Type::Atomic(atomic) => atomic_vector(atomic).to_owned(),
-            Type::Utf8 => "org.apache.arrow.vector.VarCharVector".to_owned(),
-            Type::Binary => "org.apache.arrow.vector.LargeVarBinaryVector".to_owned(),
-            Type::FixedSizeList { .. } => {
-                "org.apache.arrow.vector.complex.FixedSizeListVector".to_owned()
-            }
-            Type::List { .. } => "org.apache.arrow.vector.complex.ListVector".to_owned(),
-            Type::Object { fqname } => {
-                let object = &self.objects[fqname.as_str()];
-                match object.class {
-                    ObjectClass::Enum(repr) => atomic_vector(&repr.to_atomic()).to_owned(),
-                    ObjectClass::Union => {
-                        "org.apache.arrow.vector.complex.DenseUnionVector".to_owned()
-                    }
-                    ObjectClass::Struct => {
-                        if object.is_arrow_transparent() {
-                            self.vector_class(&object.fields[0].typ)
-                        } else {
-                            "org.apache.arrow.vector.complex.StructVector".to_owned()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // ------------------------------------------------------------- arrow fields
-
-    fn arrow_field_expr(&self, data_type: &DataType, name: &str, nullable: bool) -> String {
-        self.arrow_field_expr_raw(
-            data_type,
-            &format!("\"{}\"", escape_java_string(name)),
-            &nullable.to_string(),
-        )
-    }
-
-    /// `name_expr` and `nullable_expr` are Java expressions (a string literal or a parameter).
-    fn arrow_field_expr_raw(
-        &self,
-        data_type: &DataType,
-        name_expr: &str,
-        nullable_expr: &str,
-    ) -> String {
-        match data_type {
-            DataType::Atomic(atomic) => format!(
-                "{CORE_PACKAGE}.ArrowFields.field({name_expr}, {nullable_expr}, {}, java.util.List.of())",
-                atomic_arrow_const(atomic)
-            ),
-            DataType::Binary | DataType::Utf8 => format!(
-                "{CORE_PACKAGE}.ArrowFields.field({name_expr}, {nullable_expr}, {}, java.util.List.of())",
-                arrow_type_expr(data_type)
-            ),
-            DataType::Object { fqname, .. } => {
-                format!(
-                    "{}.arrowField({name_expr}, {nullable_expr})",
-                    java_class(fqname)
-                )
-            }
-            DataType::FixedSizeList(field, length) => {
-                let child = self.arrow_field_expr_raw(
-                    &field.data_type,
-                    &format!("\"{}\"", escape_java_string(&field.name)),
-                    &field.is_nullable.to_string(),
-                );
-                format!(
-                    "{CORE_PACKAGE}.ArrowFields.field({name_expr}, {nullable_expr}, \
-                     new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList({length}), \
-                     java.util.List.of({child}))"
-                )
-            }
-            DataType::List(field) => {
-                let child = self.arrow_field_expr_raw(
-                    &field.data_type,
-                    &format!("\"{}\"", escape_java_string(&field.name)),
-                    &field.is_nullable.to_string(),
-                );
-                format!(
-                    "{CORE_PACKAGE}.ArrowFields.field({name_expr}, {nullable_expr}, \
-                     new org.apache.arrow.vector.types.pojo.ArrowType.List(), \
-                     java.util.List.of({child}))"
-                )
-            }
-            DataType::Struct(fields) => {
-                let children = fields
-                    .iter()
-                    .map(|field| {
-                        self.arrow_field_expr_raw(
-                            &field.data_type,
-                            &format!("\"{}\"", escape_java_string(&field.name)),
-                            &field.is_nullable.to_string(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!(
-                    "{CORE_PACKAGE}.ArrowFields.field({name_expr}, {nullable_expr}, \
-                     new org.apache.arrow.vector.types.pojo.ArrowType.Struct(), \
-                     java.util.List.of({children}))"
-                )
-            }
-            DataType::Union(fields, mode) => {
-                let children = fields
-                    .iter()
-                    .map(|field| {
-                        self.arrow_field_expr_raw(
-                            &field.data_type,
-                            &format!("\"{}\"", escape_java_string(&field.name)),
-                            &field.is_nullable.to_string(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let arrow_mode = match mode {
-                    UnionMode::Dense => "Dense",
-                    UnionMode::Sparse => "Sparse",
-                };
-                let type_ids = (0..fields.len())
-                    .map(|index| index.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!(
-                    "{CORE_PACKAGE}.ArrowFields.field({name_expr}, {nullable_expr}, \
-                     new org.apache.arrow.vector.types.pojo.ArrowType.Union(\
-                     org.apache.arrow.vector.types.UnionMode.{arrow_mode}, new int[]{{{type_ids}}}), \
-                     java.util.List.of({children}))"
-                )
-            }
-        }
-    }
-
-    fn arrow_type_expr(&self, data_type: &DataType) -> String {
-        match data_type {
-            DataType::Atomic(atomic) => atomic_arrow_const(atomic).to_owned(),
-            DataType::Binary => format!("{CORE_PACKAGE}.ArrowFields.BINARY"),
-            DataType::Utf8 => format!("{CORE_PACKAGE}.ArrowFields.UTF8"),
-            DataType::Object { fqname, .. } => format!("{}.arrowType()", java_class(fqname)),
-            DataType::FixedSizeList(_, length) => {
-                format!("new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList({length})")
-            }
-            DataType::List(_) => {
-                "new org.apache.arrow.vector.types.pojo.ArrowType.List()".to_owned()
-            }
-            DataType::Struct(_) => {
-                "new org.apache.arrow.vector.types.pojo.ArrowType.Struct()".to_owned()
-            }
-            DataType::Union(fields, mode) => {
-                let arrow_mode = match mode {
-                    UnionMode::Dense => "Dense",
-                    UnionMode::Sparse => "Sparse",
-                };
-                let type_ids = (0..fields.len())
-                    .map(|index| index.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!(
-                    "new org.apache.arrow.vector.types.pojo.ArrowType.Union(\
-                     org.apache.arrow.vector.types.UnionMode.{arrow_mode}, new int[]{{{type_ids}}})"
-                )
-            }
-        }
-    }
-
-    fn arrow_field_body(&self, data_type: &DataType) -> (String, String) {
-        (
-            self.arrow_type_expr(data_type),
-            self.arrow_field_expr(data_type, "name", true),
-        )
-    }
-
     // ------------------------------------------------------------- encodings
 
     fn render_encoding(&self, object: &'a Object) -> Result<String> {
@@ -386,9 +270,8 @@ impl<'a> JavaGenerator<'a> {
 
     fn render_encoding_struct(&self, code: &mut String, object: &'a Object) -> Result<()> {
         let name = java_class_name(&object.name);
-        let data_type = self.data_type_for_object(object);
 
-        self.render_record_declaration(code, object, &name)?;
+        self.render_record_declaration(code, object, &name, false, None)?;
         writeln!(
             code,
             "    public static final java.lang.String NAME = \"{}\";",
@@ -397,33 +280,34 @@ impl<'a> JavaGenerator<'a> {
         .unwrap();
         writeln!(code).unwrap();
 
-        // Arrow type accessors.
-        let logical = data_type.to_logical_type();
-        writeln!(
+        self.render_static_columns(
             code,
-            "    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {{"
-        )
-        .unwrap();
-        writeln!(code, "        return {};", self.arrow_type_expr(logical)).unwrap();
-        writeln!(code, "    }}").unwrap();
+            &name,
+            Type::Object {
+                fqname: object.fqname.clone(),
+            },
+        )?;
         writeln!(code).unwrap();
         writeln!(
             code,
-            "    public static org.apache.arrow.vector.types.pojo.Field arrowField(\
-             java.lang.String name, boolean nullable) {{"
+            "    @Override\n    public void writeColumns(\n        {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{\n        writeColumnsStatic(w, path, values);\n    }}"
         )
         .unwrap();
-        writeln!(
-            code,
-            "        return {};",
-            self.arrow_field_expr_raw(logical, "name", "nullable")
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
 
-        self.render_struct_write_methods(code, object, &name)?;
-        self.render_array_factory(code, object, &name)?;
+        // A convenience constructor for types that are just a fixed-size scalar array.
+        if let Some((elem_type, length)) = fixed_size_scalar_field(object) {
+            let elem = self.java_type(&elem_type, false);
+            writeln!(code).unwrap();
+            writeln!(code, "    public static {name} of({elem}... values) {{").unwrap();
+            writeln!(
+                code,
+                "        if (values.length != {length}) throw new java.lang.IllegalArgumentException(\
+                 \"{name} needs exactly {length} values, got \" + values.length);"
+            )
+            .unwrap();
+            writeln!(code, "        return new {name}(values);").unwrap();
+            writeln!(code, "    }}").unwrap();
+        }
         writeln!(code, "}}").unwrap();
         Ok(())
     }
@@ -433,7 +317,14 @@ impl<'a> JavaGenerator<'a> {
         code: &mut String,
         object: &'a Object,
         name: &str,
+        is_component: bool,
+        component_type: Option<&str>,
     ) -> Result<()> {
+        let supertypes = if is_component {
+            format!(" implements {CORE_PACKAGE}.NtComponent<{name}>")
+        } else {
+            format!(" implements {CORE_PACKAGE}.NtEncoding<{name}>")
+        };
         writeln!(code, "public record {name}(").unwrap();
         for (index, field) in object.fields.iter().enumerate() {
             let comma = if index + 1 == object.fields.len() {
@@ -451,7 +342,7 @@ impl<'a> JavaGenerator<'a> {
             )
             .unwrap();
         }
-        writeln!(code, ") {{").unwrap();
+        writeln!(code, "){supertypes} {{").unwrap();
         // Compact constructor: normalize lists and enforce required references.
         if !object.fields.is_empty() {
             writeln!(code, "    public {name} {{").unwrap();
@@ -496,15 +387,12 @@ impl<'a> JavaGenerator<'a> {
             let comparisons = object
                 .fields
                 .iter()
-                .filter_map(|field| {
+                .map(|field| {
                     let field_name = Self::java_field_name(field);
-                    match field.typ {
-                        Type::FixedSizeList { .. } => Some(format!(
-                            "java.util.Arrays.equals({field_name}, other.{field_name})"
-                        )),
-                        _ => Some(format!(
-                            "java.util.Objects.equals({field_name}, other.{field_name})"
-                        )),
+                    if matches!(field.typ, Type::FixedSizeList { .. }) {
+                        format!("java.util.Arrays.equals({field_name}, that.{field_name})")
+                    } else {
+                        format!("java.util.Objects.equals({field_name}, that.{field_name})")
                     }
                 })
                 .collect::<Vec<_>>()
@@ -533,7 +421,6 @@ impl<'a> JavaGenerator<'a> {
                 "        if (!(other instanceof {name} that)) return false;"
             )
             .unwrap();
-            let comparisons = comparisons.replace("other.", "that.");
             writeln!(code, "        return {comparisons};").unwrap();
             writeln!(code, "    }}").unwrap();
             writeln!(code).unwrap();
@@ -542,152 +429,21 @@ impl<'a> JavaGenerator<'a> {
             writeln!(code, "        return java.util.Objects.hash({hashes});").unwrap();
             writeln!(code, "    }}").unwrap();
         }
-        Ok(())
-    }
 
-    fn render_struct_write_methods(
-        &self,
-        code: &mut String,
-        object: &'a Object,
-        name: &str,
-    ) -> Result<()> {
-        let vector_class = self.vector_class(&Type::Object {
-            fqname: object.fqname.clone(),
-        });
-        let is_union = object.is_union();
-
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static void write(org.apache.arrow.vector.FieldVector vector, \
-             java.util.List<{name}> values) {{"
-        )
-        .unwrap();
-        writeln!(code, "        int count = values.size();").unwrap();
-        writeln!(code, "        for (int i = 0; i < count; i++) {{").unwrap();
-        writeln!(code, "            {name} value = values.get(i);").unwrap();
-        if is_union {
-            writeln!(code, "            writeOne(vector, i, value);").unwrap();
-        } else {
-            writeln!(code, "            if (value == null) {{").unwrap();
-            writeln!(
-                code,
-                "                (({vector_class}) vector).setNull(i);"
-            )
-            .unwrap();
-            writeln!(code, "            }} else {{").unwrap();
-            writeln!(code, "                writeOne(vector, i, value);").unwrap();
-            writeln!(code, "            }}").unwrap();
-        }
-        writeln!(code, "        }}").unwrap();
-        writeln!(
-            code,
-            "        (({vector_class}) vector).setValueCount(count);"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static void writeOne(org.apache.arrow.vector.FieldVector vector, \
-             int index, {name} value) {{"
-        )
-        .unwrap();
-        let mut counter = 0usize;
-        if object.is_arrow_transparent() {
-            let inner = &object.fields[0];
-            let inner_value = format!("value.{}()", Self::java_field_name(inner));
-            self.emit_write_one(
-                code,
-                "        ",
-                &inner.typ,
-                "vector",
-                "index",
-                &inner_value,
-                &mut counter,
-            )?;
-        } else if object.is_union() {
-            self.emit_union_write_one(code, "        ", object, "vector", "index", name)?;
-        } else {
-            // Plain struct.
-            let struct_var = "struct";
-            writeln!(
-                code,
-                "        org.apache.arrow.vector.complex.StructVector {struct_var} = \
-                 (org.apache.arrow.vector.complex.StructVector) vector;"
-            )
-            .unwrap();
-            writeln!(code, "        {struct_var}.setIndexDefined(index);").unwrap();
-            for (ordinal, field) in object.fields.iter().enumerate() {
-                let field_name = Self::java_field_name(field);
-                let java_type = self.java_type(&field.typ, field.is_nullable);
-                let local = format!("f{counter}");
-                counter += 1;
-                writeln!(code, "        {java_type} {local} = value.{field_name}();").unwrap();
-                let vector_expr = format!(
-                    "(org.apache.arrow.vector.FieldVector) {struct_var}.getChildByOrdinal({ordinal})"
-                );
-                if field.is_nullable && !field.typ.is_union(self.objects) {
-                    let concrete = self.vector_class(&field.typ);
-                    writeln!(code, "        if ({local} == null) {{").unwrap();
-                    writeln!(
-                        code,
-                        "            (({concrete}) {vector_expr}).setNull(index);"
-                    )
-                    .unwrap();
-                    writeln!(code, "        }} else {{").unwrap();
-                    self.emit_write_one(
-                        code,
-                        "            ",
-                        &field.typ,
-                        &vector_expr,
-                        "index",
-                        &local,
-                        &mut counter,
-                    )?;
-                    writeln!(code, "        }}").unwrap();
-                } else {
-                    self.emit_write_one(
-                        code,
-                        "        ",
-                        &field.typ,
-                        &vector_expr,
-                        "index",
-                        &local,
-                        &mut counter,
-                    )?;
-                }
-            }
-        }
-        writeln!(code, "    }}").unwrap();
-
-        // A convenience constructor for types that are just a fixed-size scalar array.
-        if let Some((elem_type, length)) = fixed_size_scalar_field(object) {
-            let elem = self.java_type(&elem_type, false);
+        if let Some(component_type) = component_type {
             writeln!(code).unwrap();
-            writeln!(code, "    public static {name} of({elem}... values) {{").unwrap();
             writeln!(
                 code,
-                "        if (values.length != {length}) throw new java.lang.IllegalArgumentException(\
-                 \"{name} needs exactly {length} values, got \" + values.length);"
+                "    public static final java.lang.String COMPONENT_TYPE = \"{component_type}\";"
             )
             .unwrap();
-            let field_name = Self::java_field_name(&object.fields[0]);
-            writeln!(code, "        return new {name}(values);").unwrap();
-            let _ = field_name;
-            writeln!(code, "    }}").unwrap();
+            writeln!(code).unwrap();
+            writeln!(
+                code,
+                "    @Override\n    public java.lang.String componentType() {{\n        return COMPONENT_TYPE;\n    }}"
+            )
+            .unwrap();
         }
-        Ok(())
-    }
-
-    fn render_array_factory(
-        &self,
-        code: &mut String,
-        object: &'a Object,
-        name: &str,
-    ) -> Result<()> {
-        let _ = (code, object, name);
         Ok(())
     }
 
@@ -700,9 +456,9 @@ impl<'a> JavaGenerator<'a> {
     ) -> Result<()> {
         let name = java_class_name(&object.name);
         let suffix = if component {
-            " implements org.teamvan.moneyshift.Component"
+            format!(" implements {CORE_PACKAGE}.NtComponent<{name}>")
         } else {
-            ""
+            format!(" implements {CORE_PACKAGE}.NtEncoding<{name}>")
         };
         writeln!(code, "public enum {name}{suffix} {{").unwrap();
         for (index, field) in object.fields.iter().enumerate() {
@@ -747,7 +503,6 @@ impl<'a> JavaGenerator<'a> {
         )
         .unwrap();
         writeln!(code, "    }}").unwrap();
-
         writeln!(code).unwrap();
         writeln!(
             code,
@@ -755,32 +510,17 @@ impl<'a> JavaGenerator<'a> {
             object.fqname
         )
         .unwrap();
-        writeln!(
-            code,
-            "    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {{"
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "        return {};",
-            atomic_arrow_const(&repr.to_atomic())
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
+        writeln!(code).unwrap();
+
+        self.render_enum_columns(code, &name)?;
         writeln!(code).unwrap();
         writeln!(
             code,
-            "    public static org.apache.arrow.vector.types.pojo.Field arrowField(\
-             java.lang.String name, boolean nullable) {{"
+            "    @Override\n    public void writeColumns(\
+             {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{\
+             \n        writeColumnsStatic(w, path, values);\n    }}"
         )
         .unwrap();
-        writeln!(
-            code,
-            "        return {CORE_PACKAGE}.ArrowFields.field(name, nullable, arrowType(), java.util.List.of());"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
 
         if component {
             writeln!(
@@ -789,117 +529,52 @@ impl<'a> JavaGenerator<'a> {
                 object.fqname
             )
             .unwrap();
-            writeln!(
-                code,
-                "    public static final {CORE_PACKAGE}.ComponentDescriptor DESCRIPTOR = \
-                 {CORE_PACKAGE}.ComponentDescriptor.component(COMPONENT_TYPE);"
-            )
-            .unwrap();
             writeln!(code).unwrap();
             writeln!(
                 code,
-                "    public static {CORE_PACKAGE}.ComponentBatch batch(\
-                 {CORE_PACKAGE}.ComponentDescriptor descriptor, \
-                 org.apache.arrow.memory.BufferAllocator allocator, \
-                 java.util.List<{name}> values) {{"
+                "    @Override\n    public java.lang.String componentType() {{\n        return COMPONENT_TYPE;\n    }}"
             )
             .unwrap();
-            writeln!(
-                code,
-                "        return {CORE_PACKAGE}.ComponentBatch.of(descriptor, arrowField(\"item\", true), \
-                 allocator, values, {name}::write);"
-            )
-            .unwrap();
-            writeln!(code, "    }}").unwrap();
-            writeln!(code).unwrap();
-            writeln!(
-                code,
-                "    public static {CORE_PACKAGE}.ComponentBatch batch(\
-                 {CORE_PACKAGE}.ComponentDescriptor descriptor, \
-                 org.apache.arrow.memory.BufferAllocator allocator, {name} value) {{"
-            )
-            .unwrap();
-            writeln!(
-                code,
-                "        return batch(descriptor, allocator, java.util.List.of(value));"
-            )
-            .unwrap();
-            writeln!(code, "    }}").unwrap();
-            writeln!(code).unwrap();
-            writeln!(
-                code,
-                "    public static {CORE_PACKAGE}.ComponentBatch batch(\
-                 org.apache.arrow.memory.BufferAllocator allocator, {name} value) {{"
-            )
-            .unwrap();
-            writeln!(
-                code,
-                "        return batch(DESCRIPTOR, allocator, java.util.List.of(value));"
-            )
-            .unwrap();
-            writeln!(code, "    }}").unwrap();
         }
-
-        self.render_enum_write_methods(code, object, &name, repr)?;
+        let _ = repr;
         writeln!(code, "}}").unwrap();
         Ok(())
     }
 
-    fn render_enum_write_methods(
-        &self,
-        code: &mut String,
-        object: &'a Object,
-        name: &str,
-        repr: EnumIntegerType,
-    ) -> Result<()> {
-        let vector = atomic_vector(&repr.to_atomic());
-        let value_expr = match repr {
-            EnumIntegerType::U8 | EnumIntegerType::U16 => "(int) value.value()",
-            EnumIntegerType::U32 => "(int) value.value()",
-            EnumIntegerType::U64 => "value.value()",
-        };
-        writeln!(code).unwrap();
+    fn render_enum_columns(&self, code: &mut String, name: &str) -> Result<()> {
         writeln!(
             code,
-            "    public static void write(org.apache.arrow.vector.FieldVector vector, \
-             java.util.List<{name}> values) {{"
+            "    public static void writeColumnsStatic(\
+             {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{"
         )
         .unwrap();
-        writeln!(code, "        int count = values.size();").unwrap();
-        writeln!(code, "        for (int i = 0; i < count; i++) {{").unwrap();
+        writeln!(code, "        int n = values.size();").unwrap();
+        writeln!(code, "        long[] column = new long[n];").unwrap();
+        writeln!(code, "        boolean[] present = new boolean[n];").unwrap();
+        writeln!(code, "        boolean anyNull = false;").unwrap();
+        writeln!(code, "        for (int i = 0; i < n; i++) {{").unwrap();
         writeln!(code, "            {name} value = values.get(i);").unwrap();
-        writeln!(code, "            if (value == null) {{").unwrap();
-        writeln!(code, "                (({vector}) vector).setNull(i);").unwrap();
-        writeln!(code, "            }} else {{").unwrap();
+        writeln!(code, "            present[i] = value != null;").unwrap();
+        writeln!(code, "            anyNull |= value == null;").unwrap();
         writeln!(
             code,
-            "                (({vector}) vector).setSafe(i, {value_expr});"
+            "            column[i] = value == null ? 0L : value.value();"
         )
         .unwrap();
-        writeln!(code, "            }}").unwrap();
         writeln!(code, "        }}").unwrap();
-        writeln!(code, "        (({vector}) vector).setValueCount(count);").unwrap();
+        writeln!(code, "        w.present(path, present, anyNull);").unwrap();
+        writeln!(code, "        w.longs(path, column);").unwrap();
         writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static void writeOne(org.apache.arrow.vector.FieldVector vector, \
-             int index, {name} value) {{"
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "        (({vector}) vector).setSafe(index, {value_expr});"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        let _ = object;
         Ok(())
     }
 
     fn render_union(&self, code: &mut String, object: &'a Object) -> Result<()> {
         let name = java_class_name(&object.name);
-        writeln!(code, "public sealed interface {name} permits").unwrap();
+        writeln!(
+            code,
+            "public sealed interface {name} extends {CORE_PACKAGE}.NtEncoding<{name}> permits"
+        )
+        .unwrap();
         for (index, field) in object.fields.iter().enumerate() {
             let separator = if index + 1 == object.fields.len() {
                 " {"
@@ -938,331 +613,53 @@ impl<'a> JavaGenerator<'a> {
         writeln!(code).unwrap();
         writeln!(code, "    java.lang.String NAME = \"{}\";", object.fqname).unwrap();
 
-        let data_type = self.data_type_for_object(object);
         writeln!(code).unwrap();
         writeln!(
             code,
-            "    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {{"
+            "    @Override\n    default void writeColumns(\
+             {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{\
+             \n        writeColumnsStatic(w, path, values);\n    }}"
         )
         .unwrap();
-        writeln!(
-            code,
-            "        return {};",
-            self.arrow_type_expr(data_type.to_logical_type())
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static org.apache.arrow.vector.types.pojo.Field arrowField(\
-             java.lang.String name, boolean nullable) {{"
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "        return {};",
-            self.arrow_field_expr_raw(data_type.to_logical_type(), "name", "nullable")
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
 
         writeln!(code).unwrap();
-        writeln!(code, "    public static int typeId({name} value) {{").unwrap();
-        writeln!(code, "        if (value == null) return 0;").unwrap();
-        writeln!(code, "        return switch (value) {{").unwrap();
-        for (index, field) in object.fields.iter().enumerate() {
-            let type_id = index + 1;
-            writeln!(
-                code,
-                "            case {name}.{} ignored -> {type_id};",
-                union_variant_name(field)
-            )
-            .unwrap();
-        }
-        writeln!(code, "        }};").unwrap();
-        writeln!(code, "    }}").unwrap();
-
-        writeln!(code).unwrap();
-        writeln!(
+        self.render_static_columns(
             code,
-            "    public static void write(org.apache.arrow.vector.FieldVector vector, \
-             java.util.List<{name}> values) {{"
-        )
-        .unwrap();
-        writeln!(code, "        int count = values.size();").unwrap();
-        writeln!(code, "        for (int i = 0; i < count; i++) {{").unwrap();
-        writeln!(code, "            writeOne(vector, i, values.get(i));").unwrap();
-        writeln!(code, "        }}").unwrap();
-        writeln!(
-            code,
-            "        ((org.apache.arrow.vector.complex.DenseUnionVector) vector).setValueCount(count);"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static void writeOne(org.apache.arrow.vector.FieldVector vector, \
-             int index, {name} value) {{"
-        )
-        .unwrap();
-        self.emit_union_write_one(code, "        ", object, "vector", "index", &name)?;
-        writeln!(code, "    }}").unwrap();
+            &name,
+            Type::Object {
+                fqname: object.fqname.clone(),
+            },
+        )?;
 
         writeln!(code, "}}").unwrap();
         Ok(())
     }
 
-    fn emit_union_write_one(
-        &self,
-        code: &mut String,
-        indent: &str,
-        object: &'a Object,
-        vector: &str,
-        index: &str,
-        _name: &str,
-    ) -> Result<()> {
-        writeln!(
-            code,
-            "{indent}org.apache.arrow.vector.complex.DenseUnionVector union = \
-             (org.apache.arrow.vector.complex.DenseUnionVector) {vector};"
-        )
-        .unwrap();
-        writeln!(code, "{indent}if (value == null) {{").unwrap();
-        self.emit_union_null(code, &format!("{indent}    "), "union", index)?;
-        writeln!(code, "{indent}    return;").unwrap();
-        writeln!(code, "{indent}}}").unwrap();
-        writeln!(code, "{indent}switch (value) {{").unwrap();
-        for (position, field) in object.fields.iter().enumerate() {
-            let type_id = position + 1;
-            let variant = union_variant_name(field);
-            if field.typ.is_unit() {
-                writeln!(
-                    code,
-                    "{indent}    case {}.{} ignored -> {{",
-                    java_class_name(&object.name),
-                    variant
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}        org.apache.arrow.vector.FieldVector child = \
-                     (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) {type_id});"
-                )
-                .unwrap();
-                writeln!(code, "{indent}        int offset = child.getValueCount();").unwrap();
-                writeln!(
-                    code,
-                    "{indent}        union.setTypeId(index, (byte) {type_id});"
-                )
-                .unwrap();
-                writeln!(code, "{indent}        union.setOffset(index, offset);").unwrap();
-                writeln!(code, "{indent}        child.setValueCount(offset + 1);").unwrap();
-                writeln!(code, "{indent}    }}").unwrap();
-            } else {
-                writeln!(
-                    code,
-                    "{indent}    case {}.{} variant -> {{",
-                    java_class_name(&object.name),
-                    variant
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}        org.apache.arrow.vector.FieldVector child = \
-                     (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) {type_id});"
-                )
-                .unwrap();
-                writeln!(code, "{indent}        int offset = child.getValueCount();").unwrap();
-                writeln!(
-                    code,
-                    "{indent}        union.setTypeId(index, (byte) {type_id});"
-                )
-                .unwrap();
-                writeln!(code, "{indent}        union.setOffset(index, offset);").unwrap();
-                writeln!(code, "{indent}        child.setValueCount(offset + 1);").unwrap();
-                let mut counter = 0usize;
-                self.emit_write_one(
-                    code,
-                    &format!("{indent}        "),
-                    &field.typ,
-                    "child",
-                    "offset",
-                    "variant.value()",
-                    &mut counter,
-                )?;
-                writeln!(code, "{indent}    }}").unwrap();
-            }
-        }
-        writeln!(code, "{indent}}}").unwrap();
-        Ok(())
-    }
+    // ------------------------------------------------------------- writers
 
-    fn emit_union_null(
-        &self,
-        code: &mut String,
-        indent: &str,
-        union: &str,
-        index: &str,
-    ) -> Result<()> {
+    fn render_static_columns(&self, code: &mut String, name: &str, self_typ: Type) -> Result<()> {
         writeln!(
             code,
-            "{indent}org.apache.arrow.vector.FieldVector nullMarkers = \
-             (org.apache.arrow.vector.FieldVector) {union}.getVectorByType((byte) 0);"
+            "    /** Writes this type's NetworkTables columns; one entry per value. */"
         )
         .unwrap();
         writeln!(
             code,
-            "{indent}int nullOffset = nullMarkers.getValueCount();"
+            "    public static void writeColumnsStatic(\
+             {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{"
         )
         .unwrap();
-        writeln!(code, "{indent}{union}.setTypeId({index}, (byte) 0);").unwrap();
-        writeln!(code, "{indent}{union}.setOffset({index}, nullOffset);").unwrap();
-        writeln!(code, "{indent}nullMarkers.setValueCount(nullOffset + 1);").unwrap();
-        Ok(())
-    }
-
-    // -------------------------------------------------------------- writers
-
-    fn emit_write_one(
-        &self,
-        code: &mut String,
-        indent: &str,
-        typ: &Type,
-        vector: &str,
-        index: &str,
-        value: &str,
-        counter: &mut usize,
-    ) -> Result<()> {
-        match typ {
-            Type::Atomic(atomic) => {
-                let class = atomic_vector(atomic);
-                let value = match atomic {
-                    AtomicDataType::Null => return Ok(()),
-                    AtomicDataType::Boolean => format!("(({value}) ? 1 : 0)"),
-                    AtomicDataType::UInt8 | AtomicDataType::UInt16 => {
-                        format!("(int) {value}")
-                    }
-                    AtomicDataType::UInt32 => format!("(int) (long) {value}"),
-                    AtomicDataType::Float16 => {
-                        format!("java.lang.Float.floatToFloat16({value})")
-                    }
-                    _ => value.to_owned(),
-                };
-                writeln!(
-                    code,
-                    "{indent}(({class}) {vector}).setSafe({index}, {value});"
-                )
-                .unwrap();
-            }
-            Type::Utf8 => {
-                writeln!(
-                    code,
-                    "{indent}((org.apache.arrow.vector.VarCharVector) {vector}).setSafe(\
-                     {index}, {value}.getBytes(java.nio.charset.StandardCharsets.UTF_8));"
-                )
-                .unwrap();
-            }
-            Type::Binary => {
-                writeln!(
-                    code,
-                    "{indent}((org.apache.arrow.vector.LargeVarBinaryVector) {vector}).setSafe(\
-                     {index}, {value});"
-                )
-                .unwrap();
-            }
-            Type::FixedSizeList { elem_type, length } => {
-                let id = *counter;
-                *counter += 1;
-                writeln!(code, "{indent}{{").unwrap();
-                writeln!(
-                    code,
-                    "{indent}    org.apache.arrow.vector.complex.FixedSizeListVector list{id} = \
-                     (org.apache.arrow.vector.complex.FixedSizeListVector) {vector};"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}    int start{id} = list{id}.startNewValue({index});"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}    org.apache.arrow.vector.FieldVector child{id} = list{id}.getDataVector();"
-                )
-                .unwrap();
-                for offset in 0..*length {
-                    self.emit_write_one(
-                        code,
-                        &format!("{indent}    "),
-                        elem_type,
-                        &format!("child{id}"),
-                        &format!("start{id} + {offset}"),
-                        &format!("{value}[{offset}]"),
-                        counter,
-                    )?;
-                }
-                writeln!(code, "{indent}}}").unwrap();
-            }
-            Type::List { elem_type } => {
-                let id = *counter;
-                *counter += 1;
-                writeln!(code, "{indent}{{").unwrap();
-                writeln!(
-                    code,
-                    "{indent}    org.apache.arrow.vector.complex.ListVector list{id} = \
-                     (org.apache.arrow.vector.complex.ListVector) {vector};"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}    int start{id} = list{id}.startNewValue({index});"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}    org.apache.arrow.vector.FieldVector child{id} = list{id}.getDataVector();"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}    java.util.List<{}> values{id} = {value};",
-                    self.java_type_boxed(elem_type)
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "{indent}    for (int j{id} = 0; j{id} < values{id}.size(); j{id}++) {{"
-                )
-                .unwrap();
-                self.emit_write_one(
-                    code,
-                    &format!("{indent}        "),
-                    elem_type,
-                    &format!("child{id}"),
-                    &format!("start{id} + j{id}"),
-                    &format!("values{id}.get(j{id})"),
-                    counter,
-                )?;
-                writeln!(code, "{indent}    }}").unwrap();
-                writeln!(
-                    code,
-                    "{indent}    list{id}.endValue({index}, values{id}.size());"
-                )
-                .unwrap();
-                writeln!(code, "{indent}}}").unwrap();
-            }
-            Type::Object { fqname } => {
-                writeln!(
-                    code,
-                    "{indent}{}.writeOne({vector}, {index}, {value});",
-                    java_class(fqname)
-                )
-                .unwrap();
-            }
-        }
+        writeln!(code, "        int n = values.size();").unwrap();
+        let mut emitter = ColumnsEmitter::new(self);
+        let chain = Chain::root("values.get(i)");
+        let ctx = NodeCtx {
+            index: "i".to_owned(),
+            count: "n".to_owned(),
+            suffix: String::new(),
+        };
+        emitter.emit(&self_typ, &chain, true, true, &ctx)?;
+        code.push_str(&emitter.code);
+        writeln!(code, "    }}").unwrap();
         Ok(())
     }
 
@@ -1274,159 +671,50 @@ impl<'a> JavaGenerator<'a> {
         let mut code = String::new();
         write_header(&mut code, &package);
         write_docs(&mut code, &object.docs, "", self.objects);
+
         if let ObjectClass::Enum(repr) = object.class {
             self.render_enum(&mut code, object, repr, true)?;
             return Ok(code);
         }
 
-        writeln!(code, "public record {name}(").unwrap();
-        for (index, field) in object.fields.iter().enumerate() {
-            let comma = if index + 1 == object.fields.len() {
-                ""
-            } else {
-                ","
-            };
-            write_docs(&mut code, &field.docs, "    ", self.objects);
-            writeln!(
-                code,
-                "    {} {}{}",
-                self.java_type(&field.typ, field.is_nullable),
-                Self::java_field_name(field),
-                comma
-            )
-            .unwrap();
+        if object.class == ObjectClass::Union {
+            // A component whose datatype is a union (e.g. `TextLogLevel`-style unions).
+            self.render_component_union(&mut code, object)?;
+            return Ok(code);
         }
-        writeln!(code, ") implements {CORE_PACKAGE}.Component {{").unwrap();
-        if !object.fields.is_empty() {
-            writeln!(code, "    public {name} {{").unwrap();
-            for field in &object.fields {
-                let field_name = Self::java_field_name(field);
-                let reference_type =
-                    matches!(field.typ, Type::Object { .. } | Type::Utf8 | Type::Binary);
-                if reference_type && !field.is_nullable {
-                    writeln!(
-                        code,
-                        "        java.util.Objects.requireNonNull({field_name}, \"{field_name}\");"
-                    )
-                    .unwrap();
-                }
-                if matches!(field.typ, Type::List { .. }) {
-                    if field.is_nullable {
-                        writeln!(
-                            code,
-                            "        if ({field_name} != null) {{ {field_name} = java.util.List.copyOf({field_name}); }}"
-                        )
-                        .unwrap();
-                    } else {
-                        writeln!(
-                            code,
-                            "        {field_name} = java.util.List.copyOf({field_name});"
-                        )
-                        .unwrap();
-                    }
-                }
-            }
-            writeln!(code, "    }}").unwrap();
-        }
-        self.render_unwrapped_constructor(&mut code, object, &name);
-        self.render_component_members(&mut code, object, &name)?;
-        writeln!(code, "}}").unwrap();
-        Ok(code)
-    }
 
-    fn render_component_members(
-        &self,
-        code: &mut String,
-        object: &'a Object,
-        name: &str,
-    ) -> Result<()> {
-        writeln!(
-            code,
-            "    public static final java.lang.String COMPONENT_TYPE = \"{}\";",
-            object.fqname
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "    public static final {CORE_PACKAGE}.ComponentDescriptor DESCRIPTOR = \
-             {CORE_PACKAGE}.ComponentDescriptor.component(COMPONENT_TYPE);"
-        )
-        .unwrap();
-        writeln!(code).unwrap();
+        self.render_record_declaration(&mut code, object, &name, true, Some(&object.fqname))?;
+        // Components are transparent wrappers: the column layout is the wrapped encoding's.
         let field = &object.fields[0];
-        let dt = self.data_type_for_field(field);
-        let arrow_type = self.arrow_type_expr(&dt);
-        let arrow_field = self.arrow_field_expr_raw(&dt, "name", "nullable");
+        let field_name = Self::java_field_name(field);
+        writeln!(code).unwrap();
         writeln!(
             code,
-            "    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {{"
+            "    public static void writeColumnsStatic(\
+             {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{"
         )
         .unwrap();
-        writeln!(code, "        return {arrow_type};").unwrap();
+        writeln!(code, "        int n = values.size();").unwrap();
+        let chain = Chain::root("values.get(i)").with(format!(".{field_name}()"), true);
+        let mut emitter = ColumnsEmitter::new(self);
+        let ctx = NodeCtx {
+            index: "i".to_owned(),
+            count: "n".to_owned(),
+            suffix: String::new(),
+        };
+        emitter.emit(&field.typ, &chain, true, true, &ctx)?;
+        code.push_str(&emitter.code);
         writeln!(code, "    }}").unwrap();
         writeln!(code).unwrap();
         writeln!(
             code,
-            "    public static org.apache.arrow.vector.types.pojo.Field arrowField(\
-             java.lang.String name, boolean nullable) {{"
+            "    @Override\n    public void writeColumns(\n        {CORE_PACKAGE}.NtEntityWriter w, java.lang.String path, java.util.List<{name}> values) {{\n        writeColumnsStatic(w, path, values);\n    }}"
         )
         .unwrap();
-        writeln!(code, "        return {arrow_field};").unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static {CORE_PACKAGE}.ComponentBatch batch(\
-             {CORE_PACKAGE}.ComponentDescriptor descriptor, \
-             org.apache.arrow.memory.BufferAllocator allocator, \
-             java.util.List<{name}> values) {{"
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "        return {CORE_PACKAGE}.ComponentBatch.of(descriptor, arrowField(\"item\", true), \
-             allocator, values, {name}::write);"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static {CORE_PACKAGE}.ComponentBatch batch(\
-             {CORE_PACKAGE}.ComponentDescriptor descriptor, \
-             org.apache.arrow.memory.BufferAllocator allocator, {name} value) {{"
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "        return batch(descriptor, allocator, java.util.List.of(value));"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static {CORE_PACKAGE}.ComponentBatch batch(\
-             org.apache.arrow.memory.BufferAllocator allocator, {name} value) {{"
-        )
-        .unwrap();
-        writeln!(
-            code,
-            "        return batch(DESCRIPTOR, allocator, java.util.List.of(value));"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-
-        if let ObjectClass::Enum(repr) = object.class {
-            self.render_enum_write_methods(code, object, name, repr)?;
-        } else {
-            self.render_component_write_methods(code, object, name)?;
-        }
 
         // Fixed-size scalar convenience factory, e.g. Position2D.of(x, y).
         if let Some((elem_type, length)) = component_fixed_size_scalar(self, object) {
             let elem = self.java_type(&elem_type, false);
-            let field_name = Self::java_field_name(&object.fields[0]);
             writeln!(code).unwrap();
             writeln!(code, "    public static {name} of({elem}... values) {{").unwrap();
             writeln!(
@@ -1441,69 +729,17 @@ impl<'a> JavaGenerator<'a> {
                 self.java_type(&object.fields[0].typ, false)
             )
             .unwrap();
-            let _ = field_name;
             writeln!(code, "    }}").unwrap();
         }
-        Ok(())
+        writeln!(code, "}}").unwrap();
+        Ok(code)
     }
 
-    fn render_component_write_methods(
-        &self,
-        code: &mut String,
-        object: &'a Object,
-        name: &str,
-    ) -> Result<()> {
-        let field = &object.fields[0];
-        let vector_class = self.vector_class(&field.typ);
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static void write(org.apache.arrow.vector.FieldVector vector, \
-             java.util.List<{name}> values) {{"
-        )
-        .unwrap();
-        writeln!(code, "        int count = values.size();").unwrap();
-        writeln!(code, "        for (int i = 0; i < count; i++) {{").unwrap();
-        writeln!(code, "            {name} value = values.get(i);").unwrap();
-        if field.typ.is_union(self.objects) {
-            writeln!(code, "            writeOne(vector, i, value);").unwrap();
-        } else {
-            writeln!(code, "            if (value == null) {{").unwrap();
-            writeln!(
-                code,
-                "                (({vector_class}) vector).setNull(i);"
-            )
-            .unwrap();
-            writeln!(code, "            }} else {{").unwrap();
-            writeln!(code, "                writeOne(vector, i, value);").unwrap();
-            writeln!(code, "            }}").unwrap();
-        }
-        writeln!(code, "        }}").unwrap();
-        writeln!(
-            code,
-            "        (({vector_class}) vector).setValueCount(count);"
-        )
-        .unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static void writeOne(org.apache.arrow.vector.FieldVector vector, \
-             int index, {name} value) {{"
-        )
-        .unwrap();
-        let field_name = Self::java_field_name(field);
-        let mut counter = 0usize;
-        self.emit_write_one(
-            code,
-            "        ",
-            &field.typ,
-            "vector",
-            "index",
-            &format!("value.{field_name}()"),
-            &mut counter,
-        )?;
-        writeln!(code, "    }}").unwrap();
+    fn render_component_union(&self, code: &mut String, object: &'a Object) -> Result<()> {
+        // Rare in Rerun's surface, but the layout is the same as any other union.
+        let name = java_class_name(&object.name);
+        self.render_union(code, object)?;
+        let _ = name;
         Ok(())
     }
 
@@ -1511,7 +747,9 @@ impl<'a> JavaGenerator<'a> {
 
     /// The encoding struct a component record wraps, when the component is a plain newtype.
     fn wrapped_encoding(&self, object: &Object) -> Option<&'a Object> {
-        if object.kind != ObjectKind::Component || object.class != ObjectClass::Struct {
+        if object.kind != re_types_builder::ObjectKind::Component
+            || object.class != ObjectClass::Struct
+        {
             return None;
         }
         let [field] = object.fields.as_slice() else {
@@ -1521,7 +759,9 @@ impl<'a> JavaGenerator<'a> {
             return None;
         };
         let encoding = self.objects.get(fqname)?;
-        if encoding.kind != ObjectKind::Encoding || encoding.class != ObjectClass::Struct {
+        if encoding.kind != re_types_builder::ObjectKind::Encoding
+            || encoding.class != ObjectClass::Struct
+        {
             return None;
         }
         Some(encoding)
@@ -1533,7 +773,9 @@ impl<'a> JavaGenerator<'a> {
             return None;
         };
         let object = self.objects.get(fqname)?;
-        if object.kind != ObjectKind::Encoding || object.class != ObjectClass::Struct {
+        if object.kind != re_types_builder::ObjectKind::Encoding
+            || object.class != ObjectClass::Struct
+        {
             return None;
         }
         let [field] = object.fields.as_slice() else {
@@ -1797,90 +1039,75 @@ impl<'a> JavaGenerator<'a> {
         )
         .unwrap();
 
-        let short = java_class_name(&object.name);
-        for field in &object.fields {
-            let field_name = Self::java_field_name(field);
-            let component_fqname = field.typ.fqname().unwrap_or_default();
-            let component = &self.objects[component_fqname];
-            let descriptor_name = format!("DESCRIPTOR_{}", to_screaming_snake(&field_name));
-            writeln!(
-                code,
-                "    private static final {CORE_PACKAGE}.ComponentDescriptor {descriptor_name} = \
-                 new {CORE_PACKAGE}.ComponentDescriptor(ARCHETYPE_NAME, \"{short}:{}\", \"{}\");",
-                field.name, component.fqname
-            )
-            .unwrap();
-            writeln!(code).unwrap();
-            write_docs(&mut code, &field.docs, "    ", self.objects);
-            writeln!(
-                code,
-                "    public static {CORE_PACKAGE}.ComponentDescriptor descriptor{}() {{",
-                field.pascal_case_name()
-            )
-            .unwrap();
-            writeln!(code, "        return {descriptor_name};").unwrap();
-            writeln!(code, "    }}").unwrap();
-        }
-
-        for (label, attr) in [
-            ("requiredComponents", RerunAttr::Required),
-            ("recommendedComponents", RerunAttr::Recommended),
-            ("optionalComponents", RerunAttr::Optional),
-        ] {
-            let descriptors = object
-                .fields
-                .iter()
-                .filter(|field| field.has_attr(attr))
-                .map(|field| format!("descriptor{}()", field.pascal_case_name()))
-                .collect::<Vec<_>>()
-                .join(", ");
-            writeln!(code).unwrap();
-            writeln!(
-                code,
-                "    public static java.util.List<{CORE_PACKAGE}.ComponentDescriptor> {label}() {{"
-            )
-            .unwrap();
-            writeln!(code, "        return java.util.List.of({descriptors});").unwrap();
-            writeln!(code, "    }}").unwrap();
-        }
-
-        // Serialization.
+        // Column writer: metadata first, then the present components' columns.
         writeln!(code).unwrap();
         writeln!(code, "    @Override").unwrap();
         writeln!(
             code,
-            "    public java.util.List<{CORE_PACKAGE}.ComponentBatch> serialize(\
-             org.apache.arrow.memory.BufferAllocator allocator) {{"
+            "    public java.lang.String archetypeName() {{\n        return ARCHETYPE_NAME;\n    }}"
+        )
+        .unwrap();
+        writeln!(code).unwrap();
+        writeln!(code, "    @Override").unwrap();
+        writeln!(
+            code,
+            "    public void writeColumns({CORE_PACKAGE}.NtEntityWriter w) {{"
         )
         .unwrap();
         writeln!(
             code,
-            "        java.util.List<{CORE_PACKAGE}.ComponentBatch> batches = \
-             new java.util.ArrayList<>(NUM_COMPONENTS);"
+            "        java.lang.StringBuilder components = new java.lang.StringBuilder();"
         )
         .unwrap();
         for field in &object.fields {
             let field_name = Self::java_field_name(field);
             let component_fqname = field.typ.fqname().unwrap_or_default();
-            let component_class = java_class(component_fqname);
-            let descriptor = format!("descriptor{}()", field.pascal_case_name());
-            if field.has_attr(RerunAttr::Required) {
+            let component = &self.objects[component_fqname];
+            let condition = present_condition(field);
+            writeln!(code, "        if ({condition}) {{").unwrap();
+            writeln!(
+                code,
+                "            if (components.length() > 0) components.append(',');"
+            )
+            .unwrap();
+            writeln!(
+                code,
+                "            components.append(\"{}\").append('=').append({}.COMPONENT_TYPE);",
+                field.name,
+                java_class(&component.fqname)
+            )
+            .unwrap();
+            writeln!(code, "        }}").unwrap();
+            let _ = component;
+        }
+        writeln!(code, "        w.metaString(\"archetype\", ARCHETYPE_NAME);").unwrap();
+        writeln!(
+            code,
+            "        w.metaString(\"components\", components.toString());"
+        )
+        .unwrap();
+        for field in &object.fields {
+            let field_name = Self::java_field_name(field);
+            let component_class = java_class(field.typ.fqname().unwrap_or_default());
+            let condition = present_condition(field);
+            writeln!(code, "        if ({condition}) {{").unwrap();
+            if matches!(field.typ, Type::List { .. }) {
                 writeln!(
                     code,
-                    "        batches.add({component_class}.batch({descriptor}, allocator, {field_name}));"
+                    "            {component_class}.writeColumnsStatic(w, \"{}\", {field_name});",
+                    field.name
                 )
                 .unwrap();
             } else {
-                writeln!(code, "        if ({field_name} != null) {{").unwrap();
                 writeln!(
                     code,
-                    "            batches.add({component_class}.batch({descriptor}, allocator, {field_name}));"
+                    "            {component_class}.writeColumnsStatic(w, \"{}\", java.util.List.of({field_name}));",
+                    field.name
                 )
                 .unwrap();
-                writeln!(code, "        }}").unwrap();
             }
+            writeln!(code, "        }}").unwrap();
         }
-        writeln!(code, "        return batches;").unwrap();
         writeln!(code, "    }}").unwrap();
 
         // Builder.
@@ -1999,87 +1226,630 @@ impl<'a> JavaGenerator<'a> {
         writeln!(code, "}}").unwrap();
         Ok(code)
     }
+}
 
-    // ----------------------------------------------------------------- views
+/// The Java condition under which an archetype field has data to write.
+fn present_condition(field: &re_types_builder::ObjectField) -> String {
+    let field_name = JavaGenerator::java_field_name(field);
+    if matches!(field.typ, Type::List { .. }) {
+        if field.has_attr(RerunAttr::Required) {
+            format!("!{field_name}.isEmpty()")
+        } else {
+            format!("{field_name} != null && !{field_name}.isEmpty()")
+        }
+    } else if field.has_attr(RerunAttr::Required) {
+        "true".to_owned()
+    } else {
+        format!("{field_name} != null")
+    }
+}
 
-    fn render_view(&self, object: &'a Object) -> Result<String> {
-        let package = java_package(&object.fqname);
-        let name = java_class_name(&object.name);
-        let mut code = String::new();
-        write_header(&mut code, &package);
-        write_docs(&mut code, &object.docs, "", self.objects);
-        writeln!(code, "public record {name}(").unwrap();
-        for (index, field) in object.fields.iter().enumerate() {
-            let comma = if index + 1 == object.fields.len() {
-                ""
+// ------------------------------------------------------------------ emitter
+
+/// Emits the Java statements that write one datatype node's NetworkTables columns.
+///
+/// The layout follows the protocol:
+///
+/// * `List` writes a per-instance count column (`P/.count`, `long[]`) and puts the flattened
+///   elements under `P/.items`, so lists of different lengths in one batch decode unambiguously.
+/// * `Union` writes a per-instance field ordinal (`P/.variant`, `long[]`, `-1` for null) and each
+///   variant's payload under `P/<variant field name>`.
+///
+/// Every node keeps its instance count implicit: a node's arrays all have one entry per instance,
+/// which is what lets the decoder rebuild the Arrow array without a side-channel length.
+///
+/// Arrow-transparent encodings (single fixed-size-list wrappers such as `Vec3D`) do not add a path
+/// segment: their layout *is* the inner datatype's layout, exactly like their Arrow datatype.
+struct ColumnsEmitter<'g, 'a> {
+    generator: &'g JavaGenerator<'a>,
+    code: String,
+    next_id: usize,
+}
+
+/// Accessors from a list element to a node value, with the nullability needed to guard each step.
+#[derive(Clone)]
+struct Chain {
+    /// A Java expression producing one instance value, e.g. `values.get(i)`.
+    root: String,
+    steps: Vec<Step>,
+}
+
+#[derive(Clone)]
+struct Step {
+    /// Applied to the parent value: `.xyz()` or `[0]`.
+    accessor: String,
+    /// Whether the parent value may be null and therefore needs a guard.
+    parent_may_be_null: bool,
+}
+
+impl Chain {
+    fn root(root: impl Into<String>) -> Self {
+        Self {
+            root: root.into(),
+            steps: Vec::new(),
+        }
+    }
+
+    fn with(&self, accessor: impl Into<String>, parent_may_be_null: bool) -> Self {
+        let mut steps = self.steps.clone();
+        steps.push(Step {
+            accessor: accessor.into(),
+            parent_may_be_null,
+        });
+        Self {
+            root: self.root.clone(),
+            steps,
+        }
+    }
+}
+
+/// The loop variable, instance count, and static path suffix of a node.
+struct NodeCtx {
+    index: String,
+    count: String,
+    /// Static suffix below the component root, e.g. `/xyz/0`. Empty at the component root.
+    suffix: String,
+}
+
+impl NodeCtx {
+    fn path(&self) -> String {
+        if self.suffix.is_empty() {
+            "path".to_owned()
+        } else {
+            format!("path + \"{}\"", escape_java_string(&self.suffix))
+        }
+    }
+
+    fn child(&self, extra: &str) -> Self {
+        Self {
+            index: self.index.clone(),
+            count: self.count.clone(),
+            suffix: format!("{}{}", self.suffix, extra),
+        }
+    }
+}
+
+impl<'g, 'a> ColumnsEmitter<'g, 'a> {
+    fn new(generator: &'g JavaGenerator<'a>) -> Self {
+        Self {
+            generator,
+            code: String::new(),
+            next_id: 0,
+        }
+    }
+
+    fn id(&mut self) -> usize {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    /// Emits the accessor locals for `chain` and returns the expression holding the node value.
+    fn chain_expr(&mut self, chain: &Chain, id: usize, indent: &str) -> String {
+        let mut current = chain.root.clone();
+        for (depth, step) in chain.steps.iter().enumerate() {
+            let local = format!("v{id}_{depth}");
+            if step.parent_may_be_null {
+                writeln!(
+                    self.code,
+                    "{indent}var {local} = {current} == null ? null : {current}{};",
+                    step.accessor
+                )
+                .unwrap();
             } else {
-                ","
-            };
-            write_docs(&mut code, &field.docs, "    ", self.objects);
+                writeln!(
+                    self.code,
+                    "{indent}var {local} = {current}{};",
+                    step.accessor
+                )
+                .unwrap();
+            }
+            current = local;
+        }
+        current
+    }
+
+    /// Emits one node.
+    ///
+    /// * `may_be_null`: the node's value expression may be null.
+    /// * `node_nullable`: this node publishes a `.present` mask.
+    fn emit(
+        &mut self,
+        typ: &Type,
+        chain: &Chain,
+        may_be_null: bool,
+        node_nullable: bool,
+        ctx: &NodeCtx,
+    ) -> Result<()> {
+        let indent = "        ".to_owned();
+        if node_nullable {
+            let id = self.id();
             writeln!(
-                code,
-                "    {} {}{}",
-                self.java_type(&field.typ, true),
-                Self::java_field_name(field),
-                comma
+                self.code,
+                "{indent}boolean[] present{id} = new boolean[{}];",
+                ctx.count
+            )
+            .unwrap();
+            writeln!(self.code, "{indent}boolean anyNull{id} = false;").unwrap();
+            writeln!(
+                self.code,
+                "{indent}for (int {i} = 0; {i} < {n}; {i}++) {{",
+                i = ctx.index,
+                n = ctx.count
+            )
+            .unwrap();
+            let inner = format!("{indent}    ");
+            let value = self.chain_expr(chain, id, &inner);
+            writeln!(self.code, "{inner}boolean ok{id} = ({value}) != null;").unwrap();
+            writeln!(
+                self.code,
+                "{inner}present{id}[{i}] = ok{id};",
+                i = ctx.index
+            )
+            .unwrap();
+            writeln!(self.code, "{inner}anyNull{id} |= !ok{id};").unwrap();
+            writeln!(self.code, "{indent}}}").unwrap();
+            writeln!(
+                self.code,
+                "{indent}w.present({}, present{id}, anyNull{id});",
+                ctx.path()
             )
             .unwrap();
         }
-        writeln!(code, ") {{").unwrap();
-        writeln!(
-            code,
-            "    public static final java.lang.String VIEW_NAME = \"{}\";",
-            object.fqname
-        )
-        .unwrap();
-        writeln!(code).unwrap();
-        writeln!(
-            code,
-            "    public static Builder builder() {{ return new Builder(); }}"
-        )
-        .unwrap();
-        writeln!(code).unwrap();
-        writeln!(code, "    public static final class Builder {{").unwrap();
-        for field in &object.fields {
-            writeln!(
-                code,
-                "        private {} {};",
-                self.java_type(&field.typ, true),
-                Self::java_field_name(field)
-            )
-            .unwrap();
-        }
-        writeln!(code, "        private Builder() {{}}").unwrap();
-        for field in &object.fields {
-            let field_name = Self::java_field_name(field);
-            let method = format!("with{}", field.pascal_case_name());
-            let typ = self.java_type(&field.typ, true);
-            writeln!(code).unwrap();
-            writeln!(code, "        public Builder {method}({typ} value) {{").unwrap();
-            writeln!(code, "            this.{field_name} = value;").unwrap();
-            writeln!(code, "            return this;").unwrap();
-            writeln!(code, "        }}").unwrap();
-            if let Some(component) = field
-                .typ
-                .fqname()
-                .and_then(|fqname| self.objects.get(fqname))
-            {
-                self.render_builder_overloads(&mut code, &method, component, false);
+
+        match typ {
+            Type::Atomic(atomic) => self.emit_atomic(atomic, chain, may_be_null, ctx)?,
+            Type::Utf8 => self.emit_utf8(chain, may_be_null, ctx),
+            Type::Binary => self.emit_binary(chain, may_be_null, ctx),
+            Type::FixedSizeList { elem_type, length } => {
+                for offset in 0..*length {
+                    let child = chain.with(format!("[{offset}]"), may_be_null);
+                    self.emit(
+                        elem_type,
+                        &child,
+                        may_be_null,
+                        false,
+                        &ctx.child(&format!("/{offset}")),
+                    )?;
+                }
+            }
+            Type::List { elem_type } => {
+                self.emit_list(elem_type, chain, ctx)?;
+            }
+            Type::Object { fqname } => {
+                let object = &self.generator.objects[fqname.as_str()];
+                match &object.class {
+                    ObjectClass::Enum(_) => self.emit_enum_leaf(object, chain, ctx),
+                    ObjectClass::Struct => {
+                        let transparent = object.is_arrow_transparent();
+                        for field in &object.fields {
+                            let accessor = format!(".{}()", JavaGenerator::java_field_name(field));
+                            let child = chain.with(accessor, may_be_null);
+                            let child_nullable = field.is_nullable;
+                            if transparent {
+                                self.emit(
+                                    &field.typ,
+                                    &child,
+                                    may_be_null || child_nullable,
+                                    child_nullable,
+                                    ctx,
+                                )?;
+                            } else {
+                                self.emit(
+                                    &field.typ,
+                                    &child,
+                                    may_be_null || child_nullable,
+                                    child_nullable,
+                                    &ctx.child(&format!("/{}", field.name)),
+                                )?;
+                            }
+                        }
+                    }
+                    ObjectClass::Union => {
+                        self.emit_union(object, chain, may_be_null, ctx)?;
+                    }
+                }
             }
         }
-        writeln!(code).unwrap();
-        writeln!(code, "        public {name} build() {{").unwrap();
-        let args = object
-            .fields
-            .iter()
-            .map(|field| Self::java_field_name(field))
-            .collect::<Vec<_>>()
-            .join(", ");
-        writeln!(code, "            return new {name}({args});").unwrap();
-        writeln!(code, "        }}").unwrap();
-        writeln!(code, "    }}").unwrap();
-        writeln!(code, "}}").unwrap();
-        Ok(code)
+        Ok(())
+    }
+
+    fn emit_atomic(
+        &mut self,
+        atomic: &AtomicDataType,
+        chain: &Chain,
+        may_be_null: bool,
+        ctx: &NodeCtx,
+    ) -> Result<()> {
+        if matches!(atomic, AtomicDataType::Null) {
+            anyhow::bail!("a bare `null` value has no NetworkTables representation");
+        }
+        let id = self.id();
+        let (array_type, writer) = match atomic {
+            AtomicDataType::Boolean => ("boolean", "booleans"),
+            AtomicDataType::Float16 | AtomicDataType::Float32 | AtomicDataType::Float64 => {
+                ("double", "doubles")
+            }
+            _ => ("long", "longs"),
+        };
+        let is_float = matches!(
+            atomic,
+            AtomicDataType::Float16 | AtomicDataType::Float32 | AtomicDataType::Float64
+        );
+
+        writeln!(
+            self.code,
+            "        {array_type}[] column{id} = new {array_type}[{}];",
+            ctx.count
+        )
+        .unwrap();
+        let mut unsigned = false;
+        if matches!(atomic, AtomicDataType::UInt64) {
+            writeln!(self.code, "        boolean unsigned{id} = false;").unwrap();
+            unsigned = true;
+        }
+        let zero = match array_type {
+            "boolean" => "false",
+            "double" => "0.0",
+            _ => "0L",
+        };
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = "            ".to_owned();
+        let value = self.chain_expr(chain, id, &inner);
+        if may_be_null {
+            writeln!(self.code, "{inner}var value{id} = {value};").unwrap();
+            writeln!(
+                self.code,
+                "{inner}column{id}[{i}] = value{id} == null ? {zero} : value{id};",
+                i = ctx.index
+            )
+            .unwrap();
+        } else {
+            writeln!(self.code, "{inner}{array_type} value{id} = {value};").unwrap();
+            writeln!(
+                self.code,
+                "{inner}column{id}[{i}] = value{id};",
+                i = ctx.index
+            )
+            .unwrap();
+        }
+        if unsigned {
+            writeln!(
+                self.code,
+                "{inner}unsigned{id} |= column{id}[{i}] < 0L;",
+                i = ctx.index
+            )
+            .unwrap();
+        }
+        writeln!(self.code, "        }}").unwrap();
+
+        if unsigned {
+            // NT topics have a fixed type, so a column can never switch from `long[]` to
+            // `string[]`. Keep the native array authoritative and publish overflowing values as
+            // decimal strings under `P/.u64`; once that sidecar exists it is republished with
+            // every batch so a batch of small values cannot shadow the unsigned ones.
+            writeln!(
+                self.code,
+                "        w.u64({}, column{id}, unsigned{id});",
+                ctx.path()
+            )
+            .unwrap();
+        } else {
+            writeln!(self.code, "        w.{writer}({}, column{id});", ctx.path()).unwrap();
+        }
+        let _ = is_float;
+        Ok(())
+    }
+
+    fn emit_utf8(&mut self, chain: &Chain, may_be_null: bool, ctx: &NodeCtx) {
+        let id = self.id();
+        writeln!(
+            self.code,
+            "        java.lang.String[] column{id} = new java.lang.String[{}];",
+            ctx.count
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = "            ".to_owned();
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(self.code, "{inner}java.lang.String value{id} = {value};").unwrap();
+        writeln!(
+            self.code,
+            "{inner}column{id}[{i}] = value{id} == null ? \"\" : value{id};",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "        }}").unwrap();
+        writeln!(self.code, "        w.strings({}, column{id});", ctx.path()).unwrap();
+        let _ = may_be_null;
+    }
+
+    fn emit_binary(&mut self, chain: &Chain, may_be_null: bool, ctx: &NodeCtx) {
+        let id = self.id();
+        writeln!(
+            self.code,
+            "        int total{id} = 0;\n        byte[][] parts{id} = new byte[{}][];\n        long[] lengths{id} = new long[{}];",
+            ctx.count, ctx.count
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = "            ".to_owned();
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(
+            self.code,
+            "{inner}byte[] value{id} = {value};\n{inner}if (value{id} == null) value{id} = new byte[0];\n{inner}parts{id}[{i}] = value{id};\n{inner}lengths{id}[{i}] = value{id}.length;\n{inner}total{id} += value{id}.length;",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "        }}").unwrap();
+        writeln!(
+            self.code,
+            "        byte[] bytes{id} = new byte[total{id}];\n        int offset{id} = 0;\n        for (int k{id} = 0; k{id} < {n}; k{id}++) {{\n            java.lang.System.arraycopy(parts{id}[k{id}], 0, bytes{id}, offset{id}, parts{id}[k{id}].length);\n            offset{id} += parts{id}[k{id}].length;\n        }}",
+            n = ctx.count
+        )
+        .unwrap();
+        writeln!(self.code, "        w.raw({}, bytes{id});", ctx.path()).unwrap();
+        writeln!(
+            self.code,
+            "        w.longs({} + \"/.lengths\", lengths{id});",
+            ctx.path()
+        )
+        .unwrap();
+        let _ = may_be_null;
+    }
+
+    fn emit_enum_leaf(&mut self, object: &Object, chain: &Chain, ctx: &NodeCtx) {
+        let id = self.id();
+        let class = java_class(&object.fqname);
+        writeln!(
+            self.code,
+            "        long[] column{id} = new long[{}];",
+            ctx.count
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = "            ".to_owned();
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(self.code, "{inner}{class} value{id} = {value};").unwrap();
+        writeln!(
+            self.code,
+            "{inner}column{id}[{i}] = value{id} == null ? 0L : value{id}.value();",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "        }}").unwrap();
+        writeln!(self.code, "        w.longs({}, column{id});", ctx.path()).unwrap();
+    }
+
+    fn emit_list(&mut self, elem_type: &Type, chain: &Chain, ctx: &NodeCtx) -> Result<()> {
+        let id = self.id();
+        let elem = self.generator.java_type_boxed(elem_type);
+        writeln!(
+            self.code,
+            "        long[] counts{id} = new long[{}];",
+            ctx.count
+        )
+        .unwrap();
+        writeln!(self.code, "        int total{id} = 0;").unwrap();
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = "            ".to_owned();
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(
+            self.code,
+            "{inner}java.util.List<{elem}> list{id} = {value};"
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "{inner}counts{id}[{i}] = list{id} == null ? 0L : list{id}.size();",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "{inner}total{id} += (int) counts{id}[{i}];",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "        }}").unwrap();
+        writeln!(
+            self.code,
+            "        w.longs({} + \"/.count\", counts{id});",
+            ctx.path()
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "        java.util.ArrayList<{elem}> items{id} = new java.util.ArrayList<>(total{id});"
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(
+            self.code,
+            "{inner}java.util.List<{elem}> list{id} = {value};"
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "{inner}if (list{id} != null) items{id}.addAll(list{id});"
+        )
+        .unwrap();
+        writeln!(self.code, "        }}").unwrap();
+        writeln!(self.code, "        int itemCount{id} = items{id}.size();").unwrap();
+        let child_chain = Chain::root(format!("items{id}.get(j{id})"));
+        let child_ctx = NodeCtx {
+            index: format!("j{id}"),
+            count: format!("itemCount{id}"),
+            suffix: format!("{}/.items", ctx.suffix),
+        };
+        self.emit(elem_type, &child_chain, false, false, &child_ctx)
+    }
+
+    fn emit_union(
+        &mut self,
+        object: &Object,
+        chain: &Chain,
+        may_be_null: bool,
+        ctx: &NodeCtx,
+    ) -> Result<()> {
+        let id = self.id();
+        let union_class = java_class(&object.fqname);
+        writeln!(
+            self.code,
+            "        long[] variants{id} = new long[{}];",
+            ctx.count
+        )
+        .unwrap();
+        let mut payloads = Vec::new();
+        for (ordinal, field) in object.fields.iter().enumerate() {
+            if field.typ.is_unit() {
+                continue;
+            }
+            let payload = format!("payload{id}_{ordinal}");
+            let java_type = self.generator.java_type(&field.typ, false);
+            writeln!(
+                self.code,
+                "        java.util.ArrayList<{java_type}> {payload} = new java.util.ArrayList<>();"
+            )
+            .unwrap();
+            payloads.push((ordinal, field, payload));
+        }
+        writeln!(
+            self.code,
+            "        for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = "            ".to_owned();
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(self.code, "{inner}{union_class} value{id} = {value};").unwrap();
+        writeln!(self.code, "{inner}if (value{id} == null) {{").unwrap();
+        writeln!(
+            self.code,
+            "{inner}    variants{id}[{i}] = -1L;",
+            i = ctx.index
+        )
+        .unwrap();
+        for (ordinal, field) in object.fields.iter().enumerate() {
+            let variant = union_variant_name(field);
+            if field.typ.is_unit() {
+                writeln!(
+                    self.code,
+                    "{inner}}} else if (value{id} instanceof {union_class}.{variant}) {{"
+                )
+                .unwrap();
+            } else {
+                writeln!(
+                    self.code,
+                    "{inner}}} else if (value{id} instanceof {union_class}.{variant} variant{id}_{ordinal}) {{"
+                )
+                .unwrap();
+            }
+            writeln!(
+                self.code,
+                "{inner}    variants{id}[{i}] = {ordinal}L;",
+                i = ctx.index
+            )
+            .unwrap();
+            if !field.typ.is_unit() {
+                writeln!(
+                    self.code,
+                    "{inner}    payload{id}_{ordinal}.add(variant{id}_{ordinal}.value());"
+                )
+                .unwrap();
+            }
+        }
+        writeln!(self.code, "{inner}}} else {{").unwrap();
+        writeln!(
+            self.code,
+            "{inner}    variants{id}[{i}] = -1L;",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "{inner}}}").unwrap();
+        writeln!(self.code, "        }}").unwrap();
+        writeln!(
+            self.code,
+            "        w.longs({} + \"/.variant\", variants{id});",
+            ctx.path()
+        )
+        .unwrap();
+        let _ = may_be_null;
+        for (ordinal, field, payload) in payloads {
+            writeln!(self.code, "        if (!{payload}.isEmpty()) {{").unwrap();
+            writeln!(
+                self.code,
+                "            int payloadCount{id}_{ordinal} = {payload}.size();"
+            )
+            .unwrap();
+            let child_chain = Chain::root(format!("{payload}.get(k{id}_{ordinal})"));
+            let child_ctx = NodeCtx {
+                index: format!("k{id}_{ordinal}"),
+                count: format!("payloadCount{id}_{ordinal}"),
+                suffix: format!("{}/{}", ctx.suffix, field.name),
+            };
+            self.emit(&field.typ, &child_chain, false, false, &child_ctx)?;
+            writeln!(self.code, "        }}").unwrap();
+        }
+        Ok(())
     }
 }
 
@@ -2110,6 +1880,27 @@ fn component_fixed_size_scalar(
     fixed_size_scalar_field(inner)
 }
 
+/// Declares the per-instance local used by a leaf column loop.
+fn emit_value_local(
+    code: &mut String,
+    id: usize,
+    indent: &str,
+    expr: &str,
+    primitive: &str,
+    can_be_null: bool,
+) {
+    if can_be_null {
+        writeln!(
+            code,
+            "{indent}    {} value{id} = {expr};",
+            boxed_primitive(primitive)
+        )
+        .unwrap();
+    } else {
+        writeln!(code, "{indent}    {primitive} value{id} = {expr};").unwrap();
+    }
+}
+
 fn boxed_primitive(primitive: &str) -> &'static str {
     match primitive {
         "boolean" => "java.lang.Boolean",
@@ -2120,72 +1911,6 @@ fn boxed_primitive(primitive: &str) -> &'static str {
         "float" => "java.lang.Float",
         "double" => "java.lang.Double",
         _ => "java.lang.Object",
-    }
-}
-
-fn atomic_vector(atomic: &AtomicDataType) -> &'static str {
-    match atomic {
-        AtomicDataType::Null => "org.apache.arrow.vector.NullVector",
-        AtomicDataType::Boolean => "org.apache.arrow.vector.BitVector",
-        AtomicDataType::Int8 => "org.apache.arrow.vector.TinyIntVector",
-        AtomicDataType::Int16 => "org.apache.arrow.vector.SmallIntVector",
-        AtomicDataType::Int32 => "org.apache.arrow.vector.IntVector",
-        AtomicDataType::Int64 => "org.apache.arrow.vector.BigIntVector",
-        AtomicDataType::UInt8 => "org.apache.arrow.vector.UInt1Vector",
-        AtomicDataType::UInt16 => "org.apache.arrow.vector.UInt2Vector",
-        AtomicDataType::UInt32 => "org.apache.arrow.vector.UInt4Vector",
-        AtomicDataType::UInt64 => "org.apache.arrow.vector.UInt8Vector",
-        AtomicDataType::Float16 => "org.apache.arrow.vector.Float2Vector",
-        AtomicDataType::Float32 => "org.apache.arrow.vector.Float4Vector",
-        AtomicDataType::Float64 => "org.apache.arrow.vector.Float8Vector",
-    }
-}
-
-fn atomic_arrow_const(atomic: &AtomicDataType) -> &'static str {
-    match atomic {
-        AtomicDataType::Null => "org.teamvan.moneyshift.ArrowFields.NULL",
-        AtomicDataType::Boolean => "org.teamvan.moneyshift.ArrowFields.BOOL",
-        AtomicDataType::Int8 => "org.teamvan.moneyshift.ArrowFields.INT8",
-        AtomicDataType::Int16 => "org.teamvan.moneyshift.ArrowFields.INT16",
-        AtomicDataType::Int32 => "org.teamvan.moneyshift.ArrowFields.INT32",
-        AtomicDataType::Int64 => "org.teamvan.moneyshift.ArrowFields.INT64",
-        AtomicDataType::UInt8 => "org.teamvan.moneyshift.ArrowFields.UINT8",
-        AtomicDataType::UInt16 => "org.teamvan.moneyshift.ArrowFields.UINT16",
-        AtomicDataType::UInt32 => "org.teamvan.moneyshift.ArrowFields.UINT32",
-        AtomicDataType::UInt64 => "org.teamvan.moneyshift.ArrowFields.UINT64",
-        AtomicDataType::Float16 => "org.teamvan.moneyshift.ArrowFields.FLOAT16",
-        AtomicDataType::Float32 => "org.teamvan.moneyshift.ArrowFields.FLOAT32",
-        AtomicDataType::Float64 => "org.teamvan.moneyshift.ArrowFields.FLOAT64",
-    }
-}
-
-fn arrow_type_expr(data_type: &DataType) -> String {
-    match data_type {
-        DataType::Atomic(atomic) => atomic_arrow_const(atomic).to_owned(),
-        DataType::Binary => "org.teamvan.moneyshift.ArrowFields.BINARY".to_owned(),
-        DataType::Utf8 => "org.teamvan.moneyshift.ArrowFields.UTF8".to_owned(),
-        DataType::Object { fqname, .. } => format!("{}.arrowType()", java_class(fqname)),
-        DataType::FixedSizeList(_, length) => {
-            format!("new org.apache.arrow.vector.types.pojo.ArrowType.FixedSizeList({length})")
-        }
-        DataType::List(_) => "new org.apache.arrow.vector.types.pojo.ArrowType.List()".to_owned(),
-        DataType::Struct(_) => {
-            "new org.apache.arrow.vector.types.pojo.ArrowType.Struct()".to_owned()
-        }
-        DataType::Union(fields, mode) => {
-            let arrow_mode = match mode {
-                UnionMode::Dense => "Dense",
-                UnionMode::Sparse => "Sparse",
-            };
-            let type_ids = (0..fields.len())
-                .map(|index| index.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!(
-                "new org.apache.arrow.vector.types.pojo.ArrowType.Union(\
-                 org.apache.arrow.vector.types.UnionMode.{arrow_mode}, new int[]{{{type_ids}}})"
-            )
-        }
     }
 }
 
@@ -2217,17 +1942,6 @@ fn snake_to_camel(name: &str) -> String {
     }
 }
 
-fn to_screaming_snake(name: &str) -> String {
-    let mut out = String::new();
-    for (index, ch) in name.chars().enumerate() {
-        if ch.is_uppercase() && index != 0 {
-            out.push('_');
-        }
-        out.extend(ch.to_uppercase());
-    }
-    out
-}
-
 fn java_class_name(name: &str) -> String {
     let mut result = String::new();
     for (index, character) in name.chars().enumerate() {
@@ -2255,21 +1969,8 @@ fn java_identifier(name: &str) -> String {
 }
 
 fn java_enum_constant(name: &str) -> String {
-    let mut result = String::new();
-    for (index, character) in name.chars().enumerate() {
-        if character.is_ascii_alphanumeric() || character == '_' {
-            if index == 0 && character.is_ascii_digit() {
-                result.push('_');
-            }
-            result.push(character);
-        } else {
-            result.push('_');
-        }
-    }
-    if result.is_empty() {
-        result.push('_');
-    }
-    if is_java_keyword(&result) || result == "null" {
+    let result = java_identifier(name);
+    if result == "null" {
         format!("_{result}")
     } else {
         result
@@ -2335,6 +2036,10 @@ fn is_java_keyword(name: &str) -> bool {
     )
 }
 
+fn escape_java_string(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 fn write_header(code: &mut String, package: &str) {
     writeln!(
         code,
@@ -2342,10 +2047,6 @@ fn write_header(code: &mut String, package: &str) {
     )
     .unwrap();
     writeln!(code, "package {package};\n").unwrap();
-}
-
-fn escape_java_string(text: &str) -> String {
-    text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn write_docs(code: &mut String, docs: &Docs, indent: &str, objects: &Objects) {
@@ -2399,13 +2100,24 @@ fn java_doc_line(line: &str, objects: &Objects) -> String {
                         remainder = &trailing[url_end + 1..];
                     }
                 }
-                output.push_str("{@link ");
-                output.push_str(&java_doc_link(target, objects));
-                if target != label {
-                    output.push(' ');
-                    output.push_str(&escape_javadoc_text(label));
+                match java_doc_link(target, objects) {
+                    Some(target) => {
+                        output.push_str("{@link ");
+                        output.push_str(&target);
+                        if target != label {
+                            output.push(' ');
+                            output.push_str(&escape_javadoc_text(label));
+                        }
+                        output.push('}');
+                    }
+                    // The target lives in a skipped namespace (blueprints and views), so there
+                    // is no Java class to link to; keep the name readable as code.
+                    None => {
+                        output.push_str("{@code ");
+                        output.push_str(&escape_javadoc_code(label));
+                        output.push('}');
+                    }
                 }
-                output.push('}');
                 rest = remainder;
                 continue;
             }
@@ -2451,7 +2163,7 @@ fn java_doc_line(line: &str, objects: &Objects) -> String {
     output.replace("*/", "*\\/")
 }
 
-fn java_doc_link(path: &str, objects: &Objects) -> String {
+fn java_doc_link(path: &str, objects: &Objects) -> Option<String> {
     let path = if let Some(path) = path.strip_prefix("crate::") {
         format!("{JAVA_PACKAGE_PREFIX}.{}", path.replace("::", "."))
     } else if let Some(path) = path.strip_prefix("rerun::") {
@@ -2474,14 +2186,23 @@ fn java_doc_link(path: &str, objects: &Objects) -> String {
     let mut parts = path.rsplitn(2, '.');
     let last = parts.next().unwrap_or_default();
     let Some(prefix) = parts.next() else {
-        return path;
+        // A bare type name can only be resolved if the type is generated. Rerun's docs reference
+        // blueprint/view types by short name; those packages are skipped.
+        if is_skipped_type_name(&last, objects) {
+            return None;
+        }
+        return Some(path);
     };
+
+    if is_skipped_type_name(&last, objects) {
+        return None;
+    }
 
     // A Rust doclink can point at an enum variant (`FillMode::Gradient`). In Java those variants
     // are constants of the enum, so they need `#`, while a real nested type still needs `.`.
     let fqname = prefix
         .strip_prefix(JAVA_PACKAGE_PREFIX)
-        .map(|prefix| format!("rerun{}", prefix));
+        .map(|prefix| format!("rerun{prefix}"));
     let is_enum = fqname
         .as_deref()
         .and_then(|fqname| objects.get(fqname))
@@ -2493,10 +2214,17 @@ fn java_doc_link(path: &str, objects: &Objects) -> String {
             .next()
             .is_some_and(|character| character.is_ascii_lowercase())
     {
-        format!("{prefix}#{last}")
+        Some(format!("{prefix}#{last}"))
     } else {
-        format!("{prefix}.{last}")
+        Some(format!("{prefix}.{last}"))
     }
+}
+
+/// Whether `name` is a type from a namespace this generator skips.
+fn is_skipped_type_name(name: &str, objects: &Objects) -> bool {
+    objects
+        .values()
+        .any(|object| object.name == name && is_skipped(&object.fqname))
 }
 
 fn escape_javadoc_code(text: &str) -> String {
@@ -2533,18 +2261,18 @@ mod tests {
             "org.teamvan.moneyshift.components"
         );
         assert_eq!(
-            java_package("rerun.blueprint.archetypes.ContainerBlueprint"),
-            "org.teamvan.moneyshift.blueprint.archetypes"
+            java_package("rerun.archetypes.Points3D"),
+            "org.teamvan.moneyshift.archetypes"
         );
     }
 
     #[test]
-    fn skips_testing_definitions() {
+    fn skips_testing_definitions_and_blueprints() {
         assert!(is_skipped("rerun.testing.components.AffixFuzzer1"));
         assert!(is_skipped("rerun.testing.encodings.ManyVec3"));
-        assert!(is_skipped("rerun.testing.archetypes.AffixFuzzer2"));
+        assert!(is_skipped("rerun.blueprint.archetypes.ContainerBlueprint"));
         assert!(!is_skipped("rerun.components.Position2D"));
-        assert!(!is_skipped("rerun.blueprint.archetypes.ContainerBlueprint"));
+        assert!(!is_skipped("rerun.archetypes.Points3D"));
     }
 
     #[test]

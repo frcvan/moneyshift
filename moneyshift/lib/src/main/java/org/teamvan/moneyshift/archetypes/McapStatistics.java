@@ -9,8 +9,8 @@ package org.teamvan.moneyshift.archetypes;
  * spanning the full recording duration. It is typically logged once per recording to provide
  * an overview of the dataset's structure and content.
  * 
- * See also {@link org.teamvan.moneyshift.archetypes.McapChannel} for individual channel definitions,
- * {@link org.teamvan.moneyshift.archetypes.McapMessage} for message content, {@link org.teamvan.moneyshift.archetypes.McapSchema} for schema definitions,
+ * See also {@link org.teamvan.moneyshift.archetypes.McapChannel rerun::archetypes::McapChannel} for individual channel definitions,
+ * {@link org.teamvan.moneyshift.archetypes.McapMessage rerun::archetypes::McapMessage} for message content, {@link org.teamvan.moneyshift.archetypes.McapSchema rerun::archetypes::McapSchema} for schema definitions,
  * and the <a href="https://mcap.dev/">MCAP specification</a> for complete format details.
  * 
  */
@@ -82,124 +82,80 @@ public record McapStatistics(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.McapStatistics";
     public static final int NUM_COMPONENTS = 9;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MESSAGE_COUNT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:message_count", "rerun.components.Count");
 
-    /**
-     * Total number of data messages contained in the MCAP recording.
-     * 
-     * This count includes all timestamped data messages but excludes metadata records,
-     * schema definitions, and other non-message records.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMessageCount() {
-        return DESCRIPTOR_MESSAGE_COUNT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SCHEMA_COUNT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:schema_count", "rerun.components.Count");
-
-    /**
-     * Number of unique schema definitions in the recording.
-     * 
-     * Each schema defines the structure for one or more message types used by channels.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorSchemaCount() {
-        return DESCRIPTOR_SCHEMA_COUNT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CHANNEL_COUNT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:channel_count", "rerun.components.Count");
-
-    /**
-     * Number of channels defined in the recording.
-     * 
-     * Each channel represents a unique topic and encoding combination for publishing messages.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorChannelCount() {
-        return DESCRIPTOR_CHANNEL_COUNT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ATTACHMENT_COUNT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:attachment_count", "rerun.components.Count");
-
-    /**
-     * Number of file attachments embedded in the recording.
-     * 
-     * Attachments can include calibration files, configuration data, or other auxiliary files.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAttachmentCount() {
-        return DESCRIPTOR_ATTACHMENT_COUNT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_METADATA_COUNT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:metadata_count", "rerun.components.Count");
-
-    /**
-     * Number of metadata records providing additional context about the recording.
-     * 
-     * Metadata records contain key-value pairs with information about the recording environment,
-     * system configuration, or other contextual data.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMetadataCount() {
-        return DESCRIPTOR_METADATA_COUNT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CHUNK_COUNT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:chunk_count", "rerun.components.Count");
-
-    /**
-     * Number of data chunks used to organize messages in the file.
-     * 
-     * Chunks group related messages together for efficient storage and indexed access.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorChunkCount() {
-        return DESCRIPTOR_CHUNK_COUNT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MESSAGE_START_TIME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:message_start_time", "rerun.components.Timestamp");
-
-    /**
-     * Timestamp of the earliest message in the recording.
-     * 
-     * This marks the beginning of the recorded data timeline.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMessageStartTime() {
-        return DESCRIPTOR_MESSAGE_START_TIME;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MESSAGE_END_TIME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:message_end_time", "rerun.components.Timestamp");
-
-    /**
-     * Timestamp of the latest message in the recording.
-     * 
-     * Together with {@code message_start_time}, this defines the total duration of the recording.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMessageEndTime() {
-        return DESCRIPTOR_MESSAGE_END_TIME;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CHANNEL_MESSAGE_COUNTS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapStatistics:channel_message_counts", "rerun.components.ChannelMessageCounts");
-
-    /**
-     * Detailed breakdown of message counts per channel.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorChannelMessageCounts() {
-        return DESCRIPTOR_CHANNEL_MESSAGE_COUNTS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorMessageCount(), descriptorSchemaCount(), descriptorChannelCount(), descriptorAttachmentCount(), descriptorMetadataCount(), descriptorChunkCount(), descriptorMessageStartTime(), descriptorMessageEndTime());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorChannelMessageCounts());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Count.batch(descriptorMessageCount(), allocator, messageCount));
-        batches.add(org.teamvan.moneyshift.components.Count.batch(descriptorSchemaCount(), allocator, schemaCount));
-        batches.add(org.teamvan.moneyshift.components.Count.batch(descriptorChannelCount(), allocator, channelCount));
-        batches.add(org.teamvan.moneyshift.components.Count.batch(descriptorAttachmentCount(), allocator, attachmentCount));
-        batches.add(org.teamvan.moneyshift.components.Count.batch(descriptorMetadataCount(), allocator, metadataCount));
-        batches.add(org.teamvan.moneyshift.components.Count.batch(descriptorChunkCount(), allocator, chunkCount));
-        batches.add(org.teamvan.moneyshift.components.Timestamp.batch(descriptorMessageStartTime(), allocator, messageStartTime));
-        batches.add(org.teamvan.moneyshift.components.Timestamp.batch(descriptorMessageEndTime(), allocator, messageEndTime));
-        if (channelMessageCounts != null) {
-            batches.add(org.teamvan.moneyshift.components.ChannelMessageCounts.batch(descriptorChannelMessageCounts(), allocator, channelMessageCounts));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("message_count").append('=').append(org.teamvan.moneyshift.components.Count.COMPONENT_TYPE);
         }
-        return batches;
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("schema_count").append('=').append(org.teamvan.moneyshift.components.Count.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("channel_count").append('=').append(org.teamvan.moneyshift.components.Count.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("attachment_count").append('=').append(org.teamvan.moneyshift.components.Count.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("metadata_count").append('=').append(org.teamvan.moneyshift.components.Count.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("chunk_count").append('=').append(org.teamvan.moneyshift.components.Count.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("message_start_time").append('=').append(org.teamvan.moneyshift.components.Timestamp.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("message_end_time").append('=').append(org.teamvan.moneyshift.components.Timestamp.COMPONENT_TYPE);
+        }
+        if (channelMessageCounts != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("channel_message_counts").append('=').append(org.teamvan.moneyshift.components.ChannelMessageCounts.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Count.writeColumnsStatic(w, "message_count", java.util.List.of(messageCount));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Count.writeColumnsStatic(w, "schema_count", java.util.List.of(schemaCount));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Count.writeColumnsStatic(w, "channel_count", java.util.List.of(channelCount));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Count.writeColumnsStatic(w, "attachment_count", java.util.List.of(attachmentCount));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Count.writeColumnsStatic(w, "metadata_count", java.util.List.of(metadataCount));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Count.writeColumnsStatic(w, "chunk_count", java.util.List.of(chunkCount));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Timestamp.writeColumnsStatic(w, "message_start_time", java.util.List.of(messageStartTime));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Timestamp.writeColumnsStatic(w, "message_end_time", java.util.List.of(messageEndTime));
+        }
+        if (channelMessageCounts != null) {
+            org.teamvan.moneyshift.components.ChannelMessageCounts.writeColumnsStatic(w, "channel_message_counts", java.util.List.of(channelMessageCounts));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

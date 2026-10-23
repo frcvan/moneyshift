@@ -4,8 +4,8 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * One or more transforms applied on the current entity's transform frame.
  * 
- * Unlike {@link org.teamvan.moneyshift.archetypes.Transform3D}, it is *not* propagated in the transform hierarchy.
- * If {@link org.teamvan.moneyshift.archetypes.CoordinateFrame} is specified, it acts relative to that coordinate frame,
+ * Unlike {@link org.teamvan.moneyshift.archetypes.Transform3D rerun::archetypes::Transform3D}, it is *not* propagated in the transform hierarchy.
+ * If {@link org.teamvan.moneyshift.archetypes.CoordinateFrame rerun::archetypes::CoordinateFrame} is specified, it acts relative to that coordinate frame,
  * otherwise it is relative to the entity's implicit coordinate frame.
  * 
  * Whenever you log this archetype, the state of the resulting overall pose is fully reset to the new archetype.
@@ -20,7 +20,7 @@ package org.teamvan.moneyshift.archetypes;
  * 
  * Currently, many visualizers support only a single instance transform per entity.
  * Check archetype documentations for details - if not otherwise specified, only the first instance transform is applied.
- * Some visualizers like the mesh visualizer used for {@link org.teamvan.moneyshift.archetypes.Mesh3D},
+ * Some visualizers like the mesh visualizer used for {@link org.teamvan.moneyshift.archetypes.Mesh3D rerun::archetypes::Mesh3D},
  * will draw an object for every pose, a behavior also known as "instancing".
  * 
  */
@@ -55,78 +55,52 @@ public record InstancePoses3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.InstancePoses3D";
     public static final int NUM_COMPONENTS = 5;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TRANSLATIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "InstancePoses3D:translations", "rerun.components.Translation3D");
 
-    /**
-     * Translation vectors.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorTranslations() {
-        return DESCRIPTOR_TRANSLATIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ROTATION_AXIS_ANGLES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "InstancePoses3D:rotation_axis_angles", "rerun.components.RotationAxisAngle");
-
-    /**
-     * Rotations via axis + angle.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRotationAxisAngles() {
-        return DESCRIPTOR_ROTATION_AXIS_ANGLES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_QUATERNIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "InstancePoses3D:quaternions", "rerun.components.RotationQuat");
-
-    /**
-     * Rotations via quaternion.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorQuaternions() {
-        return DESCRIPTOR_QUATERNIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SCALES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "InstancePoses3D:scales", "rerun.components.Scale3D");
-
-    /**
-     * Scaling factors.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorScales() {
-        return DESCRIPTOR_SCALES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MAT3X3 = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "InstancePoses3D:mat3x3", "rerun.components.TransformMat3x3");
-
-    /**
-     * 3x3 transformation matrices.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMat3x3() {
-        return DESCRIPTOR_MAT3X3;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorTranslations(), descriptorRotationAxisAngles(), descriptorQuaternions(), descriptorScales(), descriptorMat3x3());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        if (translations != null) {
-            batches.add(org.teamvan.moneyshift.components.Translation3D.batch(descriptorTranslations(), allocator, translations));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (translations != null && !translations.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("translations").append('=').append(org.teamvan.moneyshift.components.Translation3D.COMPONENT_TYPE);
         }
-        if (rotationAxisAngles != null) {
-            batches.add(org.teamvan.moneyshift.components.RotationAxisAngle.batch(descriptorRotationAxisAngles(), allocator, rotationAxisAngles));
+        if (rotationAxisAngles != null && !rotationAxisAngles.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("rotation_axis_angles").append('=').append(org.teamvan.moneyshift.components.RotationAxisAngle.COMPONENT_TYPE);
         }
-        if (quaternions != null) {
-            batches.add(org.teamvan.moneyshift.components.RotationQuat.batch(descriptorQuaternions(), allocator, quaternions));
+        if (quaternions != null && !quaternions.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("quaternions").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
-        if (scales != null) {
-            batches.add(org.teamvan.moneyshift.components.Scale3D.batch(descriptorScales(), allocator, scales));
+        if (scales != null && !scales.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("scales").append('=').append(org.teamvan.moneyshift.components.Scale3D.COMPONENT_TYPE);
         }
-        if (mat3x3 != null) {
-            batches.add(org.teamvan.moneyshift.components.TransformMat3x3.batch(descriptorMat3x3(), allocator, mat3x3));
+        if (mat3x3 != null && !mat3x3.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("mat3x3").append('=').append(org.teamvan.moneyshift.components.TransformMat3x3.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (translations != null && !translations.isEmpty()) {
+            org.teamvan.moneyshift.components.Translation3D.writeColumnsStatic(w, "translations", translations);
+        }
+        if (rotationAxisAngles != null && !rotationAxisAngles.isEmpty()) {
+            org.teamvan.moneyshift.components.RotationAxisAngle.writeColumnsStatic(w, "rotation_axis_angles", rotationAxisAngles);
+        }
+        if (quaternions != null && !quaternions.isEmpty()) {
+            org.teamvan.moneyshift.components.RotationQuat.writeColumnsStatic(w, "quaternions", quaternions);
+        }
+        if (scales != null && !scales.isEmpty()) {
+            org.teamvan.moneyshift.components.Scale3D.writeColumnsStatic(w, "scales", scales);
+        }
+        if (mat3x3 != null && !mat3x3.isEmpty()) {
+            org.teamvan.moneyshift.components.TransformMat3x3.writeColumnsStatic(w, "mat3x3", mat3x3);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

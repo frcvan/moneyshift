@@ -4,11 +4,11 @@ package org.teamvan.moneyshift.components;
 /**
  * A buffer that is known to store image data.
  * 
- * To interpret the contents of this buffer, see, {@link org.teamvan.moneyshift.components.ImageFormat}.
+ * To interpret the contents of this buffer, see, {@link org.teamvan.moneyshift.components.ImageFormat rerun::components::ImageFormat}.
  */
 public record ImageBuffer(
     org.teamvan.moneyshift.encodings.Blob buffer
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<ImageBuffer> {
     public ImageBuffer {
         java.util.Objects.requireNonNull(buffer, "buffer");
     }
@@ -18,43 +18,54 @@ public record ImageBuffer(
         this(new org.teamvan.moneyshift.encodings.Blob(data));
     }
 
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.ImageBuffer";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.encodings.Blob.arrowType();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.encodings.Blob.arrowField(name, nullable);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<ImageBuffer> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, ImageBuffer::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, ImageBuffer value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, ImageBuffer value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<ImageBuffer> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            ImageBuffer value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.complex.ListVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ImageBuffer> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).buffer();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.ListVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] counts1 = new long[n];
+        int total1 = 0;
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).buffer();
+            var v1_1 = v1_0 == null ? null : v1_0.data();
+            java.util.List<java.lang.Short> list1 = v1_1;
+            counts1[i] = list1 == null ? 0L : list1.size();
+            total1 += (int) counts1[i];
+        }
+        w.longs(path + "/.count", counts1);
+        java.util.ArrayList<java.lang.Short> items1 = new java.util.ArrayList<>(total1);
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).buffer();
+            var v1_1 = v1_0 == null ? null : v1_0.data();
+            java.util.List<java.lang.Short> list1 = v1_1;
+            if (list1 != null) items1.addAll(list1);
+        }
+        int itemCount1 = items1.size();
+        long[] column2 = new long[itemCount1];
+        for (int j1 = 0; j1 < itemCount1; j1++) {
+            long value2 = items1.get(j1);
+            column2[j1] = value2;
+        }
+        w.longs(path + "/.items", column2);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, ImageBuffer value) {
-        org.teamvan.moneyshift.encodings.Blob.writeOne(vector, index, value.buffer());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ImageBuffer> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

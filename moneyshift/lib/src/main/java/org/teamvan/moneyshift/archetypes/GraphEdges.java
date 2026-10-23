@@ -15,7 +15,7 @@ public record GraphEdges(
     /**
      * Specifies if the graph is directed or undirected.
      * 
-     * If no {@link org.teamvan.moneyshift.components.GraphType} is provided, the graph is assumed to be undirected.
+     * If no {@link org.teamvan.moneyshift.components.GraphType rerun::components::GraphType} is provided, the graph is assumed to be undirected.
      */
     org.teamvan.moneyshift.components.GraphType graphType
 ) implements org.teamvan.moneyshift.Archetype {
@@ -25,45 +25,31 @@ public record GraphEdges(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.GraphEdges";
     public static final int NUM_COMPONENTS = 2;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_EDGES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GraphEdges:edges", "rerun.components.GraphEdge");
 
-    /**
-     * A list of node tuples.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorEdges() {
-        return DESCRIPTOR_EDGES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_GRAPH_TYPE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GraphEdges:graph_type", "rerun.components.GraphType");
-
-    /**
-     * Specifies if the graph is directed or undirected.
-     * 
-     * If no {@link org.teamvan.moneyshift.components.GraphType} is provided, the graph is assumed to be undirected.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorGraphType() {
-        return DESCRIPTOR_GRAPH_TYPE;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorEdges());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorGraphType());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.GraphEdge.batch(descriptorEdges(), allocator, edges));
-        if (graphType != null) {
-            batches.add(org.teamvan.moneyshift.components.GraphType.batch(descriptorGraphType(), allocator, graphType));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!edges.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("edges").append('=').append(org.teamvan.moneyshift.components.GraphEdge.COMPONENT_TYPE);
         }
-        return batches;
+        if (graphType != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("graph_type").append('=').append(org.teamvan.moneyshift.components.GraphType.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!edges.isEmpty()) {
+            org.teamvan.moneyshift.components.GraphEdge.writeColumnsStatic(w, "edges", edges);
+        }
+        if (graphType != null) {
+            org.teamvan.moneyshift.components.GraphType.writeColumnsStatic(w, "graph_type", java.util.List.of(graphType));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

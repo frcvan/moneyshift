@@ -21,47 +21,31 @@ public record RecordingInfo(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.RecordingInfo";
     public static final int NUM_COMPONENTS = 2;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_START_TIME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "RecordingInfo:start_time", "rerun.components.Timestamp");
 
-    /**
-     * When the recording started.
-     * 
-     * Should be an absolute time, i.e. relative to Unix Epoch.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorStartTime() {
-        return DESCRIPTOR_START_TIME;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_NAME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "RecordingInfo:name", "rerun.components.Name");
-
-    /**
-     * A user-chosen name for the recording.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorName() {
-        return DESCRIPTOR_NAME;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorStartTime(), descriptorName());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
         if (startTime != null) {
-            batches.add(org.teamvan.moneyshift.components.Timestamp.batch(descriptorStartTime(), allocator, startTime));
+            if (components.length() > 0) components.append(',');
+            components.append("start_time").append('=').append(org.teamvan.moneyshift.components.Timestamp.COMPONENT_TYPE);
         }
         if (name != null) {
-            batches.add(org.teamvan.moneyshift.components.Name.batch(descriptorName(), allocator, name));
+            if (components.length() > 0) components.append(',');
+            components.append("name").append('=').append(org.teamvan.moneyshift.components.Name.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (startTime != null) {
+            org.teamvan.moneyshift.components.Timestamp.writeColumnsStatic(w, "start_time", java.util.List.of(startTime));
+        }
+        if (name != null) {
+            org.teamvan.moneyshift.components.Name.writeColumnsStatic(w, "name", java.util.List.of(name));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

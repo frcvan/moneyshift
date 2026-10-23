@@ -26,56 +26,38 @@ public record TextLog(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.TextLog";
     public static final int NUM_COMPONENTS = 3;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TEXT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TextLog:text", "rerun.components.Text");
 
-    /**
-     * The body of the message.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorText() {
-        return DESCRIPTOR_TEXT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LEVEL = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TextLog:level", "rerun.components.TextLogLevel");
-
-    /**
-     * The verbosity level of the message.
-     * 
-     * This can be used to filter the log messages in the Rerun Viewer.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLevel() {
-        return DESCRIPTOR_LEVEL;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLOR = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TextLog:color", "rerun.components.Color");
-
-    /**
-     * Optional color to use for the log line in the Rerun Viewer.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColor() {
-        return DESCRIPTOR_COLOR;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorText());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorLevel());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorColor());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorText(), allocator, text));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("text").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
+        }
         if (level != null) {
-            batches.add(org.teamvan.moneyshift.components.TextLogLevel.batch(descriptorLevel(), allocator, level));
+            if (components.length() > 0) components.append(',');
+            components.append("level").append('=').append(org.teamvan.moneyshift.components.TextLogLevel.COMPONENT_TYPE);
         }
         if (color != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColor(), allocator, color));
+            if (components.length() > 0) components.append(',');
+            components.append("color").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "text", java.util.List.of(text));
+        }
+        if (level != null) {
+            org.teamvan.moneyshift.components.TextLogLevel.writeColumnsStatic(w, "level", java.util.List.of(level));
+        }
+        if (color != null) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "color", java.util.List.of(color));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

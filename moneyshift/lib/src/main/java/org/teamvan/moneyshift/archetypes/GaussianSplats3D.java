@@ -54,93 +54,59 @@ public record GaussianSplats3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.GaussianSplats3D";
     public static final int NUM_COMPONENTS = 6;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CENTERS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GaussianSplats3D:centers", "rerun.components.Position3D");
 
-    /**
-     * The centers (means) of the gaussians.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorCenters() {
-        return DESCRIPTOR_CENTERS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SCALES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GaussianSplats3D:scales", "rerun.components.Scale3D");
-
-    /**
-     * Per-axis standard deviations of the gaussians, in scene units.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorScales() {
-        return DESCRIPTOR_SCALES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_QUATERNIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GaussianSplats3D:quaternions", "rerun.components.RotationQuat");
-
-    /**
-     * The orientations of the gaussians.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorQuaternions() {
-        return DESCRIPTOR_QUATERNIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GaussianSplats3D:colors", "rerun.components.Color");
-
-    /**
-     * The base colors and opacities of the gaussians.
-     * 
-     * The RGB part is the view-independent base color, i.e. the degree-0 (DC) term of the spherical harmonics.
-     * The alpha part is the peak opacity of the gaussian; the gaussian falloff further modulates it spatially.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SH_COEFFICIENTS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GaussianSplats3D:sh_coefficients", "rerun.components.SphericalHarmonics3Rgb");
-
-    /**
-     * Higher-order spherical harmonics coefficients for view-dependent color.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorShCoefficients() {
-        return DESCRIPTOR_SH_COEFFICIENTS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SPHERICAL_HARMONICS_DEGREE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "GaussianSplats3D:spherical_harmonics_degree", "rerun.components.SphericalHarmonicsDegree");
-
-    /**
-     * The highest spherical harmonics degree to evaluate when rendering, 0-3.
-     * 
-     * Lower values render faster; {@code 0} disables view-dependent color entirely.
-     * If not set, defaults to 3, i.e. all coefficients present in the data are used.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorSphericalHarmonicsDegree() {
-        return DESCRIPTOR_SPHERICAL_HARMONICS_DEGREE;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorCenters());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorScales(), descriptorQuaternions(), descriptorColors());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorShCoefficients(), descriptorSphericalHarmonicsDegree());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Position3D.batch(descriptorCenters(), allocator, centers));
-        if (scales != null) {
-            batches.add(org.teamvan.moneyshift.components.Scale3D.batch(descriptorScales(), allocator, scales));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!centers.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("centers").append('=').append(org.teamvan.moneyshift.components.Position3D.COMPONENT_TYPE);
         }
-        if (quaternions != null) {
-            batches.add(org.teamvan.moneyshift.components.RotationQuat.batch(descriptorQuaternions(), allocator, quaternions));
+        if (scales != null && !scales.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("scales").append('=').append(org.teamvan.moneyshift.components.Scale3D.COMPONENT_TYPE);
         }
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+        if (quaternions != null && !quaternions.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("quaternions").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
-        if (shCoefficients != null) {
-            batches.add(org.teamvan.moneyshift.components.SphericalHarmonics3Rgb.batch(descriptorShCoefficients(), allocator, shCoefficients));
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
+        }
+        if (shCoefficients != null && !shCoefficients.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("sh_coefficients").append('=').append(org.teamvan.moneyshift.components.SphericalHarmonics3Rgb.COMPONENT_TYPE);
         }
         if (sphericalHarmonicsDegree != null) {
-            batches.add(org.teamvan.moneyshift.components.SphericalHarmonicsDegree.batch(descriptorSphericalHarmonicsDegree(), allocator, sphericalHarmonicsDegree));
+            if (components.length() > 0) components.append(',');
+            components.append("spherical_harmonics_degree").append('=').append(org.teamvan.moneyshift.components.SphericalHarmonicsDegree.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!centers.isEmpty()) {
+            org.teamvan.moneyshift.components.Position3D.writeColumnsStatic(w, "centers", centers);
+        }
+        if (scales != null && !scales.isEmpty()) {
+            org.teamvan.moneyshift.components.Scale3D.writeColumnsStatic(w, "scales", scales);
+        }
+        if (quaternions != null && !quaternions.isEmpty()) {
+            org.teamvan.moneyshift.components.RotationQuat.writeColumnsStatic(w, "quaternions", quaternions);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (shCoefficients != null && !shCoefficients.isEmpty()) {
+            org.teamvan.moneyshift.components.SphericalHarmonics3Rgb.writeColumnsStatic(w, "sh_coefficients", shCoefficients);
+        }
+        if (sphericalHarmonicsDegree != null) {
+            org.teamvan.moneyshift.components.SphericalHarmonicsDegree.writeColumnsStatic(w, "spherical_harmonics_degree", java.util.List.of(sphericalHarmonicsDegree));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

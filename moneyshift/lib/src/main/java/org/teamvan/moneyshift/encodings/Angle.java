@@ -9,34 +9,34 @@ public record Angle(
      * Angle in radians. One turn is equal to 2π (or τ) radians.
      */
     float radians
-) {
+) implements org.teamvan.moneyshift.NtEncoding<Angle> {
     public Angle {
     }
     public static final java.lang.String NAME = "rerun.encodings.Angle";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.FLOAT32;
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, org.teamvan.moneyshift.ArrowFields.FLOAT32, java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<Angle> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            Angle value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.Float4Vector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Angle> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.Float4Vector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        double[] column1 = new double[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).radians();
+            var value1 = v1_0;
+            column1[i] = value1 == null ? 0.0 : value1;
+        }
+        w.doubles(path, column1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, Angle value) {
-        ((org.apache.arrow.vector.Float4Vector) vector).setSafe(index, value.radians());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<Angle> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

@@ -28,49 +28,31 @@ public record TextDocument(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.TextDocument";
     public static final int NUM_COMPONENTS = 2;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TEXT = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TextDocument:text", "rerun.components.Text");
 
-    /**
-     * Contents of the text document.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorText() {
-        return DESCRIPTOR_TEXT;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MEDIA_TYPE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "TextDocument:media_type", "rerun.components.MediaType");
-
-    /**
-     * The Media Type of the text.
-     * 
-     * For instance:
-     * * {@code text/plain}
-     * * {@code text/markdown}
-     * 
-     * If omitted, {@code text/plain} is assumed.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMediaType() {
-        return DESCRIPTOR_MEDIA_TYPE;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorText());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorMediaType());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorText(), allocator, text));
-        if (mediaType != null) {
-            batches.add(org.teamvan.moneyshift.components.MediaType.batch(descriptorMediaType(), allocator, mediaType));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("text").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
         }
-        return batches;
+        if (mediaType != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("media_type").append('=').append(org.teamvan.moneyshift.components.MediaType.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "text", java.util.List.of(text));
+        }
+        if (mediaType != null) {
+            org.teamvan.moneyshift.components.MediaType.writeColumnsStatic(w, "media_type", java.util.List.of(mediaType));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

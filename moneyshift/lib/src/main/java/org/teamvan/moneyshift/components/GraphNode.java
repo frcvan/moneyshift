@@ -6,7 +6,7 @@ package org.teamvan.moneyshift.components;
  */
 public record GraphNode(
     org.teamvan.moneyshift.encodings.Utf8 id
-) implements org.teamvan.moneyshift.Component {
+) implements org.teamvan.moneyshift.NtComponent<GraphNode> {
     public GraphNode {
         java.util.Objects.requireNonNull(id, "id");
     }
@@ -16,43 +16,38 @@ public record GraphNode(
         this(new org.teamvan.moneyshift.encodings.Utf8(value));
     }
 
+
     public static final java.lang.String COMPONENT_TYPE = "rerun.components.GraphNode";
-    public static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR = org.teamvan.moneyshift.ComponentDescriptor.component(COMPONENT_TYPE);
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.encodings.Utf8.arrowType();
+    @Override
+    public java.lang.String componentType() {
+        return COMPONENT_TYPE;
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.encodings.Utf8.arrowField(name, nullable);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, java.util.List<GraphNode> values) {
-        return org.teamvan.moneyshift.ComponentBatch.of(descriptor, arrowField("item", true), allocator, values, GraphNode::write);
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.teamvan.moneyshift.ComponentDescriptor descriptor, org.apache.arrow.memory.BufferAllocator allocator, GraphNode value) {
-        return batch(descriptor, allocator, java.util.List.of(value));
-    }
-
-    public static org.teamvan.moneyshift.ComponentBatch batch(org.apache.arrow.memory.BufferAllocator allocator, GraphNode value) {
-        return batch(DESCRIPTOR, allocator, java.util.List.of(value));
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<GraphNode> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            GraphNode value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.VarCharVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<GraphNode> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            var v0_0 = values.get(i) == null ? null : values.get(i).id();
+            boolean ok0 = (v0_0) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.VarCharVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        java.lang.String[] column1 = new java.lang.String[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).id();
+            var v1_1 = v1_0 == null ? null : v1_0.value();
+            java.lang.String value1 = v1_1;
+            column1[i] = value1 == null ? "" : value1;
+        }
+        w.strings(path, column1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, GraphNode value) {
-        org.teamvan.moneyshift.encodings.Utf8.writeOne(vector, index, value.id());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<GraphNode> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

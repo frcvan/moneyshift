@@ -23,29 +23,24 @@ public record Clear(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Clear";
     public static final int NUM_COMPONENTS = 1;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_IS_RECURSIVE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Clear:is_recursive", "rerun.components.ClearIsRecursive");
 
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorIsRecursive() {
-        return DESCRIPTOR_IS_RECURSIVE;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorIsRecursive());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.ClearIsRecursive.batch(descriptorIsRecursive(), allocator, isRecursive));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("is_recursive").append('=').append(org.teamvan.moneyshift.components.ClearIsRecursive.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.ClearIsRecursive.writeColumnsStatic(w, "is_recursive", java.util.List.of(isRecursive));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

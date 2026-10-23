@@ -41,19 +41,19 @@ public record Points3D(
     /**
      * How points should be shaded.
      * 
-     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading#Gradient} by default.
+     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading#Gradient rerun::components::PointShading::Gradient} by default.
      */
     org.teamvan.moneyshift.components.PointShading pointShading,
     /**
      * Optional class Ids for the points.
      * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
+     * The {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} provides colors and labels if not specified explicitly.
      */
     java.util.List<org.teamvan.moneyshift.components.ClassId> classIds,
     /**
      * Optional keypoint IDs for the points, identifying them within a class.
      * 
-     * If keypoint IDs are passed in but no {@link org.teamvan.moneyshift.components.ClassId}s were specified, the {@link org.teamvan.moneyshift.components.ClassId} will
+     * If keypoint IDs are passed in but no {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId}s were specified, the {@link org.teamvan.moneyshift.components.ClassId rerun::components::ClassId} will
      * default to 0.
      * This is useful to identify points within a single classification (which is identified
      * with {@code class_id}).
@@ -73,130 +73,73 @@ public record Points3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Points3D";
     public static final int NUM_COMPONENTS = 8;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_POSITIONS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:positions", "rerun.components.Position3D");
 
-    /**
-     * All the 3D positions at which the point cloud shows points.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorPositions() {
-        return DESCRIPTOR_POSITIONS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_RADII = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:radii", "rerun.components.Radius");
-
-    /**
-     * Optional radii for the points, effectively turning them into circles.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorRadii() {
-        return DESCRIPTOR_RADII;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLORS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:colors", "rerun.components.Color");
-
-    /**
-     * Optional colors for the points.
-     * 
-     * 
-     * By default, the alpha channel affects brightness rather than transparency.
-     * TODO(#1611): To use the alpha channel for transparency, enable the experimental "Transparent point clouds" feature flag.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColors() {
-        return DESCRIPTOR_COLORS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:labels", "rerun.components.Text");
-
-    /**
-     * Optional text labels for the points.
-     * 
-     * If there's a single label present, it will be placed at the center of the entity.
-     * Otherwise, each instance will have its own label.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLabels() {
-        return DESCRIPTOR_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_SHOW_LABELS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:show_labels", "rerun.components.ShowLabels");
-
-    /**
-     * Whether the text labels should be shown.
-     * 
-     * If not set, labels will automatically appear when there is exactly one label for this entity
-     * or the number of instances on this entity is under a certain threshold.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorShowLabels() {
-        return DESCRIPTOR_SHOW_LABELS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_POINT_SHADING = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:point_shading", "rerun.components.PointShading");
-
-    /**
-     * How points should be shaded.
-     * 
-     * If not set, points are rendered with {@link org.teamvan.moneyshift.components.PointShading#Gradient} by default.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorPointShading() {
-        return DESCRIPTOR_POINT_SHADING;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CLASS_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:class_ids", "rerun.components.ClassId");
-
-    /**
-     * Optional class Ids for the points.
-     * 
-     * The {@link org.teamvan.moneyshift.components.ClassId} provides colors and labels if not specified explicitly.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorClassIds() {
-        return DESCRIPTOR_CLASS_IDS;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_KEYPOINT_IDS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Points3D:keypoint_ids", "rerun.components.KeypointId");
-
-    /**
-     * Optional keypoint IDs for the points, identifying them within a class.
-     * 
-     * If keypoint IDs are passed in but no {@link org.teamvan.moneyshift.components.ClassId}s were specified, the {@link org.teamvan.moneyshift.components.ClassId} will
-     * default to 0.
-     * This is useful to identify points within a single classification (which is identified
-     * with {@code class_id}).
-     * E.g. the classification might be 'Person' and the keypoints refer to joints on a
-     * detected skeleton.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorKeypointIds() {
-        return DESCRIPTOR_KEYPOINT_IDS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorPositions());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorRadii(), descriptorColors());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorLabels(), descriptorShowLabels(), descriptorPointShading(), descriptorClassIds(), descriptorKeypointIds());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Position3D.batch(descriptorPositions(), allocator, positions));
-        if (radii != null) {
-            batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorRadii(), allocator, radii));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (!positions.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("positions").append('=').append(org.teamvan.moneyshift.components.Position3D.COMPONENT_TYPE);
         }
-        if (colors != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColors(), allocator, colors));
+        if (radii != null && !radii.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        if (labels != null) {
-            batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorLabels(), allocator, labels));
+        if (colors != null && !colors.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("labels").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
         }
         if (showLabels != null) {
-            batches.add(org.teamvan.moneyshift.components.ShowLabels.batch(descriptorShowLabels(), allocator, showLabels));
+            if (components.length() > 0) components.append(',');
+            components.append("show_labels").append('=').append(org.teamvan.moneyshift.components.ShowLabels.COMPONENT_TYPE);
         }
         if (pointShading != null) {
-            batches.add(org.teamvan.moneyshift.components.PointShading.batch(descriptorPointShading(), allocator, pointShading));
+            if (components.length() > 0) components.append(',');
+            components.append("point_shading").append('=').append(org.teamvan.moneyshift.components.PointShading.COMPONENT_TYPE);
         }
-        if (classIds != null) {
-            batches.add(org.teamvan.moneyshift.components.ClassId.batch(descriptorClassIds(), allocator, classIds));
+        if (classIds != null && !classIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
-        if (keypointIds != null) {
-            batches.add(org.teamvan.moneyshift.components.KeypointId.batch(descriptorKeypointIds(), allocator, keypointIds));
+        if (keypointIds != null && !keypointIds.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("keypoint_ids").append('=').append(org.teamvan.moneyshift.components.KeypointId.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (!positions.isEmpty()) {
+            org.teamvan.moneyshift.components.Position3D.writeColumnsStatic(w, "positions", positions);
+        }
+        if (radii != null && !radii.isEmpty()) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "radii", radii);
+        }
+        if (colors != null && !colors.isEmpty()) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
+        }
+        if (labels != null && !labels.isEmpty()) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "labels", labels);
+        }
+        if (showLabels != null) {
+            org.teamvan.moneyshift.components.ShowLabels.writeColumnsStatic(w, "show_labels", java.util.List.of(showLabels));
+        }
+        if (pointShading != null) {
+            org.teamvan.moneyshift.components.PointShading.writeColumnsStatic(w, "point_shading", java.util.List.of(pointShading));
+        }
+        if (classIds != null && !classIds.isEmpty()) {
+            org.teamvan.moneyshift.components.ClassId.writeColumnsStatic(w, "class_ids", classIds);
+        }
+        if (keypointIds != null && !keypointIds.isEmpty()) {
+            org.teamvan.moneyshift.components.KeypointId.writeColumnsStatic(w, "keypoint_ids", keypointIds);
+        }
     }
 
     public static Builder builder() { return new Builder(); }

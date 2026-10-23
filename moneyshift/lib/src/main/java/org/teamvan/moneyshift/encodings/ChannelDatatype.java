@@ -6,7 +6,7 @@ package org.teamvan.moneyshift.encodings;
  * 
  * How individual color channel components are encoded.
  */
-public enum ChannelDatatype {
+public enum ChannelDatatype implements org.teamvan.moneyshift.NtEncoding<ChannelDatatype> {
     /**
      * 8-bit unsigned integer.
      */
@@ -70,29 +70,24 @@ public enum ChannelDatatype {
     }
 
     public static final java.lang.String NAME = "rerun.encodings.ChannelDatatype";
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.UINT8;
-    }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, arrowType(), java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<ChannelDatatype> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ChannelDatatype> values) {
+        int n = values.size();
+        long[] column = new long[n];
+        boolean[] present = new boolean[n];
+        boolean anyNull = false;
+        for (int i = 0; i < n; i++) {
             ChannelDatatype value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.UInt1Vector) vector).setNull(i);
-            } else {
-                ((org.apache.arrow.vector.UInt1Vector) vector).setSafe(i, (int) value.value());
-            }
+            present[i] = value != null;
+            anyNull |= value == null;
+            column[i] = value == null ? 0L : value.value();
         }
-        ((org.apache.arrow.vector.UInt1Vector) vector).setValueCount(count);
+        w.present(path, present, anyNull);
+        w.longs(path, column);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, ChannelDatatype value) {
-        ((org.apache.arrow.vector.UInt1Vector) vector).setSafe(index, (int) value.value());
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ChannelDatatype> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

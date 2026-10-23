@@ -9,8 +9,8 @@ package org.teamvan.moneyshift.archetypes;
  * types, and organization. Each schema is referenced by channels to indicate how their
  * messages should be decoded and understood.
  * 
- * See also {@link org.teamvan.moneyshift.archetypes.McapChannel} for channels that reference these schemas,
- * {@link org.teamvan.moneyshift.archetypes.McapMessage} for the messages that conform to these schemas, and the
+ * See also {@link org.teamvan.moneyshift.archetypes.McapChannel rerun::archetypes::McapChannel} for channels that reference these schemas,
+ * {@link org.teamvan.moneyshift.archetypes.McapMessage rerun::archetypes::McapMessage} for the messages that conform to these schemas, and the
  * <a href="https://mcap.dev/">MCAP specification</a> for complete format details.
  * 
  */
@@ -58,77 +58,45 @@ public record McapSchema(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.McapSchema";
     public static final int NUM_COMPONENTS = 4;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ID = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapSchema:id", "rerun.components.SchemaId");
 
-    /**
-     * Unique identifier for this schema within the MCAP file.
-     * 
-     * Schema IDs must be unique within an MCAP file and are referenced by channels
-     * to specify their message structure. A single schema can be shared across multiple channels.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorId() {
-        return DESCRIPTOR_ID;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_NAME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapSchema:name", "rerun.components.Text");
-
-    /**
-     * Human-readable name identifying this schema.
-     * 
-     * Schema names typically describe the message type or data structure
-     * (e.g., {@code "geometry_msgs/msg/Twist"}, {@code "sensor_msgs/msg/Image"}, {@code "MyCustomMessage"}).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorName() {
-        return DESCRIPTOR_NAME;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ENCODING = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapSchema:encoding", "rerun.components.Text");
-
-    /**
-     * The schema definition format used to describe the message structure.
-     * 
-     * Common schema encodings include:
-     * * {@code protobuf} - <a href="https://mcap.dev/spec/registry#protobuf-1">Protocol Buffers</a> schema definition
-     * * {@code ros1msg} - <a href="https://mcap.dev/spec/registry#ros1msg">ROS1</a> message definition format
-     * * {@code ros2msg} - <a href="https://mcap.dev/spec/registry#ros2msg">ROS2</a> message definition format
-     * * {@code jsonschema} - <a href="https://mcap.dev/spec/registry#jsonschema">JSON Schema</a> specification
-     * * {@code flatbuffer} - <a href="https://mcap.dev/spec/registry#flatbuffer">FlatBuffers</a> schema definition
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorEncoding() {
-        return DESCRIPTOR_ENCODING;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DATA = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "McapSchema:data", "rerun.components.Blob");
-
-    /**
-     * The schema definition content as binary data.
-     * 
-     * This contains the actual schema specification in the format indicated by the
-     * {@code encoding} field. For text-based schemas (like ROS message definitions or JSON Schema),
-     * this is typically UTF-8 encoded text. For binary schema formats, this contains
-     * the serialized schema data.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorData() {
-        return DESCRIPTOR_DATA;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorId(), descriptorName(), descriptorEncoding(), descriptorData());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.SchemaId.batch(descriptorId(), allocator, id));
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorName(), allocator, name));
-        batches.add(org.teamvan.moneyshift.components.Text.batch(descriptorEncoding(), allocator, encoding));
-        batches.add(org.teamvan.moneyshift.components.Blob.batch(descriptorData(), allocator, data));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("id").append('=').append(org.teamvan.moneyshift.components.SchemaId.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("name").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("encoding").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
+        }
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("data").append('=').append(org.teamvan.moneyshift.components.Blob.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.SchemaId.writeColumnsStatic(w, "id", java.util.List.of(id));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "name", java.util.List.of(name));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Text.writeColumnsStatic(w, "encoding", java.util.List.of(encoding));
+        }
+        if (true) {
+            org.teamvan.moneyshift.components.Blob.writeColumnsStatic(w, "data", java.util.List.of(data));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

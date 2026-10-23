@@ -2,7 +2,7 @@
 package org.teamvan.moneyshift.encodings;
 
 /**
- * Presentation timestamp within a {@link org.teamvan.moneyshift.archetypes.AssetVideo}.
+ * Presentation timestamp within a {@link org.teamvan.moneyshift.archetypes.AssetVideo rerun::archetypes::AssetVideo}.
  * 
  * Specified in nanoseconds.
  * Presentation timestamps are typically measured as time since video start.
@@ -12,34 +12,34 @@ public record VideoTimestamp(
      * Presentation timestamp value in nanoseconds.
      */
     long timestampNs
-) {
+) implements org.teamvan.moneyshift.NtEncoding<VideoTimestamp> {
     public VideoTimestamp {
     }
     public static final java.lang.String NAME = "rerun.encodings.VideoTimestamp";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return org.teamvan.moneyshift.ArrowFields.INT64;
-    }
-
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, org.teamvan.moneyshift.ArrowFields.INT64, java.util.List.of());
-    }
-
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<VideoTimestamp> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            VideoTimestamp value = values.get(i);
-            if (value == null) {
-                ((org.apache.arrow.vector.BigIntVector) vector).setNull(i);
-            } else {
-                writeOne(vector, i, value);
-            }
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<VideoTimestamp> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.BigIntVector) vector).setValueCount(count);
+        w.present(path, present0, anyNull0);
+        long[] column1 = new long[n];
+        for (int i = 0; i < n; i++) {
+            var v1_0 = values.get(i) == null ? null : values.get(i).timestampNs();
+            var value1 = v1_0;
+            column1[i] = value1 == null ? 0L : value1;
+        }
+        w.longs(path, column1);
     }
 
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, VideoTimestamp value) {
-        ((org.apache.arrow.vector.BigIntVector) vector).setSafe(index, value.timestampNs());
+    @Override
+    public void writeColumns(
+        org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<VideoTimestamp> values) {
+        writeColumnsStatic(w, path, values);
     }
 }

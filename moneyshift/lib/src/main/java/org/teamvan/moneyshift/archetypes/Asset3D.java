@@ -4,9 +4,9 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * A prepacked 3D asset ({@code .gltf}, {@code .glb}, {@code .obj}, {@code .stl}, etc.).
  * 
- * See also {@link org.teamvan.moneyshift.archetypes.Mesh3D}.
+ * See also {@link org.teamvan.moneyshift.archetypes.Mesh3D rerun::archetypes::Mesh3D}.
  * 
- * If there are multiple {@link org.teamvan.moneyshift.archetypes.InstancePoses3D} instances logged to the same entity as a mesh,
+ * If there are multiple {@link org.teamvan.moneyshift.archetypes.InstancePoses3D rerun::archetypes::InstancePoses3D} instances logged to the same entity as a mesh,
  * an instance of the mesh will be drawn for each transform.
  * 
  */
@@ -32,7 +32,7 @@ public record Asset3D(
      * A color multiplier applied to the whole asset.
      * 
      * For mesh who already have {@code albedo_factor} in materials,
-     * it will be overwritten by actual {@code albedo_factor} of {@link org.teamvan.moneyshift.archetypes.Asset3D} (if specified).
+     * it will be overwritten by actual {@code albedo_factor} of {@link org.teamvan.moneyshift.archetypes.Asset3D rerun::archetypes::Asset3D} (if specified).
      */
     org.teamvan.moneyshift.components.AlbedoFactor albedoFactor
 ) implements org.teamvan.moneyshift.Archetype {
@@ -41,66 +41,38 @@ public record Asset3D(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Asset3D";
     public static final int NUM_COMPONENTS = 3;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_BLOB = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Asset3D:blob", "rerun.components.Blob");
 
-    /**
-     * The asset's bytes.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorBlob() {
-        return DESCRIPTOR_BLOB;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_MEDIA_TYPE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Asset3D:media_type", "rerun.components.MediaType");
-
-    /**
-     * The Media Type of the asset.
-     * 
-     * Supported values:
-     * * {@code model/gltf-binary}
-     * * {@code model/gltf+json}
-     * * {@code model/obj} (.mtl material files are not supported yet, references are silently ignored)
-     * * {@code model/stl}
-     * 
-     * If omitted, the viewer will try to guess from the data blob.
-     * If it cannot guess, it won't be able to render the asset.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorMediaType() {
-        return DESCRIPTOR_MEDIA_TYPE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ALBEDO_FACTOR = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Asset3D:albedo_factor", "rerun.components.AlbedoFactor");
-
-    /**
-     * A color multiplier applied to the whole asset.
-     * 
-     * For mesh who already have {@code albedo_factor} in materials,
-     * it will be overwritten by actual {@code albedo_factor} of {@link org.teamvan.moneyshift.archetypes.Asset3D} (if specified).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAlbedoFactor() {
-        return DESCRIPTOR_ALBEDO_FACTOR;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorBlob());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorMediaType());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorAlbedoFactor());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.Blob.batch(descriptorBlob(), allocator, blob));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("blob").append('=').append(org.teamvan.moneyshift.components.Blob.COMPONENT_TYPE);
+        }
         if (mediaType != null) {
-            batches.add(org.teamvan.moneyshift.components.MediaType.batch(descriptorMediaType(), allocator, mediaType));
+            if (components.length() > 0) components.append(',');
+            components.append("media_type").append('=').append(org.teamvan.moneyshift.components.MediaType.COMPONENT_TYPE);
         }
         if (albedoFactor != null) {
-            batches.add(org.teamvan.moneyshift.components.AlbedoFactor.batch(descriptorAlbedoFactor(), allocator, albedoFactor));
+            if (components.length() > 0) components.append(',');
+            components.append("albedo_factor").append('=').append(org.teamvan.moneyshift.components.AlbedoFactor.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.Blob.writeColumnsStatic(w, "blob", java.util.List.of(blob));
+        }
+        if (mediaType != null) {
+            org.teamvan.moneyshift.components.MediaType.writeColumnsStatic(w, "media_type", java.util.List.of(mediaType));
+        }
+        if (albedoFactor != null) {
+            org.teamvan.moneyshift.components.AlbedoFactor.writeColumnsStatic(w, "albedo_factor", java.util.List.of(albedoFactor));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

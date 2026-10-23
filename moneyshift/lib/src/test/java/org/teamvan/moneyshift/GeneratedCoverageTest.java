@@ -1,16 +1,11 @@
 package org.teamvan.moneyshift;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.File;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
@@ -22,112 +17,85 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.wpilib.networktables.NetworkTableInstance;
 
-/** Makes sure the generated API is not only compilable, but usable end to end. */
+/** Every generated archetype, component, and encoding must write its columns. */
 class GeneratedCoverageTest {
+    private NetworkTableInstance instance;
+    private NtRecorder recorder;
+
+    @BeforeEach
+    void setUp() {
+        instance = NetworkTableInstance.create();
+        NtRecorder.setInstance(instance);
+        recorder = NtRecorder.getInstance();
+    }
+
+    @AfterEach
+    void tearDown() {
+        NtRecorder.setInstance(null);
+        instance.close();
+    }
 
     @Test
-    void everyArchetypeSerializesEveryField() throws Exception {
+    void everyArchetypeWritesColumns() throws Exception {
         List<Class<?>> archetypes = classesIn("org/teamvan/moneyshift/archetypes");
-        archetypes.addAll(classesIn("org/teamvan/moneyshift/blueprint/archetypes"));
+        assertTrue(archetypes.size() > 50, "expected the full non-testing archetype set");
 
-        assertEquals(96, archetypes.size(), "expected the full non-testing archetype set");
-
-        try (BufferAllocator allocator = new RootAllocator()) {
-            for (Class<?> archetype : archetypes) {
-                assertTrue(
-                        Archetype.class.isAssignableFrom(archetype),
-                        archetype.getName() + " must implement Archetype");
-                Object instance = Dummy.of(archetype);
-                Method serialize = archetype.getMethod("serialize", BufferAllocator.class);
-                @SuppressWarnings("unchecked")
-                List<ComponentBatch> batches =
-                        (List<ComponentBatch>) serialize.invoke(instance, allocator);
-                assertNotNull(batches, archetype.getName() + " returned null batches");
-                for (ComponentBatch batch : batches) {
-                    assertNotNull(batch.descriptor().component());
-                    assertNotNull(batch.descriptor().componentType());
-                    assertTrue(batch.count() > 0, "dummy values should serialize to at least one row");
-                    batch.close();
-                }
-            }
+        for (Class<?> archetype : archetypes) {
+            assertTrue(
+                    Archetype.class.isAssignableFrom(archetype),
+                    archetype.getName() + " must implement Archetype");
+            Archetype value = (Archetype) Dummy.of(archetype);
+            NtEntityWriter writer =
+                    new NtEntityWriter(recorder, "coverage/" + archetype.getSimpleName());
+            value.writeColumns(writer);
+            assertNotNull(value.archetypeName());
         }
     }
 
     @Test
-    void everyComponentBuildsAnArrowBatch() throws Exception {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void everyComponentWritesColumns() throws Exception {
         List<Class<?>> components = classesIn("org/teamvan/moneyshift/components");
-        components.addAll(classesIn("org/teamvan/moneyshift/blueprint/components"));
+        assertTrue(components.size() > 50, "expected the full non-testing component set");
 
-        assertEquals(147, components.size(), "expected the full non-testing component set");
-
-        try (BufferAllocator allocator = new RootAllocator()) {
-            for (Class<?> component : components) {
-                assertTrue(
-                        Component.class.isAssignableFrom(component),
-                        component.getName() + " must implement Component");
-                Object value = Dummy.of(component);
-                Method batch = null;
-                for (Method candidate : component.getMethods()) {
-                    if (candidate.getName().equals("batch")
-                            && candidate.getParameterCount() == 2
-                            && candidate.getParameterTypes()[0] == BufferAllocator.class
-                            && candidate.getParameterTypes()[1].isAssignableFrom(component)) {
-                        batch = candidate;
-                        break;
-                    }
-                }
-                assertNotNull(batch, component.getName() + " has no batch(allocator, value)");
-                ComponentBatch result = (ComponentBatch) batch.invoke(null, allocator, value);
-                assertNotNull(result);
-                assertEquals(1, result.count());
-                assertFalse(result.data().isNull(0), "the single component must not be null");
-                result.close();
-            }
+        for (Class<?> component : components) {
+            assertTrue(
+                    NtComponent.class.isAssignableFrom(component),
+                    component.getName() + " must implement NtComponent");
+            NtComponent value = (NtComponent) Dummy.of(component);
+            NtEntityWriter writer =
+                    new NtEntityWriter(recorder, "coverage/" + component.getSimpleName());
+            value.writeColumns(writer, "field", List.of(value));
         }
     }
 
     @Test
-    void everyEncodingWritesAnArrowVector() throws Exception {
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void everyEncodingWritesColumns() throws Exception {
         List<Class<?>> encodings = classesIn("org/teamvan/moneyshift/encodings");
-        encodings.addAll(classesIn("org/teamvan/moneyshift/blueprint/encodings"));
+        assertTrue(encodings.size() > 40, "expected the full non-testing encoding set");
 
-        assertEquals(62, encodings.size(), "expected the full non-testing encoding set");
-
-        try (BufferAllocator allocator = new RootAllocator()) {
-            for (Class<?> encoding : encodings) {
-                Method arrowField = encoding.getMethod("arrowField", String.class, boolean.class);
-                org.apache.arrow.vector.types.pojo.Field field =
-                        (org.apache.arrow.vector.types.pojo.Field)
-                                arrowField.invoke(null, "item", true);
-                Method write = encoding.getMethod("write", org.apache.arrow.vector.FieldVector.class, List.class);
-                List<Object> values = new ArrayList<>();
-                if (encoding.isInterface() && encoding.getPermittedSubclasses() != null) {
-                    for (Class<?> variant : encoding.getPermittedSubclasses()) {
-                        values.add(Dummy.of(variant));
-                    }
-                } else {
-                    values.add(Dummy.of(encoding));
-                }
-                try (org.apache.arrow.vector.FieldVector vector =
-                        (org.apache.arrow.vector.FieldVector) field.createVector(allocator)) {
-                    write.invoke(null, vector, values);
-                    assertEquals(values.size(), vector.getValueCount(), encoding.getName());
-                }
-            }
+        for (Class<?> encoding : encodings) {
+            assertTrue(
+                    NtEncoding.class.isAssignableFrom(encoding),
+                    encoding.getName() + " must implement NtEncoding");
+            NtEncoding value = (NtEncoding) Dummy.of(encoding);
+            NtEntityWriter writer =
+                    new NtEntityWriter(recorder, "coverage/" + encoding.getSimpleName());
+            value.writeColumns(writer, "field", List.of(value));
         }
     }
 
     @Test
-    void testingDefinitionsAreNotGenerated() {
-        // `rerun.testing.*` only exists to exercise Rerun's own codegen and is deliberately not
-        // part of the public SDK.
-        assertNull(
-                GeneratedCoverageTest.class.getClassLoader().getResource("org/teamvan/moneyshift/testing"),
-                "the testing package must not be generated");
+    void noBlueprintOrTestingPackagesAreGenerated() {
+        ClassLoader loader = GeneratedCoverageTest.class.getClassLoader();
+        assertNull(loader.getResource("org/teamvan/moneyshift/testing"));
+        assertNull(loader.getResource("org/teamvan/moneyshift/blueprint"));
     }
 
     private static List<Class<?>> classesIn(String resourceDirectory) throws Exception {

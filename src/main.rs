@@ -1,277 +1,57 @@
-//! This example demonstrates how to implement and register a [`re_data_loader::DataLoader`] into
-//! the Rerun Viewer in order to add support for loading arbitrary files.
+//! `rerun-importer-firstrun`: the FIRSTrun Rerun importer.
 //!
-//! Usage:
-//! ```sh
-//! $ cargo r -p custom_data_loader -- path/to/some/file
-//! ```
+//! Two modes share this binary:
+//!
+//! * `rerun-importer-firstrun <path.wpilog> [...]` implements Rerun's external-importer protocol:
+//!   RRD goes to stdout, diagnostics to stderr, and exit code 66 means "not my file".
+//! * `rerun-importer-firstrun --nt [...]` runs the live NetworkTables bridge.
+//!
+//! See [`firstrun::cli`] for the flag reference.
 
-#![warn(clippy::nursery, clippy::pedantic)]
-#![allow(clippy::missing_errors_doc, clippy::missing_panics_doc)]
+use std::process::ExitCode;
 
-pub mod wpilog;
+use firstrun::cli::{Command, parse, usage};
 
-use std::{path::Path, time::Duration};
+fn main() -> ExitCode {
+    configure_logging();
 
-use conv::{ConversionOptions, log_changes_to_chunks_with_options};
-use hashbrown::HashMap;
+    let command = match parse(std::env::args()) {
+        Ok(command) => command,
+        Err(error) => {
+            eprintln!("firstrun: {error}\n\n{}", usage());
+            return ExitCode::from(2);
+        }
+    };
 
-use log::{EntryLog, Timestamp};
-use rerun::external::anyhow::Context;
-use rerun::external::re_log_types::{SetStoreInfo, StoreInfo, StoreSource};
-use rerun::{
-    EntityPath, ImportedData, Importer, ImporterError, ImporterSettings, Timeline,
-    external::{re_build_info, re_importer, re_log},
-    log::{LogMsg, RowId},
-};
-use tokio::runtime::Runtime;
-use wpilog::parse::{Payload, WpiLogFile, WpiRecord};
+    match command {
+        Command::Help => {
+            print!("{}", usage());
+            ExitCode::SUCCESS
+        }
+        Command::Version => {
+            println!("rerun-importer-firstrun {}", env!("CARGO_PKG_VERSION"));
+            ExitCode::SUCCESS
+        }
+        Command::Import(args) => {
+            if args.path.as_os_str().is_empty() {
+                eprintln!("firstrun: no log path given\n\n{}", usage());
+                return ExitCode::from(2);
+            }
+            // The importer protocol owns stdout, so rerun's default "logs go to stdout" is not
+            // an option here.
+            firstrun::importer::run_cli(&args)
+        }
+        Command::Live(args) => match firstrun::live::run(&args) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("firstrun: live bridge failed: {error}");
+                ExitCode::FAILURE
+            }
+        },
+    }
+}
 
-pub mod conv;
-pub mod log;
-pub mod nt;
-pub mod values;
-
-fn main() -> anyhow::Result<std::process::ExitCode> {
-    std::thread::Builder::new()
-        .name("networktables".into())
-        .spawn(|| {
-            let rt = Runtime::new().unwrap();
-            rt.block_on(
-                // Initialize the NetworkTables client
-                nt::begin_logging(),
-            );
-        })?;
-
-    let main_thread_token = rerun::MainThreadToken::i_promise_i_am_on_the_main_thread();
+fn configure_logging() {
+    // `re_log` reads `RUST_LOG`-style filters; the exact setup is best-effort in the SDK.
     re_log::setup_logging();
-
-    re_importer::register_custom_importer(WpiLogLoader);
-
-    let build_info = re_build_info::build_info!();
-    rerun::run(
-        main_thread_token,
-        build_info,
-        rerun::CallSource::Cli,
-        std::env::args(),
-    )
-    .map(std::process::ExitCode::from)
-}
-
-fn spawn_debug_vector3d() -> anyhow::Result<()> {
-    std::thread::Builder::new()
-        .name("debug-vector3d".into())
-        .spawn(|| {
-            let recording =
-                match rerun::RecordingStreamBuilder::new("FIRSTrun Vector3D debug").spawn() {
-                    Ok(recording) => recording,
-                    Err(error) => {
-                        re_log::warn!("unable to start Vector3D debug recording: {error}");
-                        return;
-                    }
-                };
-
-            for frame in 0..600_i64 {
-                let phase = frame as f32 * 0.08;
-                recording.set_time_sequence("debug_frame", frame);
-                let vector = rerun::archetypes::Points3D::new([
-                    (phase.cos(), phase.sin(), 0.0),
-                    (0.0, 0.0, 1.0),
-                ])
-                .with_radii([0.05, 0.1])
-                .with_colors([
-                    rerun::components::Color::from_rgb(255, 0, 0),
-                    rerun::components::Color::from_rgb(0, 255, 0),
-                ]);
-
-                if let Err(error) = recording.log("debug/moving_vector3d", &vector) {
-                    re_log::warn!("Vector3D debug recording stopped: {error}");
-                    return;
-                }
-                std::thread::sleep(Duration::from_millis(33));
-            }
-        })?
-        .join()
-        .unwrap();
-
-    Ok(())
-}
-
-/// A custom importer for WPI log files.
-struct WpiLogLoader;
-
-impl Importer for WpiLogLoader {
-    fn name(&self) -> String {
-        "rerun.importers.frc.WpiLog".into()
-    }
-
-    fn import_from_path(
-        &self,
-        settings: &ImporterSettings,
-        path: std::path::PathBuf,
-        tx: crossbeam::channel::Sender<ImportedData>,
-    ) -> Result<(), ImporterError> {
-        if path.is_dir() {
-            return Err(ImporterError::Incompatible(path));
-        }
-        let contents = std::fs::read(&path)?;
-        parse_and_log(settings, &tx, &path, &contents)
-    }
-
-    fn import_from_file_contents(
-        &self,
-        settings: &ImporterSettings,
-        filepath: std::path::PathBuf,
-        contents: std::borrow::Cow<'_, [u8]>,
-        tx: crossbeam::channel::Sender<ImportedData>,
-    ) -> Result<(), ImporterError> {
-        parse_and_log(settings, &tx, &filepath, &contents)
-    }
-}
-
-struct EntryContext<'log> {
-    ty: &'log str,
-    name: &'log str,
-}
-
-fn handle_data(
-    ty: &str,
-    timestamp: Timestamp,
-    key: EntityPath,
-    data: &[u8],
-    logger: &mut EntryLog,
-) {
-    let kstr = key.to_string();
-    let error = |e: anyhow::Error| {
-        re_log::warn!(
-            "handle_data: Failed to parse entry type {} (data length: {}) (key: {}): {e}",
-            ty,
-            data.len(),
-            kstr,
-        );
-    };
-
-    match logger.add_entry(key, timestamp, ty, data) {
-        Ok(_) => {}
-        Err(e) => error(e),
-    }
-}
-
-fn fill_log<'file>(
-    ctxs: &mut HashMap<u32, EntryContext<'file>>,
-    nt_ctx: &mut EntryLog,
-    record: WpiRecord<'file>,
-) {
-    match record.payload {
-        Payload::Start {
-            entry_id,
-            entry_name,
-            entry_type,
-            entry_metadata: _,
-        } => {
-            // strip the NT: prefix from the entry name
-            let mut entry_name = entry_name.strip_prefix("NT:").unwrap_or(entry_name);
-            // also strip any leading slashes
-            while let Some(new) = entry_name.strip_prefix('/') {
-                entry_name = new;
-            }
-            ctxs.insert(
-                entry_id,
-                EntryContext {
-                    // NOTE: we _could_ have metadata if we start using it
-                    // metadata: entry_metadata,
-                    ty: entry_type,
-                    name: entry_name,
-                },
-            );
-        }
-        Payload::Raw { entry_id, data } => {
-            let Some(ctx) = ctxs.get(&entry_id) else {
-                re_log::warn!("No context for entry id {entry_id}");
-                return;
-            };
-
-            let key = EntityPath::from_file_path(Path::new(ctx.name));
-
-            handle_data(ctx.ty, record.timestamp, key, data, nt_ctx);
-        }
-        Payload::Finish { entry_id } => {
-            ctxs.remove(&entry_id);
-        }
-        Payload::SetMetadata { .. } => {}
-    }
-}
-
-fn parse_and_log(
-    settings: &ImporterSettings,
-    tx: &crossbeam::channel::Sender<ImportedData>,
-    filepath: &std::path::Path,
-    contents: &[u8],
-) -> Result<(), ImporterError> {
-    if !WpiLogFile::is_wpilog(contents) {
-        return Err(ImporterError::Incompatible(filepath.to_owned()));
-    }
-
-    let store_id = settings.opened_store_id_or_recommended();
-
-    let _ = tx.send(ImportedData::LogMsg(
-        WpiLogLoader::name(&WpiLogLoader),
-        LogMsg::SetStoreInfo(SetStoreInfo {
-            row_id: *RowId::new(),
-            info: StoreInfo::new(store_id.clone(), StoreSource::Other("WpiLog".into())),
-        }),
-    ));
-
-    // WPILog timestamps are microseconds since the robot program started, not wall-clock
-    // timestamps, so `robotime` is always a duration timeline.
-    let timeline = Timeline::new_duration("robotime");
-    let recording_name = filepath
-        .file_stem()
-        .map(|name| name.to_string_lossy().into_owned());
-    let options = ConversionOptions {
-        entity_path_prefix: settings.entity_path_prefix.clone(),
-        timepoint: settings.timepoint.clone(),
-        timestamp_offset_ns: settings.timestamp_offset_ns,
-        recording_name,
-        view_coordinates: true,
-    };
-
-    let contents = contents.to_vec();
-    let tx = tx.clone();
-    std::thread::Builder::new()
-        .name("WpiLogFile::parse".into())
-        .spawn(move || {
-            let tx = tx;
-            let contents = contents;
-
-            {
-                let mut ctxs = HashMap::new();
-                let mut nt_ctx = EntryLog::new();
-
-                if let Err(error) = WpiLogFile::parse(contents.as_slice(), |record| {
-                    fill_log(&mut ctxs, &mut nt_ctx, record);
-                }) {
-                    re_log::error!("WPI DataLog file error: {error}");
-                    return;
-                }
-
-                for chunk in log_changes_to_chunks_with_options(timeline, &mut nt_ctx, &options) {
-                    if tx
-                        .send(ImportedData::Chunk(
-                            WpiLogLoader::name(&WpiLogLoader),
-                            store_id.clone(),
-                            chunk,
-                        ))
-                        .is_err()
-                    {
-                        return;
-                    }
-                }
-            }
-
-            re_log::info!("finished parsing WpiLog");
-        })
-        .with_context(|| "failed to spawn WpiLogFile parsing thread".to_owned())?;
-
-    Ok(())
 }

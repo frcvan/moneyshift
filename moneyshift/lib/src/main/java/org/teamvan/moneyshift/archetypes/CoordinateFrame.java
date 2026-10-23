@@ -23,34 +23,24 @@ public record CoordinateFrame(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.CoordinateFrame";
     public static final int NUM_COMPONENTS = 1;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_FRAME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "CoordinateFrame:frame", "rerun.components.TransformFrameId");
 
-    /**
-     * The coordinate frame to use for the current entity.
-     * 
-     * Note that empty strings are not valid transform frame IDs.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorFrame() {
-        return DESCRIPTOR_FRAME;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorFrame());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of();
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.TransformFrameId.batch(descriptorFrame(), allocator, frame));
-        return batches;
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("frame").append('=').append(org.teamvan.moneyshift.components.TransformFrameId.COMPONENT_TYPE);
+        }
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.TransformFrameId.writeColumnsStatic(w, "frame", java.util.List.of(frame));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

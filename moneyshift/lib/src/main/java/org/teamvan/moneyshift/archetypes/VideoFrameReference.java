@@ -4,9 +4,9 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * References a single video frame.
  * 
- * Used to display individual video frames from an {@link org.teamvan.moneyshift.archetypes.AssetVideo} or {@link org.teamvan.moneyshift.archetypes.VideoStream}.
+ * Used to display individual video frames from an {@link org.teamvan.moneyshift.archetypes.AssetVideo rerun::archetypes::AssetVideo} or {@link org.teamvan.moneyshift.archetypes.VideoStream rerun::archetypes::VideoStream}.
  * To show an entire video, a video frame reference for each frame of the video should be logged.
- * References to a {@link org.teamvan.moneyshift.archetypes.VideoStream} use the active Viewer timeline.
+ * References to a {@link org.teamvan.moneyshift.archetypes.VideoStream rerun::archetypes::VideoStream} use the active Viewer timeline.
  * 
  * See &lt;https://rerun.io/docs/reference/video&gt; for details of what is and isn't supported.
  * 
@@ -24,7 +24,7 @@ public record VideoFrameReference(
      */
     org.teamvan.moneyshift.components.VideoTimestamp timestamp,
     /**
-     * Optional reference to an entity with an {@link org.teamvan.moneyshift.archetypes.AssetVideo} or {@link org.teamvan.moneyshift.archetypes.VideoStream}.
+     * Optional reference to an entity with an {@link org.teamvan.moneyshift.archetypes.AssetVideo rerun::archetypes::AssetVideo} or {@link org.teamvan.moneyshift.archetypes.VideoStream rerun::archetypes::VideoStream}.
      * 
      * If none is specified, the video is assumed to be at the same entity.
      * Note that blueprint overrides on the referenced video will be ignored regardless,
@@ -54,85 +54,45 @@ public record VideoFrameReference(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.VideoFrameReference";
     public static final int NUM_COMPONENTS = 4;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_TIMESTAMP = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "VideoFrameReference:timestamp", "rerun.components.VideoTimestamp");
 
-    /**
-     * References the closest video frame to this timestamp.
-     * 
-     * Note that this uses the closest video frame instead of the latest at this timestamp
-     * in order to be more forgiving of rounding errors for inprecise timestamp types.
-     * 
-     * Timestamps are relative to the start of the video, i.e. a timestamp of 0 always corresponds to the first frame.
-     * This is oftentimes equivalent to presentation timestamps (known as PTS), but in the presence of B-frames
-     * (bidirectionally predicted frames) there may be an offset on the first presentation timestamp in the video.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorTimestamp() {
-        return DESCRIPTOR_TIMESTAMP;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VIDEO_REFERENCE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "VideoFrameReference:video_reference", "rerun.components.EntityPath");
-
-    /**
-     * Optional reference to an entity with an {@link org.teamvan.moneyshift.archetypes.AssetVideo} or {@link org.teamvan.moneyshift.archetypes.VideoStream}.
-     * 
-     * If none is specified, the video is assumed to be at the same entity.
-     * Note that blueprint overrides on the referenced video will be ignored regardless,
-     * as this is always interpreted as a reference to the data store.
-     * 
-     * For a series of video frame references, it is recommended to specify this path only once
-     * at the beginning of the series and then rely on latest-at query semantics to
-     * keep the video reference active.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorVideoReference() {
-        return DESCRIPTOR_VIDEO_REFERENCE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_OPACITY = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "VideoFrameReference:opacity", "rerun.components.Opacity");
-
-    /**
-     * Opacity of the video, useful for layering several media.
-     * 
-     * Defaults to 1.0 (fully opaque).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorOpacity() {
-        return DESCRIPTOR_OPACITY;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_DRAW_ORDER = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "VideoFrameReference:draw_order", "rerun.components.DrawOrder");
-
-    /**
-     * An optional floating point value that specifies the 2D drawing order.
-     * 
-     * Objects with higher values are drawn on top of those with lower values.
-     * Defaults to {@code -15.0}.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorDrawOrder() {
-        return DESCRIPTOR_DRAW_ORDER;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorTimestamp());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorVideoReference(), descriptorOpacity(), descriptorDrawOrder());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.VideoTimestamp.batch(descriptorTimestamp(), allocator, timestamp));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("timestamp").append('=').append(org.teamvan.moneyshift.components.VideoTimestamp.COMPONENT_TYPE);
+        }
         if (videoReference != null) {
-            batches.add(org.teamvan.moneyshift.components.EntityPath.batch(descriptorVideoReference(), allocator, videoReference));
+            if (components.length() > 0) components.append(',');
+            components.append("video_reference").append('=').append(org.teamvan.moneyshift.components.EntityPath.COMPONENT_TYPE);
         }
         if (opacity != null) {
-            batches.add(org.teamvan.moneyshift.components.Opacity.batch(descriptorOpacity(), allocator, opacity));
+            if (components.length() > 0) components.append(',');
+            components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
         }
         if (drawOrder != null) {
-            batches.add(org.teamvan.moneyshift.components.DrawOrder.batch(descriptorDrawOrder(), allocator, drawOrder));
+            if (components.length() > 0) components.append(',');
+            components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.VideoTimestamp.writeColumnsStatic(w, "timestamp", java.util.List.of(timestamp));
+        }
+        if (videoReference != null) {
+            org.teamvan.moneyshift.components.EntityPath.writeColumnsStatic(w, "video_reference", java.util.List.of(videoReference));
+        }
+        if (opacity != null) {
+            org.teamvan.moneyshift.components.Opacity.writeColumnsStatic(w, "opacity", java.util.List.of(opacity));
+        }
+        if (drawOrder != null) {
+            org.teamvan.moneyshift.components.DrawOrder.writeColumnsStatic(w, "draw_order", java.util.List.of(drawOrder));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

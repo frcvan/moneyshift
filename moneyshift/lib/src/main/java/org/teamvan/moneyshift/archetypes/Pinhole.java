@@ -4,11 +4,11 @@ package org.teamvan.moneyshift.archetypes;
 /**
  * Camera perspective projection (a.k.a. intrinsics).
  * 
- * If {@link org.teamvan.moneyshift.archetypes.Transform3D} is logged for the same child/parent relationship (e.g. for the camera extrinsics), it takes precedence over {@link org.teamvan.moneyshift.archetypes.Pinhole}.
+ * If {@link org.teamvan.moneyshift.archetypes.Transform3D rerun::archetypes::Transform3D} is logged for the same child/parent relationship (e.g. for the camera extrinsics), it takes precedence over {@link org.teamvan.moneyshift.archetypes.Pinhole rerun::archetypes::Pinhole}.
  * 
- * If you use named transform frames via the {@code child_frame} and {@code parent_frame} fields, you don't have to use {@link org.teamvan.moneyshift.archetypes.CoordinateFrame}
- * as it is the case with other visualizations: for any entity with an {@link org.teamvan.moneyshift.archetypes.Pinhole} the viewer will always visualize it
- * directly without needing a {@link org.teamvan.moneyshift.archetypes.CoordinateFrame} to refer to the pinhole's child/parent frame.
+ * If you use named transform frames via the {@code child_frame} and {@code parent_frame} fields, you don't have to use {@link org.teamvan.moneyshift.archetypes.CoordinateFrame rerun::archetypes::CoordinateFrame}
+ * as it is the case with other visualizations: for any entity with an {@link org.teamvan.moneyshift.archetypes.Pinhole rerun::archetypes::Pinhole} the viewer will always visualize it
+ * directly without needing a {@link org.teamvan.moneyshift.archetypes.CoordinateFrame rerun::archetypes::CoordinateFrame} to refer to the pinhole's child/parent frame.
  * 
  */
 public record Pinhole(
@@ -34,7 +34,7 @@ public record Pinhole(
     /**
      * Sets the camera orientation convention.
      * 
-     * All common values are available as constants on the {@link org.teamvan.moneyshift.components.ViewCoordinates} class.
+     * All common values are available as constants on the {@link org.teamvan.moneyshift.components.ViewCoordinates rerun::components::ViewCoordinates} class.
      * 
      * The default is {@code ViewCoordinates::RDF}: +X is right, +Y is down, and +Z is forward.
      * This makes the camera frustum point along +Z in the parent space, with its up direction along -Y.
@@ -62,9 +62,9 @@ public record Pinhole(
      * with the child frame {@code "robot_arm"} on any other entity than {@code "my_transforms"} unless one of them was logged with static time.
      * 
      * If not specified, this is set to the implicit transform frame of the current entity path.
-     * This means that if a {@link org.teamvan.moneyshift.archetypes.Transform3D} is set on an entity called {@code /my/entity/path} then this will default to {@code tf#/my/entity/path}.
+     * This means that if a {@link org.teamvan.moneyshift.archetypes.Transform3D rerun::archetypes::Transform3D} is set on an entity called {@code /my/entity/path} then this will default to {@code tf#/my/entity/path}.
      * 
-     * To set the frame an entity is part of see {@link org.teamvan.moneyshift.archetypes.CoordinateFrame}.
+     * To set the frame an entity is part of see {@link org.teamvan.moneyshift.archetypes.CoordinateFrame rerun::archetypes::CoordinateFrame}.
      * 
      * Any update to this field will reset all other transform properties that aren't changed in the same log call or {@code send_columns} row.
      */
@@ -73,9 +73,9 @@ public record Pinhole(
      * The parent frame this transform transforms into.
      * 
      * If not specified, this is set to the implicit transform frame of the current entity path's parent.
-     * This means that if a {@link org.teamvan.moneyshift.archetypes.Transform3D} is set on an entity called {@code /my/entity/path} then this will default to {@code tf#/my/entity}.
+     * This means that if a {@link org.teamvan.moneyshift.archetypes.Transform3D rerun::archetypes::Transform3D} is set on an entity called {@code /my/entity/path} then this will default to {@code tf#/my/entity}.
      * 
-     * To set the frame an entity is part of see {@link org.teamvan.moneyshift.archetypes.CoordinateFrame}.
+     * To set the frame an entity is part of see {@link org.teamvan.moneyshift.archetypes.CoordinateFrame rerun::archetypes::CoordinateFrame}.
      * 
      * Any update to this field will reset all other transform properties that aren't changed in the same log call or {@code send_columns} row.
      */
@@ -100,159 +100,73 @@ public record Pinhole(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Pinhole";
     public static final int NUM_COMPONENTS = 8;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_IMAGE_FROM_CAMERA = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:image_from_camera", "rerun.components.PinholeProjection");
 
-    /**
-     * Camera projection, from image coordinates to view coordinates.
-     * 
-     * Any update to this field will reset all other transform properties that aren't changed in the same log call or {@code send_columns} row.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorImageFromCamera() {
-        return DESCRIPTOR_IMAGE_FROM_CAMERA;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_RESOLUTION = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:resolution", "rerun.components.Resolution");
-
-    /**
-     * Pixel resolution (usually integers) of child image space. Width and height.
-     * 
-     * Example:
-     * {@code }`text
-     * [1920.0, 1440.0]
-     * {@code }`
-     * 
-     * {@code image_from_camera} project onto the space spanned by {@code (0,0)} and {@code resolution - 1}.
-     * 
-     * Any update to this field will reset all other transform properties that aren't changed in the same log call or {@code send_columns} row.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorResolution() {
-        return DESCRIPTOR_RESOLUTION;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CAMERA_XYZ = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:camera_xyz", "rerun.components.ViewCoordinates");
-
-    /**
-     * Sets the camera orientation convention.
-     * 
-     * All common values are available as constants on the {@link org.teamvan.moneyshift.components.ViewCoordinates} class.
-     * 
-     * The default is {@code ViewCoordinates::RDF}: +X is right, +Y is down, and +Z is forward.
-     * This makes the camera frustum point along +Z in the parent space, with its up direction along -Y.
-     * 
-     * The camera frustum points along the axis set to {@code F}, or opposite the axis set to {@code B}.
-     * When logging a depth image under this entity, this is the direction in which the point cloud is projected.
-     * 
-     * The frustum's up direction is the axis set to {@code U}, or opposite the axis set to {@code D}.
-     * This matches the -Y direction of pixel space, where all images use RDF coordinates.
-     * 
-     * The frustum's right direction is the axis set to {@code R}, or opposite the axis set to {@code L}.
-     * This matches the +X direction of pixel space.
-     * 
-     * Other common formats are {@code RUB} (X=Right, Y=Up, Z=Back) and {@code FLU} (X=Forward, Y=Left, Z=Up).
-     * 
-     * {@code image_from_camera} is always defined to project along +Z in camera coordinates.
-     * {@code camera_xyz} reorients that projection to the forward axis of the pinhole entity.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorCameraXyz() {
-        return DESCRIPTOR_CAMERA_XYZ;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_CHILD_FRAME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:child_frame", "rerun.components.TransformFrameId");
-
-    /**
-     * The child frame this transform transforms from.
-     * 
-     * The entity at which the transform relationship of any given child frame is specified mustn't change over time, but is allowed to be different for static time.
-     * E.g. if you specified the child frame {@code "robot_arm"} on an entity named {@code "my_transforms"}, you may not log transforms
-     * with the child frame {@code "robot_arm"} on any other entity than {@code "my_transforms"} unless one of them was logged with static time.
-     * 
-     * If not specified, this is set to the implicit transform frame of the current entity path.
-     * This means that if a {@link org.teamvan.moneyshift.archetypes.Transform3D} is set on an entity called {@code /my/entity/path} then this will default to {@code tf#/my/entity/path}.
-     * 
-     * To set the frame an entity is part of see {@link org.teamvan.moneyshift.archetypes.CoordinateFrame}.
-     * 
-     * Any update to this field will reset all other transform properties that aren't changed in the same log call or {@code send_columns} row.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorChildFrame() {
-        return DESCRIPTOR_CHILD_FRAME;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_PARENT_FRAME = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:parent_frame", "rerun.components.TransformFrameId");
-
-    /**
-     * The parent frame this transform transforms into.
-     * 
-     * If not specified, this is set to the implicit transform frame of the current entity path's parent.
-     * This means that if a {@link org.teamvan.moneyshift.archetypes.Transform3D} is set on an entity called {@code /my/entity/path} then this will default to {@code tf#/my/entity}.
-     * 
-     * To set the frame an entity is part of see {@link org.teamvan.moneyshift.archetypes.CoordinateFrame}.
-     * 
-     * Any update to this field will reset all other transform properties that aren't changed in the same log call or {@code send_columns} row.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorParentFrame() {
-        return DESCRIPTOR_PARENT_FRAME;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_IMAGE_PLANE_DISTANCE = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:image_plane_distance", "rerun.components.ImagePlaneDistance");
-
-    /**
-     * The distance from the camera origin to the image plane when the projection is shown in a 3D viewer.
-     * 
-     * This is only used for visualization purposes, and does not affect the projection itself.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorImagePlaneDistance() {
-        return DESCRIPTOR_IMAGE_PLANE_DISTANCE;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLOR = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:color", "rerun.components.Color");
-
-    /**
-     * Color of the camera wireframe.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColor() {
-        return DESCRIPTOR_COLOR;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_LINE_WIDTH = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "Pinhole:line_width", "rerun.components.Radius");
-
-    /**
-     * Width of the camera wireframe lines.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorLineWidth() {
-        return DESCRIPTOR_LINE_WIDTH;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorImageFromCamera());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of(descriptorResolution());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorCameraXyz(), descriptorChildFrame(), descriptorParentFrame(), descriptorImagePlaneDistance(), descriptorColor(), descriptorLineWidth());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.PinholeProjection.batch(descriptorImageFromCamera(), allocator, imageFromCamera));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("image_from_camera").append('=').append(org.teamvan.moneyshift.components.PinholeProjection.COMPONENT_TYPE);
+        }
         if (resolution != null) {
-            batches.add(org.teamvan.moneyshift.components.Resolution.batch(descriptorResolution(), allocator, resolution));
+            if (components.length() > 0) components.append(',');
+            components.append("resolution").append('=').append(org.teamvan.moneyshift.components.Resolution.COMPONENT_TYPE);
         }
         if (cameraXyz != null) {
-            batches.add(org.teamvan.moneyshift.components.ViewCoordinates.batch(descriptorCameraXyz(), allocator, cameraXyz));
+            if (components.length() > 0) components.append(',');
+            components.append("camera_xyz").append('=').append(org.teamvan.moneyshift.components.ViewCoordinates.COMPONENT_TYPE);
         }
         if (childFrame != null) {
-            batches.add(org.teamvan.moneyshift.components.TransformFrameId.batch(descriptorChildFrame(), allocator, childFrame));
+            if (components.length() > 0) components.append(',');
+            components.append("child_frame").append('=').append(org.teamvan.moneyshift.components.TransformFrameId.COMPONENT_TYPE);
         }
         if (parentFrame != null) {
-            batches.add(org.teamvan.moneyshift.components.TransformFrameId.batch(descriptorParentFrame(), allocator, parentFrame));
+            if (components.length() > 0) components.append(',');
+            components.append("parent_frame").append('=').append(org.teamvan.moneyshift.components.TransformFrameId.COMPONENT_TYPE);
         }
         if (imagePlaneDistance != null) {
-            batches.add(org.teamvan.moneyshift.components.ImagePlaneDistance.batch(descriptorImagePlaneDistance(), allocator, imagePlaneDistance));
+            if (components.length() > 0) components.append(',');
+            components.append("image_plane_distance").append('=').append(org.teamvan.moneyshift.components.ImagePlaneDistance.COMPONENT_TYPE);
         }
         if (color != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColor(), allocator, color));
+            if (components.length() > 0) components.append(',');
+            components.append("color").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
         if (lineWidth != null) {
-            batches.add(org.teamvan.moneyshift.components.Radius.batch(descriptorLineWidth(), allocator, lineWidth));
+            if (components.length() > 0) components.append(',');
+            components.append("line_width").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.PinholeProjection.writeColumnsStatic(w, "image_from_camera", java.util.List.of(imageFromCamera));
+        }
+        if (resolution != null) {
+            org.teamvan.moneyshift.components.Resolution.writeColumnsStatic(w, "resolution", java.util.List.of(resolution));
+        }
+        if (cameraXyz != null) {
+            org.teamvan.moneyshift.components.ViewCoordinates.writeColumnsStatic(w, "camera_xyz", java.util.List.of(cameraXyz));
+        }
+        if (childFrame != null) {
+            org.teamvan.moneyshift.components.TransformFrameId.writeColumnsStatic(w, "child_frame", java.util.List.of(childFrame));
+        }
+        if (parentFrame != null) {
+            org.teamvan.moneyshift.components.TransformFrameId.writeColumnsStatic(w, "parent_frame", java.util.List.of(parentFrame));
+        }
+        if (imagePlaneDistance != null) {
+            org.teamvan.moneyshift.components.ImagePlaneDistance.writeColumnsStatic(w, "image_plane_distance", java.util.List.of(imagePlaneDistance));
+        }
+        if (color != null) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "color", java.util.List.of(color));
+        }
+        if (lineWidth != null) {
+            org.teamvan.moneyshift.components.Radius.writeColumnsStatic(w, "line_width", java.util.List.of(lineWidth));
+        }
     }
 
     public static Builder builder() { return new Builder(); }

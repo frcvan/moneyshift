@@ -37,8 +37,11 @@ fn main() -> anyhow::Result<()> {
                 chunks += 1;
                 let batch = &arrow.batch;
                 rows += batch.num_rows();
+                let entity = re_chunk::Chunk::from_arrow_msg(arrow)
+                    .map(|chunk| chunk.entity_path().to_string())
+                    .unwrap_or_else(|_| "<invalid chunk>".to_owned());
                 println!(
-                    "ArrowMsg chunk_id={} rows={} columns={}",
+                    "ArrowMsg chunk_id={} entity={entity} rows={} columns={}",
                     arrow.chunk_id,
                     batch.num_rows(),
                     batch.num_columns(),

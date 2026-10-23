@@ -4,7 +4,7 @@ package org.teamvan.moneyshift.encodings;
 /**
  * Left or right boundary of a time range.
  */
-public sealed interface TimeRangeBoundary permits
+public sealed interface TimeRangeBoundary extends org.teamvan.moneyshift.NtEncoding<TimeRangeBoundary> permits
     TimeRangeBoundary.CursorRelative,
     TimeRangeBoundary.Absolute,
     TimeRangeBoundary.Infinite {
@@ -27,65 +27,61 @@ public sealed interface TimeRangeBoundary permits
 
     java.lang.String NAME = "rerun.encodings.TimeRangeBoundary";
 
-    public static org.apache.arrow.vector.types.pojo.ArrowType arrowType() {
-        return new org.apache.arrow.vector.types.pojo.ArrowType.Union(org.apache.arrow.vector.types.UnionMode.Dense, new int[]{0, 1, 2, 3});
+    @Override
+    default void writeColumns(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TimeRangeBoundary> values) {
+        writeColumnsStatic(w, path, values);
     }
 
-    public static org.apache.arrow.vector.types.pojo.Field arrowField(java.lang.String name, boolean nullable) {
-        return org.teamvan.moneyshift.ArrowFields.field(name, nullable, new org.apache.arrow.vector.types.pojo.ArrowType.Union(org.apache.arrow.vector.types.UnionMode.Dense, new int[]{0, 1, 2, 3}), java.util.List.of(org.teamvan.moneyshift.ArrowFields.field("_null_markers", true, org.teamvan.moneyshift.ArrowFields.NULL, java.util.List.of()), org.teamvan.moneyshift.encodings.TimeInt.arrowField("CursorRelative", false), org.teamvan.moneyshift.encodings.TimeInt.arrowField("Absolute", false), org.teamvan.moneyshift.ArrowFields.field("Infinite", true, org.teamvan.moneyshift.ArrowFields.NULL, java.util.List.of())));
-    }
-
-    public static int typeId(TimeRangeBoundary value) {
-        if (value == null) return 0;
-        return switch (value) {
-            case TimeRangeBoundary.CursorRelative ignored -> 1;
-            case TimeRangeBoundary.Absolute ignored -> 2;
-            case TimeRangeBoundary.Infinite ignored -> 3;
-        };
-    }
-
-    public static void write(org.apache.arrow.vector.FieldVector vector, java.util.List<TimeRangeBoundary> values) {
-        int count = values.size();
-        for (int i = 0; i < count; i++) {
-            writeOne(vector, i, values.get(i));
+    /** Writes this type's NetworkTables columns; one entry per value. */
+    public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TimeRangeBoundary> values) {
+        int n = values.size();
+        boolean[] present0 = new boolean[n];
+        boolean anyNull0 = false;
+        for (int i = 0; i < n; i++) {
+            boolean ok0 = (values.get(i)) != null;
+            present0[i] = ok0;
+            anyNull0 |= !ok0;
         }
-        ((org.apache.arrow.vector.complex.DenseUnionVector) vector).setValueCount(count);
-    }
-
-    public static void writeOne(org.apache.arrow.vector.FieldVector vector, int index, TimeRangeBoundary value) {
-        org.apache.arrow.vector.complex.DenseUnionVector union = (org.apache.arrow.vector.complex.DenseUnionVector) vector;
-        if (value == null) {
-            org.apache.arrow.vector.FieldVector nullMarkers = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 0);
-            int nullOffset = nullMarkers.getValueCount();
-            union.setTypeId(index, (byte) 0);
-            union.setOffset(index, nullOffset);
-            nullMarkers.setValueCount(nullOffset + 1);
-            return;
+        w.present(path, present0, anyNull0);
+        long[] variants1 = new long[n];
+        java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload1_0 = new java.util.ArrayList<>();
+        java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload1_1 = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            org.teamvan.moneyshift.encodings.TimeRangeBoundary value1 = values.get(i);
+            if (value1 == null) {
+                variants1[i] = -1L;
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TimeRangeBoundary.CursorRelative variant1_0) {
+                variants1[i] = 0L;
+                payload1_0.add(variant1_0.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TimeRangeBoundary.Absolute variant1_1) {
+                variants1[i] = 1L;
+                payload1_1.add(variant1_1.value());
+            } else if (value1 instanceof org.teamvan.moneyshift.encodings.TimeRangeBoundary.Infinite) {
+                variants1[i] = 2L;
+            } else {
+                variants1[i] = -1L;
+            }
         }
-        switch (value) {
-            case TimeRangeBoundary.CursorRelative variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 1);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 1);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                org.teamvan.moneyshift.encodings.TimeInt.writeOne(child, offset, variant.value());
-            }
-            case TimeRangeBoundary.Absolute variant -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 2);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 2);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-                org.teamvan.moneyshift.encodings.TimeInt.writeOne(child, offset, variant.value());
-            }
-            case TimeRangeBoundary.Infinite ignored -> {
-                org.apache.arrow.vector.FieldVector child = (org.apache.arrow.vector.FieldVector) union.getVectorByType((byte) 3);
-                int offset = child.getValueCount();
-                union.setTypeId(index, (byte) 3);
-                union.setOffset(index, offset);
-                child.setValueCount(offset + 1);
-            }
+        w.longs(path + "/.variant", variants1);
+        if (!payload1_0.isEmpty()) {
+            int payloadCount1_0 = payload1_0.size();
+        long[] column2 = new long[payloadCount1_0];
+        for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
+            var v2_0 = payload1_0.get(k1_0).value();
+            long value2 = v2_0;
+            column2[k1_0] = value2;
+        }
+        w.longs(path + "/CursorRelative", column2);
+        }
+        if (!payload1_1.isEmpty()) {
+            int payloadCount1_1 = payload1_1.size();
+        long[] column3 = new long[payloadCount1_1];
+        for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
+            var v3_0 = payload1_1.get(k1_1).value();
+            long value3 = v3_0;
+            column3[k1_1] = value3;
+        }
+        w.longs(path + "/Absolute", column3);
         }
     }
 }

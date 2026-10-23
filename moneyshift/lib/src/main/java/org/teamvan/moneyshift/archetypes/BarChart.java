@@ -31,65 +31,45 @@ public record BarChart(
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.BarChart";
     public static final int NUM_COMPONENTS = 4;
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_VALUES = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "BarChart:values", "rerun.components.TensorData");
 
-    /**
-     * The values. Should always be a 1-dimensional tensor (i.e. a vector).
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorValues() {
-        return DESCRIPTOR_VALUES;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_COLOR = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "BarChart:color", "rerun.components.Color");
-
-    /**
-     * The color of the bar chart
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorColor() {
-        return DESCRIPTOR_COLOR;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_ABSCISSA = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "BarChart:abscissa", "rerun.components.TensorData");
-
-    /**
-     * The abscissa corresponding to each value. Should be a 1-dimensional tensor (i.e. a vector) in same length as values.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorAbscissa() {
-        return DESCRIPTOR_ABSCISSA;
-    }
-    private static final org.teamvan.moneyshift.ComponentDescriptor DESCRIPTOR_WIDTHS = new org.teamvan.moneyshift.ComponentDescriptor(ARCHETYPE_NAME, "BarChart:widths", "rerun.components.Length");
-
-    /**
-     * The width of the bins, defined in x-axis units and defaults to 1. Should be a 1-dimensional tensor (i.e. a vector) in same length as values.
-     */
-    public static org.teamvan.moneyshift.ComponentDescriptor descriptorWidths() {
-        return DESCRIPTOR_WIDTHS;
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> requiredComponents() {
-        return java.util.List.of(descriptorValues());
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> recommendedComponents() {
-        return java.util.List.of();
-    }
-
-    public static java.util.List<org.teamvan.moneyshift.ComponentDescriptor> optionalComponents() {
-        return java.util.List.of(descriptorColor(), descriptorAbscissa(), descriptorWidths());
+    @Override
+    public java.lang.String archetypeName() {
+        return ARCHETYPE_NAME;
     }
 
     @Override
-    public java.util.List<org.teamvan.moneyshift.ComponentBatch> serialize(org.apache.arrow.memory.BufferAllocator allocator) {
-        java.util.List<org.teamvan.moneyshift.ComponentBatch> batches = new java.util.ArrayList<>(NUM_COMPONENTS);
-        batches.add(org.teamvan.moneyshift.components.TensorData.batch(descriptorValues(), allocator, values));
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        java.lang.StringBuilder components = new java.lang.StringBuilder();
+        if (true) {
+            if (components.length() > 0) components.append(',');
+            components.append("values").append('=').append(org.teamvan.moneyshift.components.TensorData.COMPONENT_TYPE);
+        }
         if (color != null) {
-            batches.add(org.teamvan.moneyshift.components.Color.batch(descriptorColor(), allocator, color));
+            if (components.length() > 0) components.append(',');
+            components.append("color").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
         if (abscissa != null) {
-            batches.add(org.teamvan.moneyshift.components.TensorData.batch(descriptorAbscissa(), allocator, abscissa));
+            if (components.length() > 0) components.append(',');
+            components.append("abscissa").append('=').append(org.teamvan.moneyshift.components.TensorData.COMPONENT_TYPE);
         }
-        if (widths != null) {
-            batches.add(org.teamvan.moneyshift.components.Length.batch(descriptorWidths(), allocator, widths));
+        if (widths != null && !widths.isEmpty()) {
+            if (components.length() > 0) components.append(',');
+            components.append("widths").append('=').append(org.teamvan.moneyshift.components.Length.COMPONENT_TYPE);
         }
-        return batches;
+        w.metaString("archetype", ARCHETYPE_NAME);
+        w.metaString("components", components.toString());
+        if (true) {
+            org.teamvan.moneyshift.components.TensorData.writeColumnsStatic(w, "values", java.util.List.of(values));
+        }
+        if (color != null) {
+            org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "color", java.util.List.of(color));
+        }
+        if (abscissa != null) {
+            org.teamvan.moneyshift.components.TensorData.writeColumnsStatic(w, "abscissa", java.util.List.of(abscissa));
+        }
+        if (widths != null && !widths.isEmpty()) {
+            org.teamvan.moneyshift.components.Length.writeColumnsStatic(w, "widths", widths);
+        }
     }
 
     public static Builder builder() { return new Builder(); }
