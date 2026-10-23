@@ -199,7 +199,7 @@ pub fn metadata_chunks_for(recording_name: Option<String>) -> Vec<Chunk> {
 #[cfg(test)]
 mod tests {
     use arrow::array::Array as _;
-    use arrow::array::{Float64Array, Int64Array, StringArray};
+    use arrow::array::{BooleanArray, Float64Array, Int64Array, StringArray};
     use re_log_types::{EntityPath, Timeline};
 
     use super::{ConversionOptions, log_changes_to_chunks_with_options};
@@ -293,6 +293,62 @@ mod tests {
             .downcast_ref::<Float64Array>()
             .unwrap();
         assert_eq!(scalar_array.values(), &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn keeps_booleans_as_booleans() {
+        let mut log = EntryLog::new();
+        log.add_entry(
+            EntityPath::from_single_string("flag"),
+            Timestamp(10),
+            "boolean",
+            &[1],
+        )
+        .unwrap();
+        log.add_entry(
+            EntityPath::from_single_string("flags"),
+            Timestamp(10),
+            "boolean[]",
+            &[1, 0, 1],
+        )
+        .unwrap();
+
+        let chunks = chunks(&mut log);
+
+        let flag = find(&chunks, "flag");
+        assert!(!flag.component_descriptors().any(|descriptor| {
+            descriptor
+                .archetype
+                .as_ref()
+                .is_some_and(|name| name == "rerun.archetypes.Scalars")
+        }));
+        let array = flag
+            .components()
+            .get_array("value".into())
+            .expect("boolean component");
+        let values = array
+            .values()
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert!(values.value(0));
+
+        let flags = find(&chunks, "flags");
+        let array = flags
+            .components()
+            .get_array("value".into())
+            .expect("boolean component");
+        let values = array
+            .values()
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert_eq!(
+            (0..values.len())
+                .map(|i| values.value(i))
+                .collect::<Vec<_>>(),
+            [true, false, true]
+        );
     }
 
     #[test]

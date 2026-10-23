@@ -77,7 +77,8 @@ definitions.` **Never edit them by hand.** Fix the generator (`xtask/src/codegen
   `ChassisSpeeds`, `SwerveModuleState`, …), including `struct:` prefixes, arrays, and
   fully-qualified class names, and turns them into Rerun archetypes. It also honors
   AdvantageKit's `.type` / `.components` metadata topics.
-- Primitive values map to `Scalars` (numbers, bools), `TextDocument` (strings), and `Blob`.
+- Primitive values map to `Scalars` (numbers), `TextDocument` (strings), and `Blob`; booleans stay
+  booleans as a dynamic `value` component (Rerun has no bool archetype), never float64 0/1.
 - Struct arrays are expanded under stable indices (`<root>/length`, `<root>/0/...`), matching the
   WPILog convention.
 - `test_data/*.wpilog` is a real AdvantageKit file; tests assert specific archetypes/entities from

@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
 use arrow::{
-    array::{ArrayRef, BooleanArray, Float64Array, StringArray},
+    array::{ArrayRef, Float64Array, StringArray},
     compute::cast,
     datatypes::DataType,
 };
 use re_log_types::EntityPath;
 use re_sdk_types::{
-    Rotation3D,
+    AnyValues, Rotation3D,
     archetypes::{
         Arrows2D, Arrows3D, InstancePoses3D, Points2D, Points3D, Scalars, TextDocument,
         Transform3D, TransformAxes3D,
@@ -328,17 +330,12 @@ pub(super) fn primitive_batches(value: &ArrayRef) -> Vec<SerializedComponentBatc
             document.as_serialized_batches()
         }),
         DataType::Binary => blob(value).map_or_else(Vec::new, |batch| vec![batch]),
-        DataType::Boolean => {
-            let Some(values) = boolean_values(value) else {
-                return Vec::new();
-            };
-            scalars(
-                &values
-                    .into_iter()
-                    .map(|value| Scalar::from(if value { 1.0 } else { 0.0 }))
-                    .collect::<Vec<_>>(),
-            )
-        }
+        // Booleans stay booleans: Rerun has no `Scalar`-style bool archetype, so log the column
+        // as a dynamic component (the same mechanism as `AnyValues`). The viewer then shows
+        // `true`/`false` instead of a float64 0/1.
+        DataType::Boolean => AnyValues::default()
+            .with_component_from_data("value", Arc::clone(value))
+            .as_serialized_batches(),
         datatype if datatype.is_numeric() => {
             let Some(values) = numeric_values(value) else {
                 return Vec::new();
@@ -386,11 +383,6 @@ fn numeric_values(value: &ArrayRef) -> Option<Vec<f64>> {
     let value = cast(value, &DataType::Float64).ok()?;
     let values = value.as_any().downcast_ref::<Float64Array>()?;
     Some(values.iter().flatten().collect())
-}
-
-fn boolean_values(value: &ArrayRef) -> Option<Vec<bool>> {
-    let value = value.as_any().downcast_ref::<BooleanArray>()?;
-    Some(value.iter().flatten().collect())
 }
 
 fn blob(value: &ArrayRef) -> Option<SerializedComponentBatch> {
