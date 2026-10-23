@@ -9,6 +9,8 @@ pluginManagement {
     plugins {
         // Resolves WPILib artifacts the same way AdvantageKit does (no hard-coded Maven URL).
         id("org.wpilib.WPILibRepositoriesPlugin") version "2027.0.0"
+        // Provides the WPILib JNI libraries (`nativeRelease`/`extractReleaseNative`).
+        id("org.wpilib.GradleRIO") version "2027.0.0-alpha-7"
     }
 }
 

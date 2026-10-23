@@ -5,23 +5,32 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.TaskAction
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
+import org.wpilib.gradlerio.wpi.WPIExtension
+import org.wpilib.toolchain.NativePlatforms
 
 plugins {
     `java-library`
     `maven-publish`
     id("org.wpilib.WPILibRepositoriesPlugin")
+    id("org.wpilib.GradleRIO")
 }
+
+group = "org.teamvan.moneyshift"
 
 repositories {
     mavenCentral()
 }
 wpilibRepositories.addAllReleaseRepositories(project)
 
-val nativesDir = rootProject.layout.buildDirectory.dir("natives")
+val wpiExt = extensions.getByType(WPIExtension::class.java)
 
 dependencies {
     api(libs.ntcore.java)
     api(libs.wpiutil.java)
+
+    wpiExt.java.deps.wpilibJniRelease(NativePlatforms.desktop).forEach {
+        add("nativeRelease", it.get())
+    }
 
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
@@ -91,11 +100,9 @@ tasks.named("check") {
 
 tasks.test {
     useJUnitPlatform()
-    dependsOn(rootProject.tasks.named("extractWpilibNatives"))
-    // WPILib's RuntimeLoader resolves `libntcorejni` through java.library.path; the JNI library
-    // finds its siblings through an $ORIGIN runpath.
-    systemProperty("java.library.path", nativesDir.get().asFile.absolutePath)
-    environment("LD_LIBRARY_PATH", nativesDir.get().asFile.absolutePath)
+    // Puts the extracted WPILib JNI libraries on java.library.path / LD_LIBRARY_PATH and makes
+    // the test task depend on the extraction.
+    wpiExt.java.configureTestTasks(this)
 }
 
 publishing {
