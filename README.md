@@ -2,7 +2,7 @@
 
 Turn FRC robot telemetry into [Rerun](https://rerun.io) recordings and live streams.
 
-FIRSTrun has four surfaces that all speak Rerun 0.38.1:
+FIRSTrun has four surfaces that all speak Rerun 0.40.0:
 
 | Surface | What it does |
 |---|---|

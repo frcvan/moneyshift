@@ -12,6 +12,8 @@ use std::path::PathBuf;
 pub enum TimeCellKind {
     Sequence,
     DurationNanos,
+    /// Nanoseconds since the Unix epoch (`--time_timestamp_nanos`, new in Rerun 0.40).
+    TimestampNanos,
 }
 
 /// One `--time_sequence name=value`-style cell.
@@ -179,6 +181,13 @@ where
                     .time_cells
                     .push(cell);
             }
+            "--time_timestamp_nanos" => {
+                let cell = parse_time_cell(&arg, &next_value(&arg)?, TimeCellKind::TimestampNanos)?;
+                import
+                    .get_or_insert_with(|| ImportArgs::new(PathBuf::new()))
+                    .time_cells
+                    .push(cell);
+            }
             "--team" => {
                 let value = next_value(&arg)?;
                 team = Some(
@@ -284,6 +293,8 @@ pub fn usage() -> &'static str {
         "  --time_sequence <name=value> add a sequence timeline cell to every row\n",
         "  --time_duration_nanos <name=value>\n",
         "                               add a duration timeline cell to every row\n",
+        "  --time_timestamp_nanos <name=value>\n",
+        "                               add a timestamp timeline cell to every row\n",
         "\n",
         "Live NetworkTables flags:\n",
         "  --nt                         run the live NT -> Rerun bridge\n",
@@ -333,6 +344,8 @@ mod tests {
             "frame=3",
             "--time",
             "sim=1000",
+            "--time_timestamp_nanos",
+            "wall=1700000000000000000",
             "log.wpilog",
         ]) else {
             panic!("expected importer mode");
@@ -341,11 +354,13 @@ mod tests {
         assert_eq!(args.recording_id.as_deref(), Some("rec-1"));
         assert_eq!(args.entity_path_prefix.as_deref(), Some("robot"));
         assert!(args.static_);
-        assert_eq!(args.time_cells.len(), 2);
+        assert_eq!(args.time_cells.len(), 3);
         assert_eq!(args.time_cells[0].kind, TimeCellKind::Sequence);
         assert_eq!(args.time_cells[0].name, "frame");
         assert_eq!(args.time_cells[1].kind, TimeCellKind::DurationNanos);
         assert_eq!(args.time_cells[1].value, 1000);
+        assert_eq!(args.time_cells[2].kind, TimeCellKind::TimestampNanos);
+        assert_eq!(args.time_cells[2].value, 1_700_000_000_000_000_000);
         assert_eq!(args.path, PathBuf::from("log.wpilog"));
     }
 

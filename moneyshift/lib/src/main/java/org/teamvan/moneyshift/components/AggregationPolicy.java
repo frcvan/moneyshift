@@ -15,6 +15,8 @@ public enum AggregationPolicy implements org.teamvan.moneyshift.NtComponent<Aggr
     Off(1L),
     /**
      * Average all points in the range together.
+     * 
+     * This can wash out outliers (spikes).
      */
     Average(2L),
     /**
@@ -29,10 +31,15 @@ public enum AggregationPolicy implements org.teamvan.moneyshift.NtComponent<Aggr
      * Keep both the minimum and maximum values in the range.
      * 
      * This will yield two aggregated points instead of one, effectively creating a vertical line.
+     * In practice this often leads to a rather ugly zig-zag look.
      */
     MinMax(5L),
     /**
      * Find both the minimum and maximum values in the range, then use the average of those.
+     * 
+     * This yields a single point per range, so it does not draw a vertical line per pixel,
+     * while still letting a lone outlier move the plotted value, which averaging all the
+     * points in the range would wash out.
      */
     MinMaxAverage(6L);
 

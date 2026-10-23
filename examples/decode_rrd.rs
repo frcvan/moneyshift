@@ -6,7 +6,7 @@
 //! Usage: `cargo run --example decode_rrd -- <path.rrd>`
 
 use re_log_encoding::rrd::Decoder;
-use re_log_types::LogMsg;
+use re_log_msg::LogMsg;
 
 fn main() -> anyhow::Result<()> {
     let path = std::env::args().nth(1).unwrap_or_else(|| {
@@ -42,7 +42,7 @@ fn main() -> anyhow::Result<()> {
                     .unwrap_or_else(|_| "<invalid chunk>".to_owned());
                 println!(
                     "ArrowMsg chunk_id={} entity={entity} rows={} columns={}",
-                    arrow.chunk_id,
+                    batch.chunk_id(),
                     batch.num_rows(),
                     batch.num_columns(),
                 );

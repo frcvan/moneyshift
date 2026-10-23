@@ -8,10 +8,10 @@ independent surfaces:
 - a Rust crate (`firstrun`) that parses WPILog (`*.wpilog`) files into Rerun chunks, compiled for
   native (console importer) and `wasm32` (browser importer), plus a static viewer app in `web/`;
 - a Java SDK in `moneyshift/` that exposes Rerun's archetype/component type surface (generated
-  from Rerun 0.38.1) and publishes it to NetworkTables.
+  from Rerun 0.40.0) and publishes it to NetworkTables.
 
-Rerun is pinned to **0.38.1** everywhere (`Cargo.toml`, `xtask/Cargo.toml`). The Java type surface
-is generated from the `re_type_definitions` git tag `0.38.1`.
+Rerun is pinned to **0.40.0** everywhere (`Cargo.toml`, `xtask/Cargo.toml`). The Java type surface
+is generated from the `re_type_definitions` git tag `0.40.0`.
 
 ## Repository map
 
@@ -93,18 +93,19 @@ definitions.` **Never edit them by hand.** Fix the generator (`xtask/src/codegen
   `:lib:checkPublicationSize` enforces it and runs from `:lib:check`. Javadoc uses `-no-fonts`
   because the JDK's DejaVu webfonts alone blew the budget.
 
-## Rerun external importer contract (0.38.1)
+## Rerun external importer contract (0.40.0)
 
 Useful when changing the console binary:
 
 - The viewer discovers executables named `rerun-importer-*` (legacy `rerun-loader-*`) on `PATH`.
 - It runs `<path> --application-id … --recording-id … [--opened-application-id …]
 [--opened-recording-id …] [--entity-path-prefix …] [--timeless --static]
-[--time_sequence name=value] [--time_duration_nanos name=value]` (plus legacy aliases).
+[--time_sequence name=value] [--time_duration_nanos name=value]
+[--time_timestamp_nanos name=value]` (plus legacy aliases).
 - **stdout is the RRD stream**, stderr is for logs. Never print to stdout in importer mode.
 - Exit code **66** means "this file is not mine"; any other non-zero code is a failure.
 - The child process is spawned with `RERUN_APP_ONLY` removed.
-- Implementation reference: `re_importer-0.38.1/src/importer_external.rs`.
+- Implementation reference: `re_importer-0.40.0/src/importer_external.rs`.
 
 ## NetworkTables migration invariants
 

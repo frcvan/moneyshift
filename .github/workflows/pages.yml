@@ -70,8 +70,14 @@ jobs:
                     --vacuum \
                     web/dist/firstrun_bg.wasm \
                     -o web/dist/firstrun_bg.wasm
-                  viewer_dir="$(find "$HOME/.cargo/registry/src" -type d -path '*/re_web_viewer_server-0.38.1/web_viewer' -print -quit)"
-                  test -n "$viewer_dir"
+                  viewer_version="0.40.0"
+                  viewer_crate="${RUNNER_TEMP}/re_web_viewer_server-${viewer_version}.crate"
+                  curl --fail --location --retry 3 \
+                    "https://static.crates.io/crates/re_web_viewer_server/re_web_viewer_server-${viewer_version}.crate" \
+                    --output "$viewer_crate"
+                  tar -xzf "$viewer_crate" -C "$RUNNER_TEMP"
+                  viewer_dir="${RUNNER_TEMP}/re_web_viewer_server-${viewer_version}/web_viewer"
+                  test -f "$viewer_dir/re_viewer.js"
                   cp "$viewer_dir/re_viewer.js" "$viewer_dir/re_viewer_bg.wasm" web/dist/
                   cat >> web/dist/re_viewer.js <<'EOF'
                   export default wasm_bindgen;

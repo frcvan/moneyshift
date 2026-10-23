@@ -21,6 +21,9 @@ package org.teamvan.moneyshift.archetypes;
  * therefore agree voxel for voxel, the dense volume covering indices {@code [0, 0, 0]} up to
  * {@code [width - 1, height - 1, depth - 1]}.
  * 
+ * **WebGL limitation:** The viewer is not able to clip volumes against opaque scene geometry.
+ * Parts of a volume can therefore appear in front of objects that should hide them.
+ * 
  */
 public record Volume3D(
     /**
@@ -59,33 +62,42 @@ public record Volume3D(
      */
     org.teamvan.moneyshift.components.RotationQuat quaternion,
     /**
-     * How to map {@code values} to opacity and color.
+     * The inclusive range of voxel values to render.
      * 
-     * If not specified, the range is estimated from the data.
+     * Values outside the range are ignored.
+     * 
+     * If not specified, the range is automatically estimated from the data.
      */
     org.teamvan.moneyshift.components.ValueRange valueRange,
     /**
-     * Colormap applied to the values after mapping them through {@code value_range}.
+     * Gamma correction applied to normalized voxel values before colormapping and opacity calculation.
+     * 
+     * The corrected density is {@code normalized_value ^ gamma}.
+     * Must be finite and positive.
+     * Defaults to 3.0, suppressing low-density material and emphasizing dense structures.
+     */
+    org.teamvan.moneyshift.components.GammaCorrection gamma,
+    /**
+     * Colormap applied to the values after mapping them through {@code value_range} and gamma correction.
      * 
      * Defaults to Turbo.
      */
     org.teamvan.moneyshift.components.Colormap colormap,
     /**
-     * Overall opacity of the volume.
+     * Dimensionless optical depth for the volume.
      * 
-     * The opacity of a single voxel is its value (normalized through {@code value_range}) scaled by
-     * this, i.e. a linear ramp: low values are transparent, high values are opaque.
-     * Lowering this makes the interior of the volume visible.
+     * For a uniform volume at the upper bound of {@code value_range}, this is the optical depth across one full volume-local axis.
+     * Zero is transparent, one is about 63% opaque, and larger values are denser.
      * 
      * Defaults to 1.0.
      */
-    org.teamvan.moneyshift.components.Opacity opacity
+    org.teamvan.moneyshift.components.OpticalDensity opticalDensity
 ) implements org.teamvan.moneyshift.Archetype {
     public Volume3D {
         java.util.Objects.requireNonNull(values, "values");
     }
     public static final java.lang.String ARCHETYPE_NAME = "rerun.archetypes.Volume3D";
-    public static final int NUM_COMPONENTS = 7;
+    public static final int NUM_COMPONENTS = 8;
 
     @Override
     public java.lang.String archetypeName() {
@@ -115,13 +127,17 @@ public record Volume3D(
             if (components.length() > 0) components.append(',');
             components.append("value_range").append('=').append(org.teamvan.moneyshift.components.ValueRange.COMPONENT_TYPE);
         }
+        if (gamma != null) {
+            if (components.length() > 0) components.append(',');
+            components.append("gamma").append('=').append(org.teamvan.moneyshift.components.GammaCorrection.COMPONENT_TYPE);
+        }
         if (colormap != null) {
             if (components.length() > 0) components.append(',');
             components.append("colormap").append('=').append(org.teamvan.moneyshift.components.Colormap.COMPONENT_TYPE);
         }
-        if (opacity != null) {
+        if (opticalDensity != null) {
             if (components.length() > 0) components.append(',');
-            components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
+            components.append("optical_density").append('=').append(org.teamvan.moneyshift.components.OpticalDensity.COMPONENT_TYPE);
         }
         w.metaString("archetype", ARCHETYPE_NAME);
         w.metaString("components", components.toString());
@@ -140,11 +156,14 @@ public record Volume3D(
         if (valueRange != null) {
             org.teamvan.moneyshift.components.ValueRange.writeColumnsStatic(w, "value_range", java.util.List.of(valueRange));
         }
+        if (gamma != null) {
+            org.teamvan.moneyshift.components.GammaCorrection.writeColumnsStatic(w, "gamma", java.util.List.of(gamma));
+        }
         if (colormap != null) {
             org.teamvan.moneyshift.components.Colormap.writeColumnsStatic(w, "colormap", java.util.List.of(colormap));
         }
-        if (opacity != null) {
-            org.teamvan.moneyshift.components.Opacity.writeColumnsStatic(w, "opacity", java.util.List.of(opacity));
+        if (opticalDensity != null) {
+            org.teamvan.moneyshift.components.OpticalDensity.writeColumnsStatic(w, "optical_density", java.util.List.of(opticalDensity));
         }
     }
 
@@ -156,8 +175,9 @@ public record Volume3D(
         private org.teamvan.moneyshift.components.Translation3D translation;
         private org.teamvan.moneyshift.components.RotationQuat quaternion;
         private org.teamvan.moneyshift.components.ValueRange valueRange;
+        private org.teamvan.moneyshift.components.GammaCorrection gamma;
         private org.teamvan.moneyshift.components.Colormap colormap;
-        private org.teamvan.moneyshift.components.Opacity opacity;
+        private org.teamvan.moneyshift.components.OpticalDensity opticalDensity;
         private Builder() {}
 
         public Builder withValues(org.teamvan.moneyshift.components.TensorData value) {
@@ -185,29 +205,39 @@ public record Volume3D(
             return this;
         }
 
+        public Builder withGamma(org.teamvan.moneyshift.components.GammaCorrection value) {
+            this.gamma = value;
+            return this;
+        }
+
+        /** Overload that takes the {@code float} value(s) directly. */
+        public Builder withGamma(float value) {
+            return withGamma(new org.teamvan.moneyshift.components.GammaCorrection(value));
+        }
+
         public Builder withColormap(org.teamvan.moneyshift.components.Colormap value) {
             this.colormap = value;
             return this;
         }
 
-        public Builder withOpacity(org.teamvan.moneyshift.components.Opacity value) {
-            this.opacity = value;
+        public Builder withOpticalDensity(org.teamvan.moneyshift.components.OpticalDensity value) {
+            this.opticalDensity = value;
             return this;
         }
 
         /** Overload that takes the {@code float} value(s) directly. */
-        public Builder withOpacity(float value) {
-            return withOpacity(new org.teamvan.moneyshift.components.Opacity(value));
+        public Builder withOpticalDensity(float value) {
+            return withOpticalDensity(new org.teamvan.moneyshift.components.OpticalDensity(value));
         }
 
         public Volume3D build() {
-            return new Volume3D(values, voxelSize, translation, quaternion, valueRange, colormap, opacity);
+            return new Volume3D(values, voxelSize, translation, quaternion, valueRange, gamma, colormap, opticalDensity);
         }
     }
 
     public static Volume3D of(
         org.teamvan.moneyshift.components.TensorData values
     ) {
-        return new Volume3D(values, null, null, null, null, null, null);
+        return new Volume3D(values, null, null, null, null, null, null, null);
     }
 }

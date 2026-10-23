@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 camino = "1.2.6"
-re_types_builder = "0.38.1"
-re_type_definitions = { git = "https://github.com/rerun-io/rerun.git", tag = "0.38.1" }
+re_types_builder = "0.40.0"
+re_type_definitions = { git = "https://github.com/rerun-io/rerun.git", tag = "0.40.0" }
 serde = "1.0.229"
 serde_json = "1.0.151"
 cargo_metadata = "0.23.1"

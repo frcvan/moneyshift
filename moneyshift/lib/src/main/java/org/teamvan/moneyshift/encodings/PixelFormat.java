@@ -104,7 +104,43 @@ public enum PixelFormat implements org.teamvan.moneyshift.NtEncoding<PixelFormat
      * First comes entire image in Y in one plane, followed by the U and V planes, which each only have half
      * the horizontal resolution of the Y plane.
      */
-    Y_U_V16_FullRange(50L);
+    Y_U_V16_FullRange(50L),
+    /**
+     * Raw Bayer image with 8 bits per pixel, using the RGGB color filter pattern.
+     * 
+     * Every pixel holds a single color sample, in one plane. The pattern repeats every 2x2 pixels,
+     * with red and green in even rows, and green and blue in odd rows.
+     * 
+     * The viewer reconstructs RGB using bilinear demosaicing.
+     */
+    BayerRGGB8(128L),
+    /**
+     * Raw Bayer image with 8 bits per pixel, using the BGGR color filter pattern.
+     * 
+     * Every pixel holds a single color sample, in one plane. The pattern repeats every 2x2 pixels,
+     * with blue and green in even rows, and green and red in odd rows.
+     * 
+     * The viewer reconstructs RGB using bilinear demosaicing.
+     */
+    BayerBGGR8(129L),
+    /**
+     * Raw Bayer image with 8 bits per pixel, using the GBRG color filter pattern.
+     * 
+     * Every pixel holds a single color sample, in one plane. The pattern repeats every 2x2 pixels,
+     * with green and blue in even rows, and red and green in odd rows.
+     * 
+     * The viewer reconstructs RGB using bilinear demosaicing.
+     */
+    BayerGBRG8(130L),
+    /**
+     * Raw Bayer image with 8 bits per pixel, using the GRBG color filter pattern.
+     * 
+     * Every pixel holds a single color sample, in one plane. The pattern repeats every 2x2 pixels,
+     * with green and red in even rows, and blue and green in odd rows.
+     * 
+     * The viewer reconstructs RGB using bilinear demosaicing.
+     */
+    BayerGRBG8(131L);
 
     private final long value;
 

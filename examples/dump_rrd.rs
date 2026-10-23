@@ -1,5 +1,5 @@
 use re_log_encoding::rrd::Decoder;
-use re_log_types::LogMsg;
+use re_log_msg::LogMsg;
 
 fn main() {
     let contents = include_bytes!("../test_data/FRC_TBD_d225b5377c70a88d.wpilog");

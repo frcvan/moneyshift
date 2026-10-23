@@ -9,6 +9,10 @@ package org.teamvan.moneyshift.archetypes;
  * If there are multiple {@link org.teamvan.moneyshift.archetypes.InstancePoses3D rerun::archetypes::InstancePoses3D} instances logged to the same entity as a mesh,
  * an instance of the mesh will be drawn for each transform.
  * 
+ * Meshes, or parts of meshes, without vertex normals get flat normals computed by the Viewer,
+ * i.e. each triangle is shaded with its own face normal.
+ * To render an asset unlit instead, give it all-zero vertex normals.
+ * 
  */
 public record Asset3D(
     /**
@@ -19,6 +23,7 @@ public record Asset3D(
      * The Media Type of the asset.
      * 
      * Supported values:
+     * * {@code application/x-ply}
      * * {@code model/gltf-binary}
      * * {@code model/gltf+json}
      * * {@code model/obj} (.mtl material files are not supported yet, references are silently ignored)

@@ -4,7 +4,7 @@ use std::io::Write;
 use std::process::Command;
 
 use re_log_encoding::rrd::Decoder;
-use re_log_types::LogMsg;
+use re_log_msg::LogMsg;
 
 const BIN: &str = env!("CARGO_BIN_EXE_rerun-importer-firstrun");
 const FIXTURE: &str = concat!(

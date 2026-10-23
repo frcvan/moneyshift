@@ -11,9 +11,10 @@ use re_build_info::CrateVersion;
 use re_chunk::{Chunk, RowId};
 use re_log;
 use re_log_encoding::rrd::{Encoder, EncodingOptions};
+use re_log_msg::{LogMsg, SetStoreInfo, StoreInfo, StoreSource};
 use re_log_types::{
-    ApplicationId, EntityPath, LogMsg, NonMinI64, SetStoreInfo, StoreId, StoreInfo, StoreKind,
-    StoreSource, TimeCell, TimePoint, Timeline, TimelineName,
+    ApplicationId, EntityPath, NonMinI64, StoreId, StoreKind, TimeCell, TimePoint, Timeline,
+    TimelineName,
 };
 
 use crate::cli::{ImportArgs, TimeCellKind};
@@ -89,6 +90,12 @@ impl ImportOptions {
                             TimelineName::try_new(cell.name.as_str()).expect("non-empty timeline"),
                         ),
                         TimeCell::from_duration_nanos(nanos),
+                    ),
+                    TimeCellKind::TimestampNanos => (
+                        Timeline::new_timestamp(
+                            TimelineName::try_new(cell.name.as_str()).expect("non-empty timeline"),
+                        ),
+                        TimeCell::from_timestamp_nanos_since_epoch(nanos),
                     ),
                 };
                 timepoint.insert_cell(timeline.name().as_str(), cell_value);
@@ -235,7 +242,7 @@ fn write_store_and_chunks<W: std::io::Write>(
     chunks: &[Chunk],
 ) -> anyhow::Result<()> {
     encoder.append(&LogMsg::SetStoreInfo(SetStoreInfo {
-        row_id: *RowId::new(),
+        row_id: RowId::new().as_tuid(),
         info: StoreInfo::new(
             store_id.clone(),
             StoreSource::Other(options.store_source.clone()),

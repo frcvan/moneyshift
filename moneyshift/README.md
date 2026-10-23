@@ -3,7 +3,7 @@
 A Java API for publishing [Rerun](https://rerun.io) data from FRC robot code over
 **NetworkTables 4**.
 
-The SDK keeps Rerun 0.38.1's archetype/component/encoding type surface (generated from Rerun's own
+The SDK keeps Rerun 0.40.0's archetype/component/encoding type surface (generated from Rerun's own
 type definitions) and re-targets it to plain NT topics under `/Rerun`. The Rust
 `rerun-importer-firstrun --nt` bridge turns those topics back into Rerun chunks in real time, so
 Java never touches Arrow, protobuf, gRPC or RRD.
