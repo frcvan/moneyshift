@@ -21,7 +21,7 @@ use components::{
 };
 
 /// Options that control how a WPILog is translated into Rerun chunks.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ConversionOptions {
     /// Prefix every entity path with this entity.
     pub entity_path_prefix: Option<EntityPath>,
@@ -33,18 +33,6 @@ pub struct ConversionOptions {
     pub recording_name: Option<String>,
     /// Add static [`ViewCoordinates`] matching WPILib's FLU (X forward, Y left, Z up) frame.
     pub view_coordinates: bool,
-}
-
-impl Default for ConversionOptions {
-    fn default() -> Self {
-        Self {
-            entity_path_prefix: None,
-            timepoint: None,
-            timestamp_offset_ns: None,
-            recording_name: None,
-            view_coordinates: false,
-        }
-    }
 }
 
 pub fn log_changes_to_chunks(

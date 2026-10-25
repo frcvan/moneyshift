@@ -202,7 +202,7 @@ pub fn parse_wpilog(
     })
     .map_err(|error| anyhow::anyhow!("failed to parse WPI log: {error}"))?;
 
-    let mut chunks = log_changes_to_chunks_with_options(timeline.clone(), &mut logger, &conversion);
+    let mut chunks = log_changes_to_chunks_with_options(timeline, &mut logger, &conversion);
     if options.static_ {
         chunks = chunks.into_iter().map(Chunk::into_static).collect();
     }

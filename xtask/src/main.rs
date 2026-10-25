@@ -1,3 +1,5 @@
+#![warn(clippy::nursery, clippy::pedantic)]
+
 pub mod codegen;
 
 use camino::Utf8PathBuf;
