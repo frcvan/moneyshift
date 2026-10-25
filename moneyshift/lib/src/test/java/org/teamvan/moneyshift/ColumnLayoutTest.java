@@ -21,7 +21,9 @@ import org.teamvan.moneyshift.encodings.ClassDescription;
 import org.teamvan.moneyshift.encodings.ClassDescriptionMapElem;
 import org.teamvan.moneyshift.encodings.TimeInt;
 import org.teamvan.moneyshift.encodings.TimeRange;
+import org.teamvan.moneyshift.encodings.Rgba32;
 import org.teamvan.moneyshift.encodings.TimeRangeBoundary;
+import org.teamvan.moneyshift.encodings.Utf8;
 
 /** One golden test per §4.2 layout case: each asserts the exact topic tree. */
 class ColumnLayoutTest {
@@ -155,6 +157,49 @@ class ColumnLayoutTest {
                 booleans(
                         "/Rerun/l/missing/class_map/.items/class_description/info/color/.present"),
                 "color presence");
+    }
+
+    @Test
+    void masksCoverTheInstancesBeforeTheFirstNullAndStaySticky() {
+        ClassDescription present =
+                new ClassDescription(new AnnotationInfo(1, "a", 0xFF00E5FFL), List.of(), List.of());
+        ClassDescription absent =
+                new ClassDescription(
+                        new AnnotationInfo(1, (Utf8) null, new Rgba32(0xFF00E5FFL)),
+                        List.of(),
+                        List.of());
+
+        recorder.logComponent(
+                "l/mask",
+                "class_map",
+                List.of(
+                        new AnnotationContext(
+                                List.of(
+                                        new ClassDescriptionMapElem(1, present),
+                                        new ClassDescriptionMapElem(2, absent),
+                                        new ClassDescriptionMapElem(3, present)))));
+
+        String label = "/Rerun/l/mask/class_map/.items/class_description/info/label";
+        assertArrayEquals(
+                new boolean[] {true, false, true},
+                booleans(label + "/.present"),
+                "instances before the first null still count as present");
+
+        // Once a mask exists it is sticky, so an all-present batch must overwrite it rather than
+        // leaving the previous mask in place.
+        recorder.logComponent(
+                "l/mask",
+                "class_map",
+                List.of(
+                        new AnnotationContext(
+                                List.of(
+                                        new ClassDescriptionMapElem(1, present),
+                                        new ClassDescriptionMapElem(2, present)))));
+
+        assertArrayEquals(
+                new boolean[] {true, true},
+                booleans(label + "/.present"),
+                "a stale mask must never outlive its batch");
     }
 
     @Test

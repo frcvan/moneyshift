@@ -30,6 +30,8 @@ use crate::nt::{native, protocol};
 
 /// How long to wait for the rest of a batch before decoding an entity.
 const DEBOUNCE: Duration = Duration::from_millis(2);
+/// Upper bound on the debounce window, so a continuously busy subscription still flushes.
+const MAX_DEBOUNCE: Duration = Duration::from_millis(10);
 /// Keep this much plain-topic history in memory during a long session.
 const NATIVE_HISTORY: Duration = Duration::from_secs(600);
 /// Upper bound on value topics buffered before their entity's metadata arrives.
@@ -213,6 +215,10 @@ async fn subscription_loop(
 /// One entity published through the `/Rerun/` protocol.
 struct EntityState {
     meta: protocol::EntityMeta,
+    /// Reflection data for `meta`, rebuilt only when the metadata changes.
+    plan: Option<protocol::EntityPlan>,
+    /// The metadata changed since `plan` was built.
+    plan_dirty: bool,
     columns: HashMap<String, protocol::NtValue>,
 }
 
@@ -230,6 +236,8 @@ struct PendingUpdate {
 struct FlushQueue {
     pending: HashSet<EntityPath>,
     deadline: Option<Instant>,
+    /// When the current batch started, used to cap how long the debounce can stretch.
+    oldest: Option<Instant>,
 }
 
 impl FlushQueue {
@@ -237,17 +245,24 @@ impl FlushQueue {
         Self {
             pending: HashSet::new(),
             deadline: None,
+            oldest: None,
         }
     }
 
     fn touch(&mut self, entity: EntityPath, now: Instant) {
         self.pending.insert(entity);
-        self.deadline = Some(now + DEBOUNCE);
+        self.deadline = Some(self.next_deadline(now));
     }
 
     /// Schedules a flush without a `/Rerun` entity (plain topics only).
     fn schedule(&mut self, now: Instant) {
-        self.deadline = Some(now + DEBOUNCE);
+        self.deadline = Some(self.next_deadline(now));
+    }
+
+    /// The debounce deadline, capped so constant updates cannot postpone it forever.
+    fn next_deadline(&mut self, now: Instant) -> Instant {
+        let oldest = *self.oldest.get_or_insert(now);
+        (now + DEBOUNCE).min(oldest + MAX_DEBOUNCE)
     }
 
     fn deadline(&self) -> Option<Instant> {
@@ -257,6 +272,7 @@ impl FlushQueue {
     fn take_due(&mut self, now: Instant) -> Vec<EntityPath> {
         if self.deadline.is_some_and(|deadline| now >= deadline) {
             self.deadline = None;
+            self.oldest = None;
             self.pending.drain().collect()
         } else {
             Vec::new()
@@ -265,6 +281,7 @@ impl FlushQueue {
 
     fn take_all(&mut self) -> Vec<EntityPath> {
         self.deadline = None;
+        self.oldest = None;
         self.pending.drain().collect()
     }
 }
@@ -327,7 +344,7 @@ impl LiveState {
         if let Some(rest) = name.strip_prefix("/Rerun/") {
             if let Some((entity_topic, suffix)) = rest.split_once("/.rerun/") {
                 self.metadata(&format!("/Rerun/{entity_topic}"), suffix, value);
-            } else if let Some((entity, suffix)) = self.claim(name) {
+            } else if let Some((entity, offset)) = self.claim(name) {
                 let Some(column) = column_from_topic(topic.r#type(), value) else {
                     self.warn_once(
                         format!("{name}:value"),
@@ -335,8 +352,16 @@ impl LiveState {
                     );
                     return;
                 };
+                let suffix = &name[offset..];
                 if let Some(state) = self.entities.get_mut(&entity) {
-                    state.columns.insert(suffix, column);
+                    // Steady-state updates hit a key that already exists, so the suffix string is
+                    // only allocated the first time a column appears.
+                    match state.columns.get_mut(suffix) {
+                        Some(existing) => *existing = column,
+                        None => {
+                            state.columns.insert(suffix.to_owned(), column);
+                        }
+                    }
                     self.queue.touch(entity, now);
                 }
             } else {
@@ -379,8 +404,11 @@ impl LiveState {
             .entry(entity.clone())
             .or_insert_with(|| EntityState {
                 meta: protocol::EntityMeta::default(),
+                plan: None,
+                plan_dirty: true,
                 columns: HashMap::new(),
             });
+        state.plan_dirty = true;
 
         match suffix {
             "archetype" => {
@@ -422,12 +450,15 @@ impl LiveState {
     }
 
     /// Finds the registered entity a `/Rerun` value topic belongs to.
-    fn claim(&self, topic: &str) -> Option<(EntityPath, String)> {
+    ///
+    /// Returns the entity and the offset where its column path starts, so the caller can slice
+    /// the suffix straight out of the topic name instead of allocating a copy per update.
+    fn claim(&self, topic: &str) -> Option<(EntityPath, usize)> {
         let mut cursor = topic;
         while let Some(index) = cursor.rfind('/') {
             cursor = &cursor[..index];
             if let Some(entity) = self.entities_by_topic.get(cursor) {
-                return Some((entity.clone(), topic[cursor.len() + 1..].to_owned()));
+                return Some((entity.clone(), cursor.len() + 1));
             }
         }
         None
@@ -449,6 +480,35 @@ impl LiveState {
             TimeCell::from_duration_nanos(NonMinI64::new(robot_ns).unwrap_or_default());
 
         for entity in entities {
+            // Build the reflection plan once per metadata change instead of once per flush.
+            let plan_error = {
+                let Some(state) = self.entities.get_mut(&entity) else {
+                    continue;
+                };
+                if state.plan.is_some() && !state.plan_dirty {
+                    None
+                } else {
+                    state.plan_dirty = false;
+                    match protocol::plan_entity(&state.meta) {
+                        Ok(plan) => {
+                            state.plan = Some(plan);
+                            None
+                        }
+                        Err(error) => {
+                            state.plan = None;
+                            Some(error)
+                        }
+                    }
+                }
+            };
+            if let Some(error) = plan_error {
+                self.warn_once(
+                    format!("{entity}:plan"),
+                    format!("failed to resolve {entity}: {error}"),
+                );
+                continue;
+            }
+
             let Some(state) = self.entities.get(&entity) else {
                 continue;
             };
@@ -456,9 +516,21 @@ impl LiveState {
                 continue;
             }
             let static_ = state.meta.static_;
-            let decoded = protocol::decode_entity(&state.meta, &state.columns);
-            match decoded {
-                Ok(batches) if !batches.is_empty() => {
+            let Some(plan) = state.plan.as_ref() else {
+                continue;
+            };
+
+            match protocol::decode_planned(plan, &state.columns) {
+                Ok((batches, warnings)) => {
+                    for warning in warnings {
+                        self.warn_once(
+                            format!("{entity}:wire:{warning}"),
+                            format!("{entity}: {warning}"),
+                        );
+                    }
+                    if batches.is_empty() {
+                        continue;
+                    }
                     let target = match &self.args.entity_path_prefix {
                         Some(prefix) => EntityPath::from(prefix.as_str()).join(&entity),
                         None => entity.clone(),
@@ -472,7 +544,6 @@ impl LiveState {
                         );
                     }
                 }
-                Ok(_) => {}
                 Err(error) => {
                     self.warn_once(
                         format!("{entity}:decode"),
@@ -564,7 +635,7 @@ fn robot_time_from_value(value: &rmpv::Value) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEBOUNCE, FlushQueue, robot_time_from_value};
+    use super::{DEBOUNCE, FlushQueue, MAX_DEBOUNCE, robot_time_from_value};
     use re_log_types::EntityPath;
     use std::time::{Duration, Instant};
 
@@ -612,6 +683,27 @@ mod tests {
         assert!(queue.deadline().is_none());
         // Even with no entity pending, the caller still drains native updates because the
         // deadline fired; `take_due` returning an empty list is the signal for that.
+    }
+
+    #[test]
+    fn continuous_updates_still_flush_within_the_maximum_wait() {
+        let mut queue = FlushQueue::new();
+        let start = Instant::now();
+        // A touch every millisecond would keep pushing a plain debounce deadline past 10 ms.
+        for step in 0..10 {
+            queue.touch(EntityPath::from("a"), start + Duration::from_millis(step));
+        }
+        assert!((0..10).any(|ms| MAX_DEBOUNCE >= Duration::from_millis(ms)));
+        assert!(
+            queue.take_due(start + Duration::from_millis(9)).is_empty(),
+            "the capped deadline has not been reached yet"
+        );
+        assert_eq!(
+            queue.take_due(start + MAX_DEBOUNCE).len(),
+            1,
+            "the cap forces a flush instead of starving"
+        );
+        assert!(queue.deadline().is_none());
     }
 
     #[test]

@@ -68,15 +68,22 @@ public enum MarkerShape implements org.teamvan.moneyshift.NtComponent<MarkerShap
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<MarkerShape> values) {
         int n = values.size();
         long[] column = new long[n];
-        boolean[] present = new boolean[n];
+        boolean[] present = null;
         boolean anyNull = false;
         for (int i = 0; i < n; i++) {
             MarkerShape value = values.get(i);
-            present[i] = value != null;
-            anyNull |= value == null;
+            if (value != null) {
+                if (present != null) present[i] = true;
+            } else {
+                if (present == null) {
+                    present = new boolean[n];
+                    java.util.Arrays.fill(present, 0, i, true);
+                }
+                anyNull = true;
+            }
             column[i] = value == null ? 0L : value.value();
         }
-        w.present(path, present, anyNull);
+        w.present(path, present, anyNull, n);
         w.longs(path, column);
     }
 

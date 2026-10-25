@@ -31,14 +31,21 @@ public record ClassDescriptionMapElem(
     /** Writes this type's NetworkTables columns; one entry per value. */
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ClassDescriptionMapElem> values) {
         int n = values.size();
-        boolean[] present0 = new boolean[n];
+        boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
             boolean ok0 = (values.get(i)) != null;
-            present0[i] = ok0;
-            anyNull0 |= !ok0;
+            if (ok0) {
+                if (present0 != null) present0[i] = true;
+            } else {
+                if (present0 == null) {
+                    present0 = new boolean[n];
+                    java.util.Arrays.fill(present0, 0, i, true);
+                }
+                anyNull0 = true;
+            }
         }
-        w.present(path, present0, anyNull0);
+        w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
         for (int i = 0; i < n; i++) {
             var v1_0 = values.get(i) == null ? null : values.get(i).classId();
@@ -56,17 +63,24 @@ public record ClassDescriptionMapElem(
             column2[i] = value2 == null ? 0L : value2;
         }
         w.longs(path + "/class_description/info/id", column2);
-        boolean[] present3 = new boolean[n];
+        boolean[] present3 = null;
         boolean anyNull3 = false;
         for (int i = 0; i < n; i++) {
             var v3_0 = values.get(i) == null ? null : values.get(i).classDescription();
             var v3_1 = v3_0 == null ? null : v3_0.info();
             var v3_2 = v3_1 == null ? null : v3_1.label();
             boolean ok3 = (v3_2) != null;
-            present3[i] = ok3;
-            anyNull3 |= !ok3;
+            if (ok3) {
+                if (present3 != null) present3[i] = true;
+            } else {
+                if (present3 == null) {
+                    present3 = new boolean[n];
+                    java.util.Arrays.fill(present3, 0, i, true);
+                }
+                anyNull3 = true;
+            }
         }
-        w.present(path + "/class_description/info/label", present3, anyNull3);
+        w.present(path + "/class_description/info/label", present3, anyNull3, n);
         java.lang.String[] column4 = new java.lang.String[n];
         for (int i = 0; i < n; i++) {
             var v4_0 = values.get(i) == null ? null : values.get(i).classDescription();
@@ -77,17 +91,24 @@ public record ClassDescriptionMapElem(
             column4[i] = value4 == null ? "" : value4;
         }
         w.strings(path + "/class_description/info/label", column4);
-        boolean[] present5 = new boolean[n];
+        boolean[] present5 = null;
         boolean anyNull5 = false;
         for (int i = 0; i < n; i++) {
             var v5_0 = values.get(i) == null ? null : values.get(i).classDescription();
             var v5_1 = v5_0 == null ? null : v5_0.info();
             var v5_2 = v5_1 == null ? null : v5_1.color();
             boolean ok5 = (v5_2) != null;
-            present5[i] = ok5;
-            anyNull5 |= !ok5;
+            if (ok5) {
+                if (present5 != null) present5[i] = true;
+            } else {
+                if (present5 == null) {
+                    present5 = new boolean[n];
+                    java.util.Arrays.fill(present5, 0, i, true);
+                }
+                anyNull5 = true;
+            }
         }
-        w.present(path + "/class_description/info/color", present5, anyNull5);
+        w.present(path + "/class_description/info/color", present5, anyNull5, n);
         long[] column6 = new long[n];
         for (int i = 0; i < n; i++) {
             var v6_0 = values.get(i) == null ? null : values.get(i).classDescription();
@@ -123,15 +144,22 @@ public record ClassDescriptionMapElem(
             column8[j7] = value8;
         }
         w.longs(path + "/class_description/keypoint_annotations/.items/id", column8);
-        boolean[] present9 = new boolean[itemCount7];
+        boolean[] present9 = null;
         boolean anyNull9 = false;
         for (int j7 = 0; j7 < itemCount7; j7++) {
             var v9_0 = items7.get(j7).label();
             boolean ok9 = (v9_0) != null;
-            present9[j7] = ok9;
-            anyNull9 |= !ok9;
+            if (ok9) {
+                if (present9 != null) present9[j7] = true;
+            } else {
+                if (present9 == null) {
+                    present9 = new boolean[itemCount7];
+                    java.util.Arrays.fill(present9, 0, j7, true);
+                }
+                anyNull9 = true;
+            }
         }
-        w.present(path + "/class_description/keypoint_annotations/.items/label", present9, anyNull9);
+        w.present(path + "/class_description/keypoint_annotations/.items/label", present9, anyNull9, itemCount7);
         java.lang.String[] column10 = new java.lang.String[itemCount7];
         for (int j7 = 0; j7 < itemCount7; j7++) {
             var v10_0 = items7.get(j7).label();
@@ -140,15 +168,22 @@ public record ClassDescriptionMapElem(
             column10[j7] = value10 == null ? "" : value10;
         }
         w.strings(path + "/class_description/keypoint_annotations/.items/label", column10);
-        boolean[] present11 = new boolean[itemCount7];
+        boolean[] present11 = null;
         boolean anyNull11 = false;
         for (int j7 = 0; j7 < itemCount7; j7++) {
             var v11_0 = items7.get(j7).color();
             boolean ok11 = (v11_0) != null;
-            present11[j7] = ok11;
-            anyNull11 |= !ok11;
+            if (ok11) {
+                if (present11 != null) present11[j7] = true;
+            } else {
+                if (present11 == null) {
+                    present11 = new boolean[itemCount7];
+                    java.util.Arrays.fill(present11, 0, j7, true);
+                }
+                anyNull11 = true;
+            }
         }
-        w.present(path + "/class_description/keypoint_annotations/.items/color", present11, anyNull11);
+        w.present(path + "/class_description/keypoint_annotations/.items/color", present11, anyNull11, itemCount7);
         long[] column12 = new long[itemCount7];
         for (int j7 = 0; j7 < itemCount7; j7++) {
             var v12_0 = items7.get(j7).color();

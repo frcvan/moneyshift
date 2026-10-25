@@ -27,9 +27,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use arrow::array::{
-    ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array,
-    Int32Array, Int64Array, LargeBinaryArray, LargeListArray, LargeStringArray, ListArray,
-    NullArray, StringArray, StructArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+    Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array,
+    Int32Array, Int64Array, LargeBinaryArray, LargeListArray, LargeStringBuilder, ListArray,
+    NullArray, StringBuilder, StructArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     UnionArray,
 };
 use arrow::buffer::{Buffer, OffsetBuffer, ScalarBuffer};
@@ -38,7 +38,7 @@ use arrow::error::ArrowError;
 use re_log_types::EntityPath;
 use re_sdk_types::reflection::reflection;
 use re_types_core::{
-    ArchetypeName, ComponentDescriptor, ComponentIdentifier, ComponentType,
+    ArchetypeName, ComponentDescriptor, ComponentIdentifier, ComponentType, DeserializationResult,
     SerializedComponentBatch,
 };
 
@@ -111,6 +111,14 @@ pub trait ColumnSource {
     /// Whether this node (or a descendant) has any published column.
     fn has_any(&self, path: &str) -> bool;
 
+    /// The first path segments of every published column, when the source can enumerate them.
+    ///
+    /// Decoding uses this to decide whether a component was published at all without scanning
+    /// (and allocating a prefix for) every column once per component.
+    fn roots(&self) -> Option<std::collections::HashSet<&str>> {
+        None
+    }
+
     fn longs(&self, path: &str) -> Option<&[i64]> {
         match self.value(path)? {
             NtValue::Longs(values) => Some(values),
@@ -156,6 +164,14 @@ impl ColumnSource for HashMap<String, NtValue> {
         let prefix = format!("{path}/");
         self.keys()
             .any(|key| key == path || key.starts_with(&prefix))
+    }
+
+    fn roots(&self) -> Option<std::collections::HashSet<&str>> {
+        Some(
+            self.keys()
+                .filter_map(|key| key.split('/').next())
+                .collect(),
+        )
     }
 }
 
@@ -206,11 +222,39 @@ pub enum DecodeError {
     Arrow(#[from] ArrowError),
 }
 
-/// Decodes every component of `meta` from `columns` into Rerun component batches.
-pub fn decode_entity(
-    meta: &EntityMeta,
-    columns: &dyn ColumnSource,
-) -> Result<Vec<SerializedComponentBatch>, DecodeError> {
+/// One component of an entity, resolved once per metadata change.
+///
+/// Reflection lookups and identifier construction happen in [`plan_entity`] instead of once per
+/// flush, and the decoded column paths are built in a reused buffer so a steady-state decode does
+/// not allocate path strings.
+#[derive(Clone, Debug)]
+pub struct ComponentPlan {
+    field: String,
+    descriptor: ComponentDescriptor,
+    datatype: ArrowDataType,
+    verify: fn(&dyn Array) -> DeserializationResult<()>,
+}
+
+/// Every component of one entity, in archetype field order.
+#[derive(Clone, Debug, Default)]
+pub struct EntityPlan {
+    components: Vec<ComponentPlan>,
+}
+
+impl EntityPlan {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.components.is_empty()
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.components.len()
+    }
+}
+
+/// Resolves `meta` into the reflection data needed to decode it.
+pub fn plan_entity(meta: &EntityMeta) -> Result<EntityPlan, DecodeError> {
     let reflection = reflection();
     let archetype = meta
         .archetype
@@ -218,7 +262,7 @@ pub fn decode_entity(
         .filter(|name| !name.is_empty())
         .and_then(|name| ArchetypeName::try_new(name).ok());
 
-    let mut batches = Vec::with_capacity(meta.components.len());
+    let mut components = Vec::with_capacity(meta.components.len());
     for (field, component_type) in &meta.components {
         let Ok(component_type_id) = ComponentType::try_new(component_type.as_str()) else {
             return Err(DecodeError::UnknownComponent(component_type.clone()));
@@ -226,25 +270,6 @@ pub fn decode_entity(
         let Some(component) = reflection.components.get(&component_type_id) else {
             return Err(DecodeError::UnknownComponent(component_type.clone()));
         };
-        if !columns.has_any(field) {
-            // The archetype did not log this component in this batch.
-            continue;
-        }
-        let count = infer_count(&component.datatype, columns, field)?;
-        if count == 0 {
-            continue;
-        }
-        let array = build_column(&component.datatype, columns, field, count)?;
-
-        if cfg!(debug_assertions)
-            && array.null_count() == 0
-            && let Err(error) = (component.verify_arrow_array)(array.as_ref())
-        {
-            return Err(DecodeError::Columns {
-                path: field.clone(),
-                message: format!("reflection rejected the decoded array: {error}"),
-            });
-        }
 
         let identifier = match archetype {
             Some(archetype_name) => {
@@ -254,25 +279,132 @@ pub fn decode_entity(
                 ComponentIdentifier::try_new(field.as_str()).expect("column roots are non-empty")
             }
         };
-        let descriptor = ComponentDescriptor {
-            archetype,
-            component: identifier,
-            component_type: Some(component_type_id),
-        };
-        batches.push(SerializedComponentBatch::new(array, descriptor));
+
+        components.push(ComponentPlan {
+            field: field.clone(),
+            descriptor: ComponentDescriptor {
+                archetype,
+                component: identifier,
+                component_type: Some(component_type_id),
+            },
+            datatype: component.datatype.clone(),
+            verify: component.verify_arrow_array,
+        });
     }
-    Ok(batches)
+
+    Ok(EntityPlan { components })
+}
+
+/// Decodes an already planned entity.
+///
+/// Returns the batches plus one message per column whose length disagrees with the instance
+/// count. The caller owns de-duplication of those messages; they are empty for healthy data.
+pub fn decode_planned(
+    plan: &EntityPlan,
+    columns: &dyn ColumnSource,
+) -> Result<(Vec<SerializedComponentBatch>, Vec<String>), DecodeError> {
+    let roots = columns.roots();
+    let mut batches = Vec::with_capacity(plan.components.len());
+    let mut warnings = Vec::new();
+    let mut path = String::new();
+
+    for component in &plan.components {
+        if !is_published(&component.field, columns, roots.as_ref()) {
+            // The archetype did not log this component in this batch.
+            continue;
+        }
+
+        path.clear();
+        path.push_str(&component.field);
+
+        let count = infer_count(&component.datatype, columns, &mut path)?;
+        if count == 0 {
+            continue;
+        }
+        let array = build_column(
+            &component.datatype,
+            columns,
+            &mut path,
+            count,
+            &mut warnings,
+        )?;
+
+        if cfg!(debug_assertions)
+            && array.null_count() == 0
+            && let Err(error) = (component.verify)(array.as_ref())
+        {
+            return Err(DecodeError::Columns {
+                path: component.field.clone(),
+                message: format!("reflection rejected the decoded array: {error}"),
+            });
+        }
+
+        batches.push(SerializedComponentBatch::new(
+            array,
+            component.descriptor.clone(),
+        ));
+    }
+
+    Ok((batches, warnings))
+}
+
+/// Decodes every component of `meta` from `columns` into Rerun component batches.
+pub fn decode_entity(
+    meta: &EntityMeta,
+    columns: &dyn ColumnSource,
+) -> Result<Vec<SerializedComponentBatch>, DecodeError> {
+    let plan = plan_entity(meta)?;
+    Ok(decode_planned(&plan, columns)?.0)
+}
+
+fn is_published(
+    field: &str,
+    columns: &dyn ColumnSource,
+    roots: Option<&std::collections::HashSet<&str>>,
+) -> bool {
+    match roots {
+        // Component roots are single segments in practice; the prefix scan is the fallback for
+        // unusual roots and for column sources that cannot enumerate their paths.
+        Some(roots) if !field.contains('/') => roots.contains(field),
+        _ => columns.has_any(field),
+    }
+}
+
+/// Appends one column-path segment and returns the buffer length to restore afterwards.
+fn push_segment(path: &mut String, segment: &str) -> usize {
+    let mark = path.len();
+    path.push('/');
+    path.push_str(segment);
+    mark
+}
+
+fn push_index(path: &mut String, index: usize) -> usize {
+    let mark = path.len();
+    path.push('/');
+    // Formatting into the existing buffer avoids one `String` per child per decode.
+    let _ = std::fmt::Write::write_fmt(path, format_args!("{index}"));
+    mark
+}
+
+fn check_len(actual: Option<usize>, count: usize, path: &str, warnings: &mut Vec<String>) {
+    if let Some(actual) = actual
+        && actual != count
+    {
+        warnings.push(format!("{path} has {actual} values, expected {count}"));
+    }
 }
 
 /// How many instances this node holds.
 fn infer_count(
     datatype: &ArrowDataType,
     columns: &dyn ColumnSource,
-    path: &str,
+    path: &mut String,
 ) -> Result<usize, DecodeError> {
-    let present = format!("{path}/.present");
-    if let Some(mask) = columns.booleans(&present) {
-        return Ok(mask.len());
+    let mark = push_segment(path, ".present");
+    let present = columns.booleans(path).map(<[bool]>::len);
+    path.truncate(mark);
+    if let Some(count) = present {
+        return Ok(count);
     }
 
     Ok(match datatype {
@@ -292,26 +424,45 @@ fn infer_count(
         ArrowDataType::Utf8 | ArrowDataType::LargeUtf8 => {
             columns.strings(path).map_or(0, <[String]>::len)
         }
-        ArrowDataType::Binary | ArrowDataType::LargeBinary => columns
-            .longs(&format!("{path}/.lengths"))
-            .map_or(0, <[i64]>::len),
-        ArrowDataType::FixedSizeList(field, _) => {
-            infer_count(field.data_type(), columns, &format!("{path}/0"))?
+        ArrowDataType::Binary | ArrowDataType::LargeBinary => {
+            let mark = push_segment(path, ".lengths");
+            let count = columns.longs(path).map_or(0, <[i64]>::len);
+            path.truncate(mark);
+            count
         }
-        ArrowDataType::Struct(fields) => match fields.first() {
-            Some(field) => infer_count(
-                field.data_type(),
-                columns,
-                &format!("{path}/{}", field.name()),
-            )?,
-            None => 0,
-        },
-        ArrowDataType::List(_) | ArrowDataType::LargeList(_) => columns
-            .longs(&format!("{path}/.count"))
-            .map_or(0, <[i64]>::len),
-        ArrowDataType::Union(_, _) => columns
-            .longs(&format!("{path}/.variant"))
-            .map_or(0, <[i64]>::len),
+        ArrowDataType::FixedSizeList(field, _) => {
+            let mark = push_index(path, 0);
+            let count = infer_count(field.data_type(), columns, path)?;
+            path.truncate(mark);
+            count
+        }
+        ArrowDataType::Struct(fields) => {
+            // Any published child gives the instance count. A leading null-typed or unpublished
+            // field must not hide the whole component.
+            let mut count = 0;
+            for field in fields {
+                let mark = push_segment(path, field.name());
+                let candidate = infer_count(field.data_type(), columns, path)?;
+                path.truncate(mark);
+                if candidate > 0 {
+                    count = candidate;
+                    break;
+                }
+            }
+            count
+        }
+        ArrowDataType::List(_) | ArrowDataType::LargeList(_) => {
+            let mark = push_segment(path, ".count");
+            let count = columns.longs(path).map_or(0, <[i64]>::len);
+            path.truncate(mark);
+            count
+        }
+        ArrowDataType::Union(_, _) => {
+            let mark = push_segment(path, ".variant");
+            let count = columns.longs(path).map_or(0, <[i64]>::len);
+            path.truncate(mark);
+            count
+        }
         other => return Err(DecodeError::UnsupportedDatatype(other.clone())),
     })
 }
@@ -319,14 +470,30 @@ fn infer_count(
 /// The null mask published for this node, if any.
 fn validity(
     columns: &dyn ColumnSource,
-    path: &str,
+    path: &mut String,
     count: usize,
+    warnings: &mut Vec<String>,
 ) -> Option<arrow::buffer::NullBuffer> {
-    let mask = columns.booleans(&format!("{path}/.present"))?;
-    if mask.len() != count || mask.iter().all(|valid| *valid) {
+    let mark = push_segment(path, ".present");
+    let mask = columns.booleans(path);
+    path.truncate(mark);
+
+    let mask = mask?;
+    if mask.len() != count {
+        warnings.push(format!(
+            "{}/.present has {} entries, expected {count}",
+            path.as_str(),
+            mask.len()
+        ));
+    }
+    if mask.iter().all(|valid| *valid) {
         return None;
     }
-    Some(arrow::buffer::NullBuffer::from(mask.to_vec()))
+
+    let mut bits = mask.to_vec();
+    // A short mask must not make the null lookups below panic.
+    bits.resize(count, true);
+    Some(arrow::buffer::NullBuffer::from(bits))
 }
 
 fn value_at<T: Copy>(values: &[T], index: usize, default: T) -> T {
@@ -337,17 +504,24 @@ fn value_at<T: Copy>(values: &[T], index: usize, default: T) -> T {
 fn build_column(
     datatype: &ArrowDataType,
     columns: &dyn ColumnSource,
-    path: &str,
+    path: &mut String,
     count: usize,
+    warnings: &mut Vec<String>,
 ) -> Result<ArrayRef, DecodeError> {
     if count == 0 {
         return Ok(arrow::array::new_empty_array(datatype));
     }
-    let nulls = validity(columns, path, count);
+    let nulls = validity(columns, path, count, warnings);
 
     let array: ArrayRef = match datatype {
         ArrowDataType::Null => Arc::new(NullArray::new(count)),
         ArrowDataType::Boolean => {
+            check_len(
+                columns.booleans(path).map(<[bool]>::len),
+                count,
+                path.as_str(),
+                warnings,
+            );
             let values = columns.booleans(path).unwrap_or(&[]);
             Arc::new(
                 (0..count)
@@ -364,15 +538,27 @@ fn build_column(
         | ArrowDataType::Int16
         | ArrowDataType::Int32
         | ArrowDataType::Int64 => {
+            check_len(
+                columns.longs(path).map(<[i64]>::len),
+                count,
+                path.as_str(),
+                warnings,
+            );
             let values = columns.longs(path).unwrap_or(&[]);
-            let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
             macro_rules! build_int {
                 ($array:ty, $ty:ty) => {
-                    Arc::new(
-                        (0..count)
-                            .map(|i| valid(i).then(|| value_at(values, i, 0) as $ty))
-                            .collect::<$array>(),
-                    ) as ArrayRef
+                    match &nulls {
+                        // Fast path: without nulls there is no null buffer and no per-value
+                        // `Option`, which matters for large columns (point clouds, images).
+                        None => Arc::new(<$array>::from_iter_values(
+                            (0..count).map(|i| value_at(values, i, 0) as $ty),
+                        )) as ArrayRef,
+                        Some(nulls) => Arc::new(
+                            (0..count)
+                                .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0) as $ty))
+                                .collect::<$array>(),
+                        ) as ArrayRef,
+                    }
                 };
             }
             match datatype {
@@ -383,15 +569,25 @@ fn build_column(
             }
         }
         ArrowDataType::UInt8 | ArrowDataType::UInt16 | ArrowDataType::UInt32 => {
+            check_len(
+                columns.longs(path).map(<[i64]>::len),
+                count,
+                path.as_str(),
+                warnings,
+            );
             let values = columns.longs(path).unwrap_or(&[]);
-            let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
             macro_rules! build_uint {
                 ($array:ty, $ty:ty) => {
-                    Arc::new(
-                        (0..count)
-                            .map(|i| valid(i).then(|| value_at(values, i, 0) as $ty))
-                            .collect::<$array>(),
-                    ) as ArrayRef
+                    match &nulls {
+                        None => Arc::new(<$array>::from_iter_values(
+                            (0..count).map(|i| value_at(values, i, 0) as $ty),
+                        )) as ArrayRef,
+                        Some(nulls) => Arc::new(
+                            (0..count)
+                                .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0) as $ty))
+                                .collect::<$array>(),
+                        ) as ArrayRef,
+                    }
                 };
             }
             match datatype {
@@ -404,7 +600,12 @@ fn build_column(
             let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
             // Values above `i64::MAX` get a decimal sidecar under `P/.u64`; the native `long[]`
             // column always holds the raw bits, so the two can never disagree about the shape.
-            if let Some(values) = columns.strings(&format!("{path}/.u64")) {
+            let mark = push_segment(path, ".u64");
+            let sidecar = columns.strings(path);
+            path.truncate(mark);
+
+            if let Some(values) = sidecar {
+                check_len(Some(values.len()), count, path.as_str(), warnings);
                 let mut parsed = Vec::with_capacity(count);
                 for i in 0..count {
                     if !valid(i) {
@@ -420,55 +621,110 @@ fn build_column(
                 }
                 Arc::new(UInt64Array::from(parsed))
             } else {
+                check_len(
+                    columns.longs(path).map(<[i64]>::len),
+                    count,
+                    path.as_str(),
+                    warnings,
+                );
                 let values = columns.longs(path).unwrap_or(&[]);
-                Arc::new(
-                    (0..count)
-                        .map(|i| valid(i).then(|| value_at(values, i, 0) as u64))
-                        .collect::<UInt64Array>(),
-                )
+                match &nulls {
+                    None => Arc::new(UInt64Array::from_iter_values(
+                        (0..count).map(|i| value_at(values, i, 0) as u64),
+                    )),
+                    Some(nulls) => Arc::new(
+                        (0..count)
+                            .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0) as u64))
+                            .collect::<UInt64Array>(),
+                    ),
+                }
             }
         }
         ArrowDataType::Float16 => {
+            check_len(
+                columns.doubles(path).map(<[f64]>::len),
+                count,
+                path.as_str(),
+                warnings,
+            );
             let values = columns.doubles(path).unwrap_or(&[]);
-            let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
-            let singles = (0..count)
-                .map(|i| valid(i).then(|| value_at(values, i, 0.0) as f32))
-                .collect::<Float32Array>();
+            let singles: Float32Array = match &nulls {
+                None => Float32Array::from_iter_values(
+                    (0..count).map(|i| value_at(values, i, 0.0) as f32),
+                ),
+                Some(nulls) => (0..count)
+                    .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0.0) as f32))
+                    .collect(),
+            };
             arrow::compute::cast(&singles, datatype)?
         }
         ArrowDataType::Float32 | ArrowDataType::Float64 => {
+            check_len(
+                columns.doubles(path).map(<[f64]>::len),
+                count,
+                path.as_str(),
+                warnings,
+            );
             let values = columns.doubles(path).unwrap_or(&[]);
-            let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
-            if *datatype == ArrowDataType::Float32 {
-                Arc::new(
+            match (&nulls, *datatype == ArrowDataType::Float32) {
+                (None, true) => Arc::new(Float32Array::from_iter_values(
+                    (0..count).map(|i| value_at(values, i, 0.0) as f32),
+                )),
+                (None, false) => Arc::new(Float64Array::from_iter_values(
+                    (0..count).map(|i| value_at(values, i, 0.0)),
+                )),
+                (Some(nulls), true) => Arc::new(
                     (0..count)
-                        .map(|i| valid(i).then(|| value_at(values, i, 0.0) as f32))
+                        .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0.0) as f32))
                         .collect::<Float32Array>(),
-                )
-            } else {
-                Arc::new(
+                ),
+                (Some(nulls), false) => Arc::new(
                     (0..count)
-                        .map(|i| valid(i).then(|| value_at(values, i, 0.0)))
+                        .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0.0)))
                         .collect::<Float64Array>(),
-                )
+                ),
             }
         }
         ArrowDataType::Utf8 | ArrowDataType::LargeUtf8 => {
+            check_len(
+                columns.strings(path).map(<[String]>::len),
+                count,
+                path.as_str(),
+                warnings,
+            );
             let values = columns.strings(path).unwrap_or(&[]);
-            let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
-            let items = (0..count)
-                .map(|i| valid(i).then(|| values.get(i).map_or("", String::as_str).to_owned()))
-                .collect::<Vec<_>>();
+            // Appending the borrowed strings copies them once into the Arrow buffer instead of
+            // allocating an owned copy of every value first.
+            let bytes = values.iter().take(count).map(String::len).sum::<usize>();
             if *datatype == ArrowDataType::Utf8 {
-                Arc::new(items.into_iter().collect::<StringArray>())
+                let mut builder = StringBuilder::with_capacity(count, bytes);
+                for index in 0..count {
+                    if nulls.as_ref().is_some_and(|nulls| !nulls.is_valid(index)) {
+                        builder.append_null();
+                    } else {
+                        builder.append_value(values.get(index).map_or("", String::as_str));
+                    }
+                }
+                Arc::new(builder.finish())
             } else {
-                Arc::new(items.into_iter().collect::<LargeStringArray>())
+                let mut builder = LargeStringBuilder::with_capacity(count, bytes);
+                for index in 0..count {
+                    if nulls.as_ref().is_some_and(|nulls| !nulls.is_valid(index)) {
+                        builder.append_null();
+                    } else {
+                        builder.append_value(values.get(index).map_or("", String::as_str));
+                    }
+                }
+                Arc::new(builder.finish())
             }
         }
         ArrowDataType::Binary | ArrowDataType::LargeBinary => {
+            let mark = push_segment(path, ".lengths");
+            let lengths = columns.longs(path);
+            path.truncate(mark);
+            check_len(lengths.map(<[i64]>::len), count, path.as_str(), warnings);
+            let lengths = lengths.unwrap_or(&[]);
             let bytes = columns.raw(path).unwrap_or(&[]);
-            let lengths = columns.longs(&format!("{path}/.lengths")).unwrap_or(&[]);
-            let valid = |i: usize| nulls.as_ref().is_none_or(|nulls| nulls.is_valid(i));
 
             let mut offsets = Vec::with_capacity(count + 1);
             let mut offset = 0usize;
@@ -487,7 +743,6 @@ fn build_column(
                 });
             }
             let buffer = Buffer::from(bytes);
-            let _ = &valid;
             if *datatype == ArrowDataType::Binary {
                 Arc::new(BinaryArray::try_new(
                     OffsetBuffer::new(ScalarBuffer::from(offsets)),
@@ -510,18 +765,29 @@ fn build_column(
             })?;
             let mut children = Vec::with_capacity(size);
             for index in 0..size {
-                children.push(build_column(
-                    field.data_type(),
-                    columns,
-                    &format!("{path}/{index}"),
-                    count,
-                )?);
+                let mark = push_index(path, index);
+                let child = build_column(field.data_type(), columns, path, count, warnings);
+                path.truncate(mark);
+                children.push(child?);
             }
+            // Rerun stores fixed-size lists contiguously per element (`x0, y0, z0, x1, …`),
+            // while the wire format publishes one column per component (`x0, x1, …`).
+            // Concatenating the columns is therefore only correct for single-component
+            // lists; the rest have to be interleaved. Interleaving straight from the per-column
+            // arrays avoids materializing the concatenated copy first.
             let values = if size == 0 {
                 arrow::array::new_empty_array(field.data_type())
+            } else if size == 1 {
+                children[0].clone()
             } else {
                 let refs = children.iter().map(AsRef::as_ref).collect::<Vec<_>>();
-                arrow::compute::concat(&refs)?
+                let mut indices = Vec::with_capacity(size * count);
+                for instance in 0..count {
+                    for component in 0..size {
+                        indices.push((component, instance));
+                    }
+                }
+                arrow::compute::interleave(&refs, &indices)?
             };
             Arc::new(arrow::array::FixedSizeListArray::try_new(
                 Arc::clone(field),
@@ -533,23 +799,20 @@ fn build_column(
         ArrowDataType::Struct(fields) => {
             let mut children = Vec::with_capacity(fields.len());
             for field in fields {
-                children.push(build_column(
-                    field.data_type(),
-                    columns,
-                    &format!("{path}/{}", field.name()),
-                    count,
-                )?);
+                let mark = push_segment(path, field.name());
+                let child = build_column(field.data_type(), columns, path, count, warnings);
+                path.truncate(mark);
+                children.push(child?);
             }
             Arc::new(StructArray::try_new(fields.clone(), children, nulls)?)
         }
         ArrowDataType::List(field) | ArrowDataType::LargeList(field) => {
-            let counts =
-                columns
-                    .longs(&format!("{path}/.count"))
-                    .ok_or_else(|| DecodeError::Columns {
-                        path: path.to_owned(),
-                        message: "missing /.count".to_owned(),
-                    })?;
+            let mark = push_segment(path, ".count");
+            let counts = columns.longs(path).ok_or_else(|| DecodeError::Columns {
+                path: path.to_owned(),
+                message: "missing /.count".to_owned(),
+            })?;
+            check_len(Some(counts.len()), count, path.as_str(), warnings);
             let mut offsets = Vec::with_capacity(count + 1);
             let mut total = 0i64;
             offsets.push(0);
@@ -557,12 +820,18 @@ fn build_column(
                 total += counts.get(index).copied().unwrap_or(0).max(0);
                 offsets.push(total);
             }
+            path.truncate(mark);
+
+            let mark = push_segment(path, ".items");
             let items = build_column(
                 field.data_type(),
                 columns,
-                &format!("{path}/.items"),
+                path,
                 usize::try_from(total).unwrap_or(0),
+                warnings,
             )?;
+            path.truncate(mark);
+
             let items = if total == 0 {
                 arrow::array::new_empty_array(field.data_type())
             } else {
@@ -580,10 +849,7 @@ fn build_column(
                     nulls,
                 )?)
             } else {
-                let offsets = offsets
-                    .into_iter()
-                    .map(|offset| i64::try_from(offset).unwrap_or(i64::MAX))
-                    .collect::<Vec<_>>();
+                let offsets = offsets.into_iter().collect::<Vec<_>>();
                 Arc::new(LargeListArray::try_new(
                     Arc::clone(field),
                     OffsetBuffer::new(ScalarBuffer::from(offsets)),
@@ -592,7 +858,7 @@ fn build_column(
                 )?)
             }
         }
-        ArrowDataType::Union(fields, _) => build_union(fields, columns, path, count)?,
+        ArrowDataType::Union(fields, _) => build_union(fields, columns, path, count, warnings)?,
         other => return Err(DecodeError::UnsupportedDatatype(other.clone())),
     };
 
@@ -602,16 +868,17 @@ fn build_column(
 fn build_union(
     fields: &UnionFields,
     columns: &dyn ColumnSource,
-    path: &str,
+    path: &mut String,
     count: usize,
+    warnings: &mut Vec<String>,
 ) -> Result<ArrayRef, DecodeError> {
-    let variants =
-        columns
-            .longs(&format!("{path}/.variant"))
-            .ok_or_else(|| DecodeError::Columns {
-                path: path.to_owned(),
-                message: "missing /.variant".to_owned(),
-            })?;
+    let mark = push_segment(path, ".variant");
+    let variants = columns.longs(path).ok_or_else(|| DecodeError::Columns {
+        path: path.to_owned(),
+        message: "missing /.variant".to_owned(),
+    })?;
+    check_len(Some(variants.len()), count, path.as_str(), warnings);
+    path.truncate(mark);
 
     // The type-definition fields are the datatype's children in order, with Rerun's
     // `_null_markers` child (always first) representing null instances. Java writes ordinals over
@@ -654,12 +921,10 @@ fn build_union(
         let child = if field.data_type() == &ArrowDataType::Null {
             Arc::new(NullArray::new(child_count)) as ArrayRef
         } else {
-            build_column(
-                field.data_type(),
-                columns,
-                &format!("{path}/{}", field.name()),
-                child_count,
-            )?
+            let mark = push_segment(path, field.name());
+            let child = build_column(field.data_type(), columns, path, child_count, warnings);
+            path.truncate(mark);
+            child?
         };
         children.push(child);
     }
@@ -736,11 +1001,9 @@ fn hex_digit(byte: u8) -> Option<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        EntityMeta, NtValue, build_column, decode_entity, entity_path_from_topic, percent_decode,
-    };
+    use super::{EntityMeta, NtValue, decode_entity, entity_path_from_topic, percent_decode};
     use arrow::array::{Array, AsArray};
-    use arrow::datatypes::{DataType, Field, UnionFields, UnionMode};
+    use arrow::datatypes::{DataType, Field, Float32Type, UnionFields, UnionMode};
     use std::collections::HashMap;
 
     fn columns(entries: &[(&str, NtValue)]) -> HashMap<String, NtValue> {
@@ -748,6 +1011,17 @@ mod tests {
             .iter()
             .map(|(path, value)| ((*path).to_owned(), value.clone()))
             .collect()
+    }
+
+    fn build(
+        datatype: &DataType,
+        columns: &dyn super::ColumnSource,
+        path: &str,
+        count: usize,
+    ) -> Result<arrow::array::ArrayRef, super::DecodeError> {
+        let mut buffer = path.to_owned();
+        let mut warnings = Vec::new();
+        super::build_column(datatype, columns, &mut buffer, count, &mut warnings)
     }
 
     fn meta(components: &[(&str, &str)]) -> EntityMeta {
@@ -778,6 +1052,21 @@ mod tests {
         assert_eq!(array.len(), 2);
         assert!(array.is_valid(0));
         assert!(array.is_null(1));
+
+        // Fixed-size lists are stored contiguously per element, while the wire format publishes
+        // one column per component.
+        let array = array.as_fixed_size_list();
+        let first = array.value(0);
+        assert_eq!(
+            first.as_primitive::<Float32Type>().values(),
+            &[1.0, 3.0, 5.0]
+        );
+        let second = array.value(1);
+        assert_eq!(
+            second.as_primitive::<Float32Type>().values(),
+            &[2.0, 4.0, 6.0]
+        );
+
         let descriptor = &batches[0].descriptor;
         assert_eq!(descriptor.component.as_str(), "Points3D:positions");
         assert_eq!(
@@ -877,7 +1166,7 @@ mod tests {
             ("u/Absolute", NtValue::Longs(vec![30])),
         ]);
 
-        let array = build_column(&datatype, &columns, "u", 3).unwrap();
+        let array = build(&datatype, &columns, "u", 3).unwrap();
         let union = array.as_union();
         assert_eq!(
             (0..3).map(|i| union.type_id(i)).collect::<Vec<_>>(),
@@ -897,7 +1186,7 @@ mod tests {
             ("blob", NtValue::Raw(b"abcdef".to_vec())),
             ("blob/.lengths", NtValue::Longs(vec![2, 4])),
         ]);
-        let array = build_column(&datatype, &cols, "blob", 2).unwrap();
+        let array = build(&datatype, &cols, "blob", 2).unwrap();
         let array = array.as_binary::<i32>();
         assert_eq!(array.value(0), b"ab");
         assert_eq!(array.value(1), b"cdef");
@@ -907,7 +1196,7 @@ mod tests {
             ("blob", NtValue::Raw(b"ab".to_vec())),
             ("blob/.lengths", NtValue::Longs(vec![2, 0])),
         ]);
-        let array = build_column(&datatype, &cols, "blob", 2).unwrap();
+        let array = build(&datatype, &cols, "blob", 2).unwrap();
         assert!(array.as_binary::<i32>().is_null(1));
     }
 
@@ -923,13 +1212,13 @@ mod tests {
                 NtValue::Strings(vec![u64::MAX.to_string(), "7".to_owned()]),
             ),
         ]);
-        let array = build_column(&datatype, &cols, "value", 2).unwrap();
+        let array = build(&datatype, &cols, "value", 2).unwrap();
         let array = array.as_primitive::<arrow::datatypes::UInt64Type>();
         assert_eq!(array.value(0), u64::MAX);
         assert_eq!(array.value(1), 7);
 
         let cols = columns(&[("value", NtValue::Longs(vec![-1, 7]))]);
-        let array = build_column(&datatype, &cols, "value", 2).unwrap();
+        let array = build(&datatype, &cols, "value", 2).unwrap();
         let array = array.as_primitive::<arrow::datatypes::UInt64Type>();
         assert_eq!(array.value(0), u64::MAX);
 

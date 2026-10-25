@@ -71,6 +71,14 @@ definitions.` **Never edit them by hand.** Fix the generator (`xtask/src/codegen
 
 `wpilog bytes → WpiLogFile::parse → EntryLog → conv::log_changes_to_chunks_with_options → Chunk`
 
+Struct schemas live in `StructSchemas` (`src/values/parse/wpistruct.rs`): it keeps the raw
+schemas and a memoized cache of resolved layouts (nested structs are shared through `Arc`), so
+samples only clone an `Arc`. Schema parsing **fails closed** — a schema that cannot be fully
+understood is rejected instead of truncated, because a truncated schema silently changes the byte
+layout of every value. Resolution rejects self-referential schemas. Decoded values are
+`EntryValue::Struct`/`StructArray`, carrying the shared schema plus a `Vec` of field values.
+Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUED_STRUCTS`.
+
 - `EntryLog` stores one Arrow array per `(entity, timestamp)` and tracks a changed set. It also
   retains WPILog type strings and struct schemas, which the heuristics need.
 - `conv/components.rs` recognizes WPILib structs by type name (`Pose2d`, `Translation3d`,
@@ -115,12 +123,24 @@ Useful when changing the console binary:
 - Metadata lives under `<entity>/.rerun/` (`layout`, `archetype`, `components`, `static`).
 - Component columns are native NT arrays (`double[]`, `long[]`, `boolean[]`, `string[]`, `raw`)
   laid out per the datatype table in TASK.md. No JSON envelopes for values.
+- Nullable nodes publish their mask at `<path>/.present` only when a batch contains nulls (or when
+  the mask was published before, so it can be refreshed). The generator emits the mask lazily and
+  `NtRecorder.writePresent` fills it for all-present batches; absent masks decode as all-valid.
+  Skip writing a mask for a nullable-but-always-present node rather than adding a constant
+  all-true column.
+- Fixed-size-list component columns are published per element component (`positions/0`), but
+  Rerun stores fixed-size lists contiguously per instance. The decoder must interleave them; a
+  concat of the columns is only correct for single-component lists.
+- `moneyshift/lib/src/test/resources/rerun_wire_fixture.json` pins the wire layout. It is produced
+  by the Java `WireFixtureTest` and decoded by `tests/wire_fixture.rs`; regenerate it (see
+  `moneyshift/README.md`) when a layout change is intentional.
 - Java publishes through the `NtRecorder` singleton: `NtRecorder.getInstance()` uses
   `NetworkTableInstance.getDefault()`; `NtRecorder.setInstance(inst)` swaps it (null resets to the
   default). The recorder never connects/starts/stops the NT instance, and the topic root is the
   fixed constant `/Rerun`.
 - The Rust decoder uses `re_sdk_types::reflection::reflection()` to get component Arrow datatypes;
-  do not add per-type Rust codegen.
+  do not add per-type Rust codegen. `plan_entity` resolves descriptors and datatypes once per
+  metadata change (`live.rs` caches the plan per entity); `decode_planned` then builds the arrays.
 - Live mode maps `/Rerun/...` with the protocol decoder and everything else through the existing
   `EntryLog` + `conv` heuristics. `robot_time` comes from the NT server timestamp by default;
   `log_time` is the SDK's wall clock.

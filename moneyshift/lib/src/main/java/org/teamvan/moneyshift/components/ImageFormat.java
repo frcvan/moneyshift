@@ -26,15 +26,22 @@ public record ImageFormat(
 
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<ImageFormat> values) {
         int n = values.size();
-        boolean[] present0 = new boolean[n];
+        boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
             var v0_0 = values.get(i) == null ? null : values.get(i).imageFormat();
             boolean ok0 = (v0_0) != null;
-            present0[i] = ok0;
-            anyNull0 |= !ok0;
+            if (ok0) {
+                if (present0 != null) present0[i] = true;
+            } else {
+                if (present0 == null) {
+                    present0 = new boolean[n];
+                    java.util.Arrays.fill(present0, 0, i, true);
+                }
+                anyNull0 = true;
+            }
         }
-        w.present(path, present0, anyNull0);
+        w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
         for (int i = 0; i < n; i++) {
             var v1_0 = values.get(i) == null ? null : values.get(i).imageFormat();
@@ -51,16 +58,23 @@ public record ImageFormat(
             column2[i] = value2 == null ? 0L : value2;
         }
         w.longs(path + "/height", column2);
-        boolean[] present3 = new boolean[n];
+        boolean[] present3 = null;
         boolean anyNull3 = false;
         for (int i = 0; i < n; i++) {
             var v3_0 = values.get(i) == null ? null : values.get(i).imageFormat();
             var v3_1 = v3_0 == null ? null : v3_0.pixelFormat();
             boolean ok3 = (v3_1) != null;
-            present3[i] = ok3;
-            anyNull3 |= !ok3;
+            if (ok3) {
+                if (present3 != null) present3[i] = true;
+            } else {
+                if (present3 == null) {
+                    present3 = new boolean[n];
+                    java.util.Arrays.fill(present3, 0, i, true);
+                }
+                anyNull3 = true;
+            }
         }
-        w.present(path + "/pixel_format", present3, anyNull3);
+        w.present(path + "/pixel_format", present3, anyNull3, n);
         long[] column4 = new long[n];
         for (int i = 0; i < n; i++) {
             var v4_0 = values.get(i) == null ? null : values.get(i).imageFormat();
@@ -69,16 +83,23 @@ public record ImageFormat(
             column4[i] = value4 == null ? 0L : value4.value();
         }
         w.longs(path + "/pixel_format", column4);
-        boolean[] present5 = new boolean[n];
+        boolean[] present5 = null;
         boolean anyNull5 = false;
         for (int i = 0; i < n; i++) {
             var v5_0 = values.get(i) == null ? null : values.get(i).imageFormat();
             var v5_1 = v5_0 == null ? null : v5_0.colorModel();
             boolean ok5 = (v5_1) != null;
-            present5[i] = ok5;
-            anyNull5 |= !ok5;
+            if (ok5) {
+                if (present5 != null) present5[i] = true;
+            } else {
+                if (present5 == null) {
+                    present5 = new boolean[n];
+                    java.util.Arrays.fill(present5, 0, i, true);
+                }
+                anyNull5 = true;
+            }
         }
-        w.present(path + "/color_model", present5, anyNull5);
+        w.present(path + "/color_model", present5, anyNull5, n);
         long[] column6 = new long[n];
         for (int i = 0; i < n; i++) {
             var v6_0 = values.get(i) == null ? null : values.get(i).imageFormat();
@@ -87,16 +108,23 @@ public record ImageFormat(
             column6[i] = value6 == null ? 0L : value6.value();
         }
         w.longs(path + "/color_model", column6);
-        boolean[] present7 = new boolean[n];
+        boolean[] present7 = null;
         boolean anyNull7 = false;
         for (int i = 0; i < n; i++) {
             var v7_0 = values.get(i) == null ? null : values.get(i).imageFormat();
             var v7_1 = v7_0 == null ? null : v7_0.channelDatatype();
             boolean ok7 = (v7_1) != null;
-            present7[i] = ok7;
-            anyNull7 |= !ok7;
+            if (ok7) {
+                if (present7 != null) present7[i] = true;
+            } else {
+                if (present7 == null) {
+                    present7 = new boolean[n];
+                    java.util.Arrays.fill(present7, 0, i, true);
+                }
+                anyNull7 = true;
+            }
         }
-        w.present(path + "/channel_datatype", present7, anyNull7);
+        w.present(path + "/channel_datatype", present7, anyNull7, n);
         long[] column8 = new long[n];
         for (int i = 0; i < n; i++) {
             var v8_0 = values.get(i) == null ? null : values.get(i).imageFormat();

@@ -550,19 +550,35 @@ impl<'a> JavaGenerator<'a> {
         .unwrap();
         writeln!(code, "        int n = values.size();").unwrap();
         writeln!(code, "        long[] column = new long[n];").unwrap();
-        writeln!(code, "        boolean[] present = new boolean[n];").unwrap();
+        // The null mask is allocated lazily so a batch without nulls never pays for it.
+        writeln!(code, "        boolean[] present = null;").unwrap();
         writeln!(code, "        boolean anyNull = false;").unwrap();
         writeln!(code, "        for (int i = 0; i < n; i++) {{").unwrap();
         writeln!(code, "            {name} value = values.get(i);").unwrap();
-        writeln!(code, "            present[i] = value != null;").unwrap();
-        writeln!(code, "            anyNull |= value == null;").unwrap();
+        writeln!(code, "            if (value != null) {{").unwrap();
+        writeln!(
+            code,
+            "                if (present != null) present[i] = true;"
+        )
+        .unwrap();
+        writeln!(code, "            }} else {{").unwrap();
+        writeln!(code, "                if (present == null) {{").unwrap();
+        writeln!(code, "                    present = new boolean[n];").unwrap();
+        writeln!(
+            code,
+            "                    java.util.Arrays.fill(present, 0, i, true);"
+        )
+        .unwrap();
+        writeln!(code, "                }}").unwrap();
+        writeln!(code, "                anyNull = true;").unwrap();
+        writeln!(code, "            }}").unwrap();
         writeln!(
             code,
             "            column[i] = value == null ? 0L : value.value();"
         )
         .unwrap();
         writeln!(code, "        }}").unwrap();
-        writeln!(code, "        w.present(path, present, anyNull);").unwrap();
+        writeln!(code, "        w.present(path, present, anyNull, n);").unwrap();
         writeln!(code, "        w.longs(path, column);").unwrap();
         writeln!(code, "    }}").unwrap();
         Ok(())
@@ -1384,12 +1400,9 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         let indent = "        ".to_owned();
         if node_nullable {
             let id = self.id();
-            writeln!(
-                self.code,
-                "{indent}boolean[] present{id} = new boolean[{}];",
-                ctx.count
-            )
-            .unwrap();
+            // The mask is allocated lazily: most batches have no nulls at all, and a mask costs
+            // one byte per instance to allocate and fill.
+            writeln!(self.code, "{indent}boolean[] present{id} = null;").unwrap();
             writeln!(self.code, "{indent}boolean anyNull{id} = false;").unwrap();
             writeln!(
                 self.code,
@@ -1401,18 +1414,36 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
             let inner = format!("{indent}    ");
             let value = self.chain_expr(chain, id, &inner);
             writeln!(self.code, "{inner}boolean ok{id} = ({value}) != null;").unwrap();
+            writeln!(self.code, "{inner}if (ok{id}) {{").unwrap();
             writeln!(
                 self.code,
-                "{inner}present{id}[{i}] = ok{id};",
+                "{inner}    if (present{id} != null) present{id}[{i}] = true;",
                 i = ctx.index
             )
             .unwrap();
-            writeln!(self.code, "{inner}anyNull{id} |= !ok{id};").unwrap();
+            writeln!(self.code, "{inner}}} else {{").unwrap();
+            writeln!(self.code, "{inner}    if (present{id} == null) {{").unwrap();
+            writeln!(
+                self.code,
+                "{inner}        present{id} = new boolean[{n}];",
+                n = ctx.count
+            )
+            .unwrap();
+            writeln!(
+                self.code,
+                "{inner}        java.util.Arrays.fill(present{id}, 0, {i}, true);",
+                i = ctx.index
+            )
+            .unwrap();
+            writeln!(self.code, "{inner}    }}").unwrap();
+            writeln!(self.code, "{inner}    anyNull{id} = true;").unwrap();
+            writeln!(self.code, "{inner}}}").unwrap();
             writeln!(self.code, "{indent}}}").unwrap();
             writeln!(
                 self.code,
-                "{indent}w.present({}, present{id}, anyNull{id});",
-                ctx.path()
+                "{indent}w.present({}, present{id}, anyNull{id}, {n});",
+                ctx.path(),
+                n = ctx.count
             )
             .unwrap();
         }

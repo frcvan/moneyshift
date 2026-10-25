@@ -103,6 +103,9 @@ tasks.test {
     // Puts the extracted WPILib JNI libraries on java.library.path / LD_LIBRARY_PATH and makes
     // the test task depend on the extraction.
     wpiExt.java.configureTestTasks(this)
+    // `-Dfirstrun.writeFixture=true` regenerates the cross-language wire fixture consumed by the
+    // Rust test in `tests/wire_fixture.rs`.
+    systemProperty("firstrun.writeFixture", System.getProperty("firstrun.writeFixture", "false"))
 }
 
 publishing {

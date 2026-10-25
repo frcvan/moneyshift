@@ -37,7 +37,8 @@ public final class NtPath {
      * Normalizes a relative entity path into an absolute, escaped path below {@link #ROOT}.
      *
      * <p>Empty segments are dropped, matching Rerun's forgiving path parsing: {@code
-     * "world//robot/"} becomes {@code "/world/robot"}.
+     * "world//robot/"} becomes {@code "/world/robot"}. The result is never empty: the root entity
+     * is rejected, because its topic prefix would also cover every other entity.
      */
     public static String encodeEntityPath(String path) {
         Objects.requireNonNull(path, "path");
@@ -54,10 +55,18 @@ public final class NtPath {
             }
             start = end + 1;
         }
+        if (encoded.length() == 0) {
+            throw new IllegalArgumentException(
+                    "entity paths need at least one non-empty segment, got \"" + path + "\"");
+        }
         return encoded.toString();
     }
 
-    /** The absolute topic prefix of an entity, e.g. {@code /Rerun/world/robot}. */
+    /**
+     * The absolute topic prefix of an entity, e.g. {@code /Rerun/world/robot}.
+     *
+     * <p>{@code path} must be unescaped; passing an already escaped path escapes it twice.
+     */
     public static String topicPrefix(String path) {
         return ROOT + encodeEntityPath(path);
     }

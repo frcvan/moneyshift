@@ -12,9 +12,16 @@ use re_log;
 use re_log_types::{EntityPath, NonMinI64, TimeInt};
 
 use crate::values::{
-    EntryValue, EntryValueParseError,
-    parse::wpistruct::{UnresolvedWpiLibStructType, WpiLibStructSchema},
+    EntryValue, EntryValueParseError, StructValue,
+    parse::wpistruct::{StructSchemas, UnresolvedWpiLibStructType, WpiLibStructSchema},
 };
+
+/// Upper bound on struct values buffered while waiting for their schema.
+///
+/// Values of an unknown struct type are queued until the schema arrives, which never happens for
+/// a type whose producer never publishes one (a live session that connects after the topics were
+/// created, for example). Cap the queue so such a session cannot grow without bound.
+const MAX_QUEUED_STRUCTS: usize = 4096;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 /// The timestamp of an entry in the log.
@@ -32,6 +39,56 @@ impl TryInto<TimeInt> for Timestamp {
     }
 }
 
+/// A queued value whose struct type had no schema yet.
+struct QueuedStruct {
+    key: EntityPath,
+    timestamp: Timestamp,
+    ty: String,
+    data: Vec<u8>,
+}
+
+/// Cache of the child paths of one parent entity.
+///
+/// Struct fields and array elements repeat for every sample, so the joined [`EntityPath`] is
+/// computed once per `(parent, segment)` pair instead of once per sample.
+#[derive(Default)]
+struct PathCache {
+    fields: HashMap<EntityPath, HashMap<Box<str>, EntityPath>>,
+    indices: HashMap<EntityPath, HashMap<usize, EntityPath>>,
+}
+
+impl PathCache {
+    fn field(&mut self, parent: &EntityPath, name: &str) -> EntityPath {
+        if let Some(children) = self.fields.get(parent)
+            && let Some(path) = children.get(name)
+        {
+            return path.clone();
+        }
+
+        let path = parent.join(&EntityPath::from_file_path(Path::new(name)));
+        self.fields
+            .entry(parent.clone())
+            .or_default()
+            .insert(name.into(), path.clone());
+        path
+    }
+
+    fn index(&mut self, parent: &EntityPath, index: usize) -> EntityPath {
+        if let Some(children) = self.indices.get(parent)
+            && let Some(path) = children.get(&index)
+        {
+            return path.clone();
+        }
+
+        let path = parent.join(&EntityPath::from_single_string(index.to_string()));
+        self.indices
+            .entry(parent.clone())
+            .or_default()
+            .insert(index, path.clone());
+        path
+    }
+}
+
 pub struct EntryLog {
     entries: IntMap<EntityPath, BTreeMap<Timestamp, ArrayRef>>,
     /// The WPILog type string for entries that were logged through [`EntryLog::add_entry`].
@@ -40,8 +97,10 @@ pub struct EntryLog {
     /// WPILib's native structs (e.g. `struct:Pose2d[]`).
     types: IntMap<EntityPath, String>,
     changed: BTreeSet<(Timestamp, EntityPath)>,
-    struct_map: HashMap<String, WpiLibStructSchema<UnresolvedWpiLibStructType>>,
-    pub queued_structs: HashMap<String, Vec<(EntityPath, Timestamp, String, Vec<u8>)>>,
+    schemas: StructSchemas,
+    queued_structs: HashMap<String, Vec<QueuedStruct>>,
+    queued_count: usize,
+    paths: PathCache,
 }
 
 impl Default for EntryLog {
@@ -53,17 +112,14 @@ impl Default for EntryLog {
 impl EntryLog {
     #[must_use]
     pub fn new() -> Self {
-        let struct_map = WpiLibStructSchema::builtin_wpilib_schemas()
-            .into_iter()
-            .map(|(name, schema)| (name.to_owned(), schema))
-            .collect();
-
         Self {
             entries: IntMap::default(),
             types: IntMap::default(),
             changed: BTreeSet::new(),
-            struct_map,
+            schemas: StructSchemas::new(),
             queued_structs: HashMap::new(),
+            queued_count: 0,
+            paths: PathCache::default(),
         }
     }
 
@@ -78,25 +134,22 @@ impl EntryLog {
         &self,
         name: &str,
     ) -> Option<&WpiLibStructSchema<UnresolvedWpiLibStructType>> {
-        self.struct_map.get(name)
+        self.schemas.raw(name)
     }
 
+    /// Registers a struct schema, invalidating any cached resolved layout for it.
     pub fn add_struct(
         &mut self,
         name: impl Into<String>,
-        s: WpiLibStructSchema<UnresolvedWpiLibStructType>,
+        schema: WpiLibStructSchema<UnresolvedWpiLibStructType>,
     ) {
-        let name = name.into();
-        let bare = name.strip_prefix("struct:").unwrap_or(&name).to_owned();
-        let prefixed = if name.starts_with("struct:") {
-            name.clone()
-        } else {
-            format!("struct:{name}")
-        };
+        self.schemas.insert(name, schema);
+    }
 
-        self.struct_map.insert(name, s.clone());
-        self.struct_map.insert(bare, s.clone());
-        self.struct_map.insert(prefixed, s);
+    /// The number of values currently waiting for their struct schema.
+    #[must_use]
+    pub fn queued_struct_len(&self) -> usize {
+        self.queued_count
     }
 
     pub fn add_entry(
@@ -106,26 +159,59 @@ impl EntryLog {
         ty: &str,
         value: &[u8],
     ) -> Result<(), anyhow::Error> {
-        self.types.insert(key.clone(), ty.to_owned());
+        // Writing the type on every sample would allocate a string per value for data that
+        // almost never changes.
+        if self.types.get(&key).map(String::as_str) != Some(ty) {
+            self.types.insert(key.clone(), ty.to_owned());
+        }
 
-        match EntryValue::parse_from_wpilog(ty, value, &self.struct_map) {
+        match EntryValue::parse_from_wpilog(ty, value, &mut self.schemas) {
             Ok(v) => self.add_entryvalue(key, timestamp, v),
-            Err(EntryValueParseError::StructNotFound(s)) => {
-                re_log::info!("struct not found: {s} for key {key} at {}", timestamp.0);
-                // Queue under the bare name so it matches a later `.schema/struct:Name`
-                // entry regardless of whether the producer used the `struct:` prefix.
-                let queued_name = s.strip_prefix("struct:").unwrap_or(&s).to_owned();
-                self.queued_structs.entry(queued_name).or_default().push((
-                    key,
-                    timestamp,
-                    ty.into(),
-                    value.to_vec(),
-                ));
-
+            Err(EntryValueParseError::StructNotFound(name)) => {
+                self.queue_struct(key, timestamp, ty, value, &name);
                 Ok(())
             }
             Err(EntryValueParseError::Other(e)) => Err(e),
         }
+    }
+
+    fn queue_struct(
+        &mut self,
+        key: EntityPath,
+        timestamp: Timestamp,
+        ty: &str,
+        value: &[u8],
+        missing: &str,
+    ) {
+        if self.queued_count >= MAX_QUEUED_STRUCTS {
+            re_log::warn_once!(
+                "dropping values of unknown struct type {missing}: {} values are already queued",
+                self.queued_count
+            );
+            return;
+        }
+
+        re_log::info_once!(
+            "struct not found: {missing} for key {key} at {}",
+            timestamp.0
+        );
+
+        // Queue under the bare name so it matches a later `.schema/struct:Name` entry
+        // regardless of whether the producer used the `struct:` prefix.
+        let queued_name = missing
+            .strip_prefix("struct:")
+            .unwrap_or(missing)
+            .to_owned();
+        self.queued_structs
+            .entry(queued_name)
+            .or_default()
+            .push(QueuedStruct {
+                key,
+                timestamp,
+                ty: ty.to_owned(),
+                data: value.to_vec(),
+            });
+        self.queued_count += 1;
     }
 
     pub fn add_entryvalue(
@@ -151,26 +237,28 @@ impl EntryLog {
                 let prefixed = format!("struct:{name}");
                 for candidate in [name.to_owned(), bare, prefixed] {
                     if let Some(queued) = self.queued_structs.remove(&candidate) {
-                        for (key, timestamp, ty, data) in queued {
-                            re_log::info!("unqueued struct {name} for {key} at {}", timestamp.0);
-                            self.add_entry(key, timestamp, &ty, &data)?;
+                        self.queued_count = self.queued_count.saturating_sub(queued.len());
+                        for queued in queued {
+                            re_log::debug!(
+                                "unqueued struct {name} for {} at {}",
+                                queued.key,
+                                queued.timestamp.0
+                            );
+                            self.add_entry(queued.key, queued.timestamp, &queued.ty, &queued.data)?;
                         }
                     }
                 }
             }
-            // treat maps transparently as a set of entries
-            EntryValue::Map(map) => {
-                for (k, v) in map {
-                    self.add_entryvalue(
-                        key.join(&EntityPath::from_file_path(Path::new(&k))),
-                        timestamp,
-                        v,
-                    )?;
+            // A struct expands into one entry per field under the struct's path.
+            EntryValue::Struct(StructValue { schema, fields }) => {
+                for (name, field) in schema.fields.keys().map(String::as_str).zip(fields) {
+                    let child = self.paths.field(&key, name);
+                    self.add_entryvalue(child, timestamp, field)?;
                 }
             }
 
-            EntryValue::ArrayMap(m) => {
-                self.handle_array(&key, timestamp, m.into_iter().map(EntryValue::Map))?;
+            EntryValue::StructArray(values) => {
+                self.handle_array(&key, timestamp, values.into_iter().map(EntryValue::Struct))?;
             }
             EntryValue::ArrayArrow(a) => {
                 // Keep primitive arrays as a single entry. Rerun components such as
@@ -195,18 +283,16 @@ impl EntryLog {
         arr: impl ExactSizeIterator<Item = EntryValue>,
     ) -> Result<(), anyhow::Error> {
         let count = arr.len();
+        let length = self.paths.field(path, "length");
         self.add_entryvalue(
-            path.join(&EntityPath::from_single_string("length")),
+            length,
             timestamp,
             EntryValue::Arrow(Arc::new(Int64Array::from_iter_values([count as i64]))),
         )?;
 
         for (i, value) in arr.enumerate() {
-            self.add_entryvalue(
-                path.join(&EntityPath::from_single_string(i.to_string())),
-                timestamp,
-                value,
-            )?;
+            let element = self.paths.index(path, i);
+            self.add_entryvalue(element, timestamp, value)?;
         }
 
         Ok(())
@@ -277,7 +363,7 @@ impl EntryLog {
 mod tests {
     use super::{EntryLog, Timestamp};
     use crate::values::parse::wpistruct::WpiLibStructSchema;
-    use arrow::array::{Float64Array, Int64Array, StringArray};
+    use arrow::array::{Array, Float64Array, Int64Array, StringArray};
     use re_log_types::EntityPath;
 
     #[test]
@@ -481,6 +567,80 @@ mod tests {
         assert!(
             log.get_entry(&key.join(&EntityPath::from_single_string("length")))
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn expands_nested_struct_arrays_under_their_field() {
+        let mut log = EntryLog::new();
+        log.add_struct(
+            "struct:Holder",
+            WpiLibStructSchema::parse(b"struct:Translation2d pts[2]; double z;").unwrap(),
+        );
+        let mut payload = Vec::new();
+        for value in [1.0f64, 2.0, 3.0, 4.0, 9.0] {
+            payload.extend_from_slice(&value.to_le_bytes());
+        }
+        let key = EntityPath::from_single_string("holder");
+        log.add_entry(key.clone(), Timestamp(10), "struct:Holder", &payload)
+            .unwrap();
+
+        let value_at = |parts: &[&str]| {
+            let (_, value) = log.get_latest_at(&key, parts, Timestamp(10)).unwrap();
+            value
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0)
+        };
+        assert_eq!(value_at(&["pts", "0", "x"]), 1.0);
+        assert_eq!(value_at(&["pts", "1", "y"]), 4.0);
+        assert_eq!(value_at(&["z"]), 9.0);
+        let length = log
+            .get_latest_at(&key, &["pts", "length"], Timestamp(10))
+            .unwrap()
+            .1;
+        assert_eq!(
+            length
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(0),
+            2
+        );
+    }
+
+    #[test]
+    fn replays_values_queued_before_their_schema() {
+        let mut log = EntryLog::new();
+        let key = EntityPath::from_single_string("custom");
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&3.5f64.to_le_bytes());
+
+        log.add_entry(key.clone(), Timestamp(1), "struct:Custom", &payload)
+            .unwrap();
+        assert_eq!(log.queued_struct_len(), 1);
+        assert!(log.get_latest_entry(&key).is_none());
+
+        log.add_entry(
+            EntityPath::from(".schema/struct:Custom"),
+            Timestamp(2),
+            "structschema",
+            b"double value;",
+        )
+        .unwrap();
+
+        assert_eq!(log.queued_struct_len(), 0);
+        let (_, value) = log
+            .get_latest_at(&key, &["value"], Timestamp(1))
+            .expect("the queued value was replayed");
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
+            3.5
         );
     }
 }

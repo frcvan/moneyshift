@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "entities": [
+    {
+      "entity": "/Rerun/world/points",
+      "archetype": "rerun.archetypes.Points3D",
+      "components": "positions=rerun.components.Position3D,radii=rerun.components.Radius,colors=rerun.components.Color,labels=rerun.components.Text,class_ids=rerun.components.ClassId,keypoint_ids=rerun.components.KeypointId",
+      "static": false,
+      "columns": {
+        "class_ids": {"type": "int[]", "value": [1, 2]},
+        "colors": {"type": "int[]", "value": [4294901760, 4278255360]},
+        "keypoint_ids": {"type": "int[]", "value": [7, 8]},
+        "labels": {"type": "string[]", "value": ["alpha", "beta"]},
+        "positions/0": {"type": "double[]", "value": [1, -4]},
+        "positions/1": {"type": "double[]", "value": [2, 5.5]},
+        "positions/2": {"type": "double[]", "value": [3, 6]},
+        "radii": {"type": "double[]", "value": [0.25, 0.5]}
+      }
+    },
+    {
+      "entity": "/Rerun/world/annotations",
+      "archetype": "rerun.archetypes.AnnotationContext",
+      "components": "context=rerun.components.AnnotationContext",
+      "static": false,
+      "columns": {
+        "context/.count": {"type": "int[]", "value": [2]},
+        "context/.items/class_description/info/color": {"type": "int[]", "value": [4279312947, 0]},
+        "context/.items/class_description/info/color/.present": {"type": "boolean[]", "value": [true, false]},
+        "context/.items/class_description/info/id": {"type": "int[]", "value": [1, 2]},
+        "context/.items/class_description/info/label": {"type": "string[]", "value": ["person", ""]},
+        "context/.items/class_description/info/label/.present": {"type": "boolean[]", "value": [true, false]},
+        "context/.items/class_description/keypoint_annotations/.count": {"type": "int[]", "value": [0, 1]},
+        "context/.items/class_description/keypoint_annotations/.items/color": {"type": "int[]", "value": [0]},
+        "context/.items/class_description/keypoint_annotations/.items/color/.present": {"type": "boolean[]", "value": [false]},
+        "context/.items/class_description/keypoint_annotations/.items/id": {"type": "int[]", "value": [3]},
+        "context/.items/class_description/keypoint_annotations/.items/label": {"type": "string[]", "value": [""]},
+        "context/.items/class_description/keypoint_annotations/.items/label/.present": {"type": "boolean[]", "value": [false]},
+        "context/.items/class_description/keypoint_connections/.count": {"type": "int[]", "value": [0, 0]},
+        "context/.items/class_description/keypoint_connections/.items/keypoint0": {"type": "int[]", "value": []},
+        "context/.items/class_description/keypoint_connections/.items/keypoint1": {"type": "int[]", "value": []},
+        "context/.items/class_id": {"type": "int[]", "value": [1, 2]}
+      }
+    },
+    {
+      "entity": "/Rerun/world/tensor",
+      "archetype": "rerun.archetypes.Tensor",
+      "components": "data=rerun.components.TensorData",
+      "static": false,
+      "columns": {
+        "data/buffer/.variant": {"type": "int[]", "value": [3]},
+        "data/buffer/U64/.count": {"type": "int[]", "value": [4]},
+        "data/buffer/U64/.items": {"type": "int[]", "value": [-9223372036854775808, 0, 7, 13]},
+        "data/buffer/U64/.items/.u64": {"type": "string[]", "value": ["9223372036854775808", "0", "7", "13"]},
+        "data/names/.count": {"type": "int[]", "value": [2]},
+        "data/names/.items": {"type": "string[]", "value": ["height", "width"]},
+        "data/shape/.count": {"type": "int[]", "value": [2]},
+        "data/shape/.items": {"type": "int[]", "value": [2, 2]}
+      }
+    }
+  ]
+}

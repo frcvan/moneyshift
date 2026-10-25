@@ -777,7 +777,7 @@ mod tests {
         let value = EntryValue::parse_from_wpilog(
             "int64[]",
             &[1, 0, 0, 0, 0, 0, 0, 0],
-            &hashbrown::HashMap::new(),
+            &mut crate::values::parse::wpistruct::StructSchemas::new(),
         )
         .unwrap();
         let EntryValue::Arrow(value) = value else {
@@ -793,8 +793,12 @@ mod tests {
         payload.extend_from_slice(&1u32.to_le_bytes());
         payload.extend_from_slice(&4u32.to_le_bytes());
         payload.extend_from_slice(b"test");
-        let value = EntryValue::parse_from_wpilog("string[]", &payload, &hashbrown::HashMap::new())
-            .unwrap();
+        let value = EntryValue::parse_from_wpilog(
+            "string[]",
+            &payload,
+            &mut crate::values::parse::wpistruct::StructSchemas::new(),
+        )
+        .unwrap();
         let EntryValue::Arrow(value) = value else {
             panic!("expected arrow");
         };

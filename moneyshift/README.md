@@ -48,7 +48,10 @@ rerun-importer-firstrun --nt --team 254 --spawn
   `--robot-time-topic`) and `re_sdk` adds wall-clock `log_time`.
 
 Entity segments are percent-encoded UTF-8, so spaces, dots, `=` and unicode are safe, and a user
-segment can never produce a reserved `.rerun` segment.
+segment can never produce a reserved `.rerun` segment. The root entity is not addressable: every
+entity path needs at least one non-empty segment, because a root prefix would also cover every
+other entity's topics. `log("", ...)`, `log("/", ...)` and `NtPath.encodeEntityPath("")` throw
+`IllegalArgumentException`.
 
 ## What is on the wire
 
@@ -114,8 +117,16 @@ pass. Unsupported datatypes fail at codegen time rather than dropping data at ru
 ./gradlew :example:run     # see example/README.md
 ```
 
-Tests publish to in-process NT instances and assert exact topic paths and values; there is no wire
-format to round-trip anymore.
+Most tests publish to in-process NT instances and assert exact topic paths and values.
+`WireFixtureTest` additionally dumps every topic of a fixed set of archetypes to
+[`lib/src/test/resources/rerun_wire_fixture.json`](lib/src/test/resources/rerun_wire_fixture.json).
+The Rust test `tests/wire_fixture.rs` decodes that same file with Rerun's reflection datatypes, so
+the Java writer and the Rust bridge cannot drift apart silently. After an intentional layout
+change, regenerate the fixture and commit it with the codegen output:
+
+```sh
+./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true
+```
 
 ## Publishing
 

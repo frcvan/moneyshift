@@ -1,45 +1,52 @@
 package org.teamvan.moneyshift;
 
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Writes the NetworkTables columns of one entity for one log call.
  *
  * <p>Generated {@code writeColumns} methods mirror the component's Arrow layout (§4.2 of the
  * protocol): every leaf is a native NetworkTables array with one entry per component instance.
- * The writer owns no state of its own; change detection for metadata and nullable columns lives in
- * {@link NtRecorder}.
+ * The writer owns no data of its own; change detection for metadata and nullable columns lives in
+ * {@link NtRecorder}, and every column's {@code NetworkTableEntry} is cached per entity so a
+ * steady-state publish does not build or hash topic strings.
  */
 public final class NtEntityWriter {
     private final NtRecorder recorder;
-    private final String entity;
-    private final String prefix;
+    private final NtRecorder.EntityState state;
 
+    /**
+     * Creates a standalone writer for {@code entity}, a relative path such as
+     * {@code "world/points"}.
+     *
+     * <p>Prefer letting {@link NtRecorder} hand out writers: a writer created here only shares the
+     * per-entity caches if the recorder created its state first.
+     */
     NtEntityWriter(NtRecorder recorder, String entity) {
-        this.recorder = Objects.requireNonNull(recorder, "recorder");
-        String normalized = Objects.requireNonNull(entity, "entity");
-        // `entity` is already escaped by `NtRecorder`; only the root and leading slash are added.
-        this.entity = normalized.isEmpty() || normalized.startsWith("/") ? normalized : '/' + normalized;
-        this.prefix = NtPath.ROOT + this.entity;
+        this(recorder, recorder.state(NtPath.encodeEntityPath(entity)));
+    }
+
+    NtEntityWriter(NtRecorder recorder, NtRecorder.EntityState state) {
+        this.recorder = recorder;
+        this.state = state;
     }
 
     /** The escaped entity path without the {@code /Rerun} root, e.g. {@code /world/robot}. */
     public String entity() {
-        return entity;
+        return state.entity;
     }
 
     /** The absolute topic prefix of the entity, e.g. {@code /Rerun/world/robot}. */
     public String prefix() {
-        return prefix;
+        return state.prefix;
     }
 
     public void doubles(String path, double[] values) {
-        recorder.setDoubleArray(topic(path), values);
+        recorder.columnEntry(state, path).setDoubleArray(values);
     }
 
     public void longs(String path, long[] values) {
-        recorder.setIntegerArray(topic(path), values);
+        recorder.columnEntry(state, path).setIntegerArray(values);
     }
 
     /**
@@ -50,42 +57,45 @@ public final class NtEntityWriter {
      * {@code string[]} sidecar is written under {@code path/.u64} and kept up to date from then on.
      */
     public void u64(String path, long[] values, boolean hasUnsigned) {
-        recorder.writeU64(entity, path, values, hasUnsigned);
+        recorder.writeU64(state, path, values, hasUnsigned);
     }
 
     public void booleans(String path, boolean[] values) {
-        recorder.setBooleanArray(topic(path), values);
+        recorder.columnEntry(state, path).setBooleanArray(values);
     }
 
     public void strings(String path, String[] values) {
-        recorder.setStringArray(topic(path), values);
+        recorder.columnEntry(state, path).setStringArray(values);
     }
 
     public void raw(String path, byte[] value) {
-        recorder.setRaw(topic(path), value);
+        recorder.columnEntry(state, path).setRaw(value);
     }
 
     /**
      * Publishes a null mask for a nullable column node.
      *
+     * @param values the mask, or {@code null} when every instance is present; generated code only
+     *     allocates it once it sees a null
      * @param anyNull whether any instance is null; when {@code false} the mask is only written if
      *     it was ever written before, so a stale mask can never outlive its length.
+     * @param count the number of instances in this batch
      */
-    public void present(String path, boolean[] values, boolean anyNull) {
-        recorder.writePresent(entity, path, values, anyNull);
+    public void present(String path, boolean[] values, boolean anyNull, int count) {
+        recorder.writePresent(state, path, values, anyNull, count);
     }
 
     /** Writes {@code <entity>/.rerun/<suffix>} if the value changed. */
     public void metaString(String suffix, String value) {
-        recorder.metaString(entity, suffix, value);
+        recorder.metaString(state, suffix, value);
     }
 
     public void metaLong(String suffix, long value) {
-        recorder.metaLong(entity, suffix, value);
+        recorder.metaLong(state, suffix, value);
     }
 
     public void metaBoolean(String suffix, boolean value) {
-        recorder.metaBoolean(entity, suffix, value);
+        recorder.metaBoolean(state, suffix, value);
     }
 
     /** Writes a list of already-encoded component columns under {@code path}. */
@@ -95,6 +105,6 @@ public final class NtEntityWriter {
 
     /** The absolute topic name of a generated column path. */
     public String topic(String path) {
-        return path.isEmpty() ? prefix : prefix + '/' + path;
+        return path.isEmpty() ? state.prefix : state.prefix + '/' + path;
     }
 }

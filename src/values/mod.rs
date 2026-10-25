@@ -6,17 +6,50 @@ use arrow::{
         ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array,
         Int32Array, Int64Array, StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
-    compute::concat,
     datatypes::DataType,
 };
-use hashbrown::HashMap;
 use parse::wpistruct::{
-    UnresolvedWpiLibStructType, WpiLibStructData, WpiLibStructPrimitives, WpiLibStructSchema,
+    ResolveError, StructSchemas, UnresolvedWpiLibStructType, WpiLibStructData, WpiLibStructSchema,
     WpiLibStructType,
 };
-use re_log;
 
 pub mod parse;
+
+/// One decoded struct instance: the shared layout plus one value per field, in schema order.
+///
+/// The schema is shared through [`Arc`], so this is cheap to build for every sample and keeps
+/// field names borrowed from the (memoized) layout instead of cloning them per value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StructValue {
+    pub schema: Arc<WpiLibStructSchema<WpiLibStructType>>,
+    pub fields: Vec<EntryValue>,
+}
+
+impl StructValue {
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&EntryValue> {
+        let index = self.schema.fields.get_index_of(name)?;
+        self.fields.get(index)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &EntryValue)> {
+        self.schema
+            .fields
+            .keys()
+            .map(String::as_str)
+            .zip(self.fields.iter())
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EntryValue {
@@ -24,8 +57,8 @@ pub enum EntryValue {
     ArrayArrow(Vec<ArrayRef>),
     StructSchema(WpiLibStructSchema<UnresolvedWpiLibStructType>),
 
-    Map(HashMap<String, EntryValue>),
-    ArrayMap(Vec<HashMap<String, EntryValue>>),
+    Struct(StructValue),
+    StructArray(Vec<StructValue>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -61,7 +94,7 @@ impl std::fmt::Display for EntryValueParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::StructNotFound(s) => write!(f, "Struct not found: {s}"),
-            Self::Other(err) => write!(f, "{}", err),
+            Self::Other(err) => write!(f, "{err}"),
         }
     }
 }
@@ -76,113 +109,162 @@ impl EntryValue {
     pub fn parse_from_wpilog(
         mut ty: &str,
         data: &[u8],
-        struct_map: &HashMap<String, WpiLibStructSchema<UnresolvedWpiLibStructType>>,
+        schemas: &mut StructSchemas,
     ) -> Result<EntryValue, EntryValueParseError> {
         let is_array = ty.strip_suffix("[]").map(|st| ty = st).is_some();
 
         Ok(match ty {
-            "raw" | "byte" | "bytes" => Self::parse_datatype(data, is_array, DataType::Binary)?,
-            "boolean" | "bool" => Self::parse_datatype(data, is_array, DataType::Boolean)?,
-            "int64" | "int" | "long" | "int32" | "int16" | "int8" | "uint64" | "uint32"
-            | "uint16" | "uint8" => Self::parse_datatype(data, is_array, DataType::Int64)?,
-            "float" | "float32" => Self::parse_datatype(data, is_array, DataType::Float32)?,
-            "double" | "float64" => Self::parse_datatype(data, is_array, DataType::Float64)?,
-            "string" | "json" => Self::parse_datatype(data, is_array, DataType::Utf8)?,
-            "structschema" => {
-                let s = WpiLibStructSchema::parse(data)?;
-
-                re_log::info!(?s);
-
-                Self::StructSchema(s)
-            }
-            s => {
-                let bare = s.strip_prefix("struct:").unwrap_or(s);
-                let prefixed = format!("struct:{s}");
-                let schema = struct_map
-                    .get(s)
-                    .or_else(|| struct_map.get(bare))
-                    .or_else(|| struct_map.get(&prefixed));
-
-                if let Some(schema) = schema {
-                    let resolved = schema
-                        .resolve(struct_map)
-                        .map_err(|s| EntryValueParseError::StructNotFound(s))?;
-                    Self::parse_from_struct(data, resolved, is_array)?
-                } else {
-                    return Err(
-                        anyhow!("unknown data type {ty} (data length: {})", data.len()).into(),
-                    );
+            "raw" | "byte" | "bytes" => Self::parse_datatype(data, is_array, &DataType::Binary)?,
+            "boolean" | "bool" => Self::parse_datatype(data, is_array, &DataType::Boolean)?,
+            // WPILog's own integers are all 64 bits wide; the narrower spellings are decoded at
+            // their native width so producers that use them are not rejected.
+            "int64" | "int" | "long" => Self::parse_datatype(data, is_array, &DataType::Int64)?,
+            "int32" => Self::parse_datatype(data, is_array, &DataType::Int32)?,
+            "int16" => Self::parse_datatype(data, is_array, &DataType::Int16)?,
+            "int8" => Self::parse_datatype(data, is_array, &DataType::Int8)?,
+            "uint64" => Self::parse_datatype(data, is_array, &DataType::UInt64)?,
+            "uint32" => Self::parse_datatype(data, is_array, &DataType::UInt32)?,
+            "uint16" => Self::parse_datatype(data, is_array, &DataType::UInt16)?,
+            "uint8" => Self::parse_datatype(data, is_array, &DataType::UInt8)?,
+            "float" | "float32" => Self::parse_datatype(data, is_array, &DataType::Float32)?,
+            "double" | "float64" => Self::parse_datatype(data, is_array, &DataType::Float64)?,
+            "string" | "json" => Self::parse_datatype(data, is_array, &DataType::Utf8)?,
+            "structschema" => Self::StructSchema(WpiLibStructSchema::parse(data)?),
+            name => match schemas.resolve(name) {
+                Ok(schema) => Self::parse_from_struct(data, &schema, is_array)?,
+                Err(ResolveError::NotFound(name)) => {
+                    return Err(EntryValueParseError::StructNotFound(name));
                 }
-            }
+                Err(err) => return Err(anyhow!("{err}").into()),
+            },
         })
     }
 
     fn parse_datatype(
         data: &[u8],
         is_array: bool,
-        ty: DataType,
+        ty: &DataType,
     ) -> Result<EntryValue, EntryValueParseError> {
-        if is_array {
-            if data.is_empty() {
-                return Ok(EntryValue::Arrow(arrow::array::new_empty_array(&ty)));
-            }
-
-            match ty {
-                // WPILog's `string[]` and `raw[]` are encoded as a u32 count followed
-                // by length-prefixed values rather than fixed-width elements.
-                DataType::Utf8 | DataType::Binary => {
-                    let (count, mut rest) = Self::read_u32_prefix(data)?;
-                    let mut values = Vec::with_capacity(count as usize);
-                    for _ in 0..count {
-                        let (len, tail) = Self::read_u32_prefix(rest)?;
-                        let Some((value, tail)) = tail.split_at_checked(len as usize) else {
-                            return Err(anyhow!("truncated length-prefixed array element").into());
-                        };
-                        values.push(value);
-                        rest = tail;
-                    }
-                    if !rest.is_empty() {
-                        return Err(
-                            anyhow!("array payload has {} trailing bytes", rest.len()).into()
-                        );
-                    }
-                    if ty == DataType::Utf8 {
-                        Ok(EntryValue::Arrow(Arc::new(StringArray::from_iter_values(
-                            values
-                                .into_iter()
-                                .map(|value| String::from_utf8_lossy(value)),
-                        ))))
-                    } else {
-                        Ok(EntryValue::Arrow(Arc::new(BinaryArray::from_iter_values(
-                            values,
-                        ))))
-                    }
-                }
-                ty => {
-                    let size = Self::datatype_size(ty.clone())
-                        .ok_or_else(|| anyhow!("datatype {ty} cannot be used as an array"))?;
-                    let chunks = data.chunks_exact(size);
-                    if !chunks.remainder().is_empty() {
-                        return Err(anyhow!(
-                            "array payload has {} trailing bytes for {ty}",
-                            chunks.remainder().len()
-                        )
-                        .into());
-                    }
-                    let arrays = data
-                        .chunks_exact(size)
-                        .map(|d| Self::parse_datatype_single(d, ty.clone()))
-                        .collect::<Result<_, _>>()?;
-                    let arrays: Vec<ArrayRef> = arrays;
-                    let arrays = arrays.iter().map(|array| &**array).collect::<Vec<_>>();
-                    Ok(EntryValue::Arrow(
-                        concat(&arrays).map_err(anyhow::Error::from)?,
-                    ))
-                }
-            }
+        let array = if is_array {
+            Self::parse_array(data, ty)?
         } else {
-            let array = Self::parse_datatype_single(data, ty)?;
-            Ok(EntryValue::Arrow(array))
+            Self::parse_scalar(data, ty)?
+        };
+        Ok(EntryValue::Arrow(array))
+    }
+
+    /// Parses exactly one value of `ty`.
+    fn parse_scalar(data: &[u8], ty: &DataType) -> Result<ArrayRef, anyhow::Error> {
+        Ok(match ty {
+            DataType::Binary => Arc::new(BinaryArray::from_iter_values([data])) as ArrayRef,
+            DataType::Utf8 => Arc::new(StringArray::from_iter_values([String::from_utf8_lossy(
+                data,
+            )])) as ArrayRef,
+            DataType::Boolean => {
+                let Some(byte) = data.first() else {
+                    bail!("not enough data for a boolean");
+                };
+                if data.len() != 1 {
+                    bail!("expected 1 byte for a boolean, got {}", data.len());
+                }
+                Arc::new(BooleanArray::from(vec![*byte != 0]))
+            }
+            ty => {
+                let size = Self::datatype_size(ty)
+                    .ok_or_else(|| anyhow!("unsupported datatype {ty:?}"))?;
+                if data.len() != size {
+                    bail!(
+                        "expected {size} bytes for {ty} but the payload has {}",
+                        data.len()
+                    );
+                }
+                Self::parse_element(data, ty)
+            }
+        })
+    }
+
+    /// Parses a fixed-width array with a single Arrow buffer allocation.
+    fn parse_array(data: &[u8], ty: &DataType) -> Result<ArrayRef, anyhow::Error> {
+        if data.is_empty() {
+            return Ok(arrow::array::new_empty_array(ty));
+        }
+
+        match ty {
+            // WPILog's `string[]` and `raw[]` are encoded as a u32 count followed by
+            // length-prefixed values rather than fixed-width elements.
+            DataType::Utf8 | DataType::Binary => Self::parse_length_prefixed_array(data, ty),
+            DataType::Boolean => Ok(Arc::new(BooleanArray::from_iter(
+                data.iter().map(|byte| Some(*byte != 0)),
+            ))),
+            ty => {
+                let size = Self::datatype_size(ty)
+                    .ok_or_else(|| anyhow!("datatype {ty} cannot be used as an array"))?;
+                let chunks = data.chunks_exact(size);
+                if !chunks.remainder().is_empty() {
+                    bail!(
+                        "array payload has {} trailing bytes for {ty}",
+                        chunks.remainder().len()
+                    );
+                }
+
+                macro_rules! collect {
+                    ($array:ty, $native:ty) => {{
+                        Ok(Arc::new(<$array>::from_iter_values(chunks.map(|chunk| {
+                            <$native>::from_le_bytes(chunk.try_into().expect("chunk size"))
+                        }))) as ArrayRef)
+                    }};
+                }
+
+                match ty {
+                    DataType::Int8 => collect!(Int8Array, i8),
+                    DataType::Int16 => collect!(Int16Array, i16),
+                    DataType::Int32 => collect!(Int32Array, i32),
+                    DataType::Int64 => collect!(Int64Array, i64),
+                    DataType::UInt8 => collect!(UInt8Array, u8),
+                    DataType::UInt16 => collect!(UInt16Array, u16),
+                    DataType::UInt32 => collect!(UInt32Array, u32),
+                    DataType::UInt64 => collect!(UInt64Array, u64),
+                    DataType::Float32 => collect!(Float32Array, f32),
+                    DataType::Float64 => collect!(Float64Array, f64),
+                    other => bail!("unsupported datatype {other}"),
+                }
+            }
+        }
+    }
+
+    fn parse_length_prefixed_array(data: &[u8], ty: &DataType) -> Result<ArrayRef, anyhow::Error> {
+        let (count, mut rest) = Self::read_u32_prefix(data)?;
+        let count = count as usize;
+        // Every element needs at least its own u32 length prefix, so a count that cannot fit in
+        // the remaining payload is corrupt (or malicious). Check before reserving anything.
+        if count > rest.len() / 4 {
+            bail!(
+                "array declares {count} elements but only {} bytes follow",
+                rest.len()
+            );
+        }
+
+        let mut values = Vec::with_capacity(count);
+        for _ in 0..count {
+            let (len, tail) = Self::read_u32_prefix(rest)?;
+            let Some((value, tail)) = tail.split_at_checked(len as usize) else {
+                return Err(anyhow!("truncated length-prefixed array element"));
+            };
+            values.push(value);
+            rest = tail;
+        }
+        if !rest.is_empty() {
+            bail!("array payload has {} trailing bytes", rest.len());
+        }
+
+        if ty == &DataType::Utf8 {
+            Ok(Arc::new(StringArray::from_iter_values(
+                values
+                    .into_iter()
+                    .map(|value| String::from_utf8_lossy(value)),
+            )))
+        } else {
+            Ok(Arc::new(BinaryArray::from_iter_values(values)))
         }
     }
 
@@ -195,11 +277,37 @@ impl EntryValue {
         Ok((u32::from_le_bytes(bytes), &data[4..]))
     }
 
+    /// Parses one fixed-width element. `data` must be exactly one element long.
+    fn parse_element(data: &[u8], ty: &DataType) -> ArrayRef {
+        macro_rules! element {
+            ($array:ty, $native:ty) => {{
+                let bytes = data.try_into().expect("element size was checked");
+                Arc::new(<$array>::from_iter_values([<$native>::from_le_bytes(
+                    bytes,
+                )])) as ArrayRef
+            }};
+        }
+
+        match ty {
+            DataType::Int8 => element!(Int8Array, i8),
+            DataType::Int16 => element!(Int16Array, i16),
+            DataType::Int32 => element!(Int32Array, i32),
+            DataType::Int64 => element!(Int64Array, i64),
+            DataType::UInt8 => element!(UInt8Array, u8),
+            DataType::UInt16 => element!(UInt16Array, u16),
+            DataType::UInt32 => element!(UInt32Array, u32),
+            DataType::UInt64 => element!(UInt64Array, u64),
+            DataType::Float32 => element!(Float32Array, f32),
+            DataType::Float64 => element!(Float64Array, f64),
+            other => unreachable!("unsupported scalar datatype {other:?}"),
+        }
+    }
+
     // Returns the size of the datatype in the datalog spec.
     //
     // A return value of `None` indicates that the datatype is variable-sized, and cannot be used
     // as an array.
-    fn datatype_size(ty: DataType) -> Option<usize> {
+    fn datatype_size(ty: &DataType) -> Option<usize> {
         match ty {
             DataType::Binary | DataType::Utf8 => None,
             DataType::Boolean | DataType::Int8 | DataType::UInt8 => Some(1),
@@ -210,173 +318,133 @@ impl EntryValue {
         }
     }
 
-    fn parse_datatype_single(data: &[u8], ty: DataType) -> Result<ArrayRef, anyhow::Error> {
-        Ok(match ty {
-            // the raw data
-            DataType::Binary => Arc::new(BinaryArray::from_iter_values([data])),
-            // single byte (0=false, 1=true)
-            DataType::Boolean => {
-                Arc::new(BooleanArray::from_iter(data.first().map(|&b| Some(b != 0))))
-            }
-            // Fixed-width signed/unsigned integers.
-            DataType::Int8 => data
-                .first()
-                .map(|&v| Arc::new(Int8Array::from_iter_values([v as i8])) as ArrayRef)
-                .with_context(|| anyhow!("not enough data for int8"))?,
-            DataType::Int16 => data
-                .get(0..2)
-                .with_context(|| anyhow!("not enough data for int16"))?
-                .try_into()
-                .map(|b| {
-                    Arc::new(Int16Array::from_iter_values([i16::from_le_bytes(b)])) as ArrayRef
-                })?,
-            DataType::Int32 => data
-                .get(0..4)
-                .with_context(|| anyhow!("not enough data for int32"))?
-                .try_into()
-                .map(|b| {
-                    Arc::new(Int32Array::from_iter_values([i32::from_le_bytes(b)])) as ArrayRef
-                })?,
-            DataType::Int64 => data
-                .get(0..8)
-                .with_context(|| anyhow!("not enough data for int64"))?
-                .try_into()
-                .map(|b| {
-                    Arc::new(Int64Array::from_iter_values([i64::from_le_bytes(b)])) as ArrayRef
-                })?,
-            DataType::UInt8 => data
-                .first()
-                .map(|&v| Arc::new(UInt8Array::from_iter_values([v])) as ArrayRef)
-                .with_context(|| anyhow!("not enough data for uint8"))?,
-            DataType::UInt16 => data
-                .get(0..2)
-                .with_context(|| anyhow!("not enough data for uint16"))?
-                .try_into()
-                .map(|b| {
-                    Arc::new(UInt16Array::from_iter_values([u16::from_le_bytes(b)])) as ArrayRef
-                })?,
-            DataType::UInt32 => data
-                .get(0..4)
-                .with_context(|| anyhow!("not enough data for uint32"))?
-                .try_into()
-                .map(|b| {
-                    Arc::new(UInt32Array::from_iter_values([u32::from_le_bytes(b)])) as ArrayRef
-                })?,
-            DataType::UInt64 => data
-                .get(0..8)
-                .with_context(|| anyhow!("not enough data for uint64"))?
-                .try_into()
-                .map(|b| {
-                    Arc::new(UInt64Array::from_iter_values([u64::from_le_bytes(b)])) as ArrayRef
-                })?,
-            // 4-byte (32-bit) IEEE-754 value
-            DataType::Float32 => data
-                .get(0..4)
-                .with_context(|| anyhow!("not enough data for float"))?
-                .try_into()
-                .map(|b| Arc::new(Float32Array::from_iter_values([f32::from_le_bytes(b)])))?,
-            // 8-byte (64-bit) IEEE-754 value
-            DataType::Float64 => data
-                .get(0..8)
-                .with_context(|| anyhow!("not enough data for double"))?
-                .try_into()
-                .map(|b| Arc::new(Float64Array::from_iter_values([f64::from_le_bytes(b)])))?,
-            // UTF-8 encoded string data
-            DataType::Utf8 => Arc::new(StringArray::from_iter_values([String::from_utf8_lossy(
-                data,
-            )])),
-            _ => bail!("unsupported datatype"),
-        })
-    }
-
     fn parse_from_struct(
         data: &[u8],
-        schema: WpiLibStructSchema<WpiLibStructType>,
+        schema: &Arc<WpiLibStructSchema<WpiLibStructType>>,
         is_array: bool,
     ) -> Result<EntryValue, anyhow::Error> {
-        let value = if is_array {
-            re_log::warn!(
-                "parsing array value of {} bytes. schema size: {}. {} instances.",
-                data.len(),
-                schema.size(),
-                data.len() as f32 / schema.size() as f32
-            );
-            if schema.size() == 0 {
-                bail!("cannot parse an array of zero-sized structs");
-            }
-            let mut chunks = data.chunks_exact(schema.size());
-            if !chunks.remainder().is_empty() {
-                bail!(
-                    "struct array payload has {} trailing bytes",
-                    chunks.remainder().len()
-                );
-            }
-            EntryValue::ArrayMap(
-                chunks
-                    .by_ref()
-                    .map(|d| {
-                        let (remaining, this) = Self::parse_from_struct_single(d, &schema)?;
-                        anyhow::ensure!(remaining.is_empty(), "struct parser left bytes");
-                        Ok::<_, anyhow::Error>(this)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
-        } else {
-            let (remaining, value) = Self::parse_from_struct_single(data, &schema)?;
+        if !is_array {
+            let (remaining, value) = Self::parse_fields(data, schema)?;
             anyhow::ensure!(remaining.is_empty(), "struct payload has trailing bytes");
-            EntryValue::Map(value)
-        };
-
-        Ok(value)
-    }
-
-    fn parse_from_struct_single<'d>(
-        mut data: &'d [u8],
-        schema: &WpiLibStructSchema<WpiLibStructType>,
-    ) -> Result<(&'d [u8], HashMap<String, EntryValue>), anyhow::Error> {
-        let mut new_map = HashMap::new();
-
-        for (name, field) in &schema.fields {
-            let this = match &field.ty {
-                WpiLibStructType::Primitive(p) => {
-                    let (new_data, this) = Self::parse_from_primitive(data, field, p)?;
-                    data = new_data;
-
-                    this
-                }
-                WpiLibStructType::Custom(s) => {
-                    let (new_data, this) = Self::parse_from_struct_single(data, &s)?;
-                    data = new_data;
-
-                    EntryValue::Map(this)
-                }
-            };
-            new_map.insert(name.clone(), this);
+            return Ok(EntryValue::Struct(value));
         }
 
-        Ok((data, new_map))
+        let size = schema.size();
+        if size == 0 {
+            bail!("cannot parse an array of zero-sized structs");
+        }
+        let mut chunks = data.chunks_exact(size);
+        if !chunks.remainder().is_empty() {
+            bail!(
+                "struct array payload has {} trailing bytes",
+                chunks.remainder().len()
+            );
+        }
+
+        let mut values = Vec::with_capacity(data.len() / size);
+        for chunk in chunks.by_ref() {
+            let (remaining, value) = Self::parse_fields(chunk, schema)?;
+            debug_assert!(remaining.is_empty(), "chunked struct parse left bytes");
+            values.push(value);
+        }
+
+        Ok(EntryValue::StructArray(values))
     }
 
-    fn parse_from_primitive<'d>(
+    fn parse_fields<'d>(
+        mut data: &'d [u8],
+        schema: &Arc<WpiLibStructSchema<WpiLibStructType>>,
+    ) -> Result<(&'d [u8], StructValue), anyhow::Error> {
+        let mut fields = Vec::with_capacity(schema.fields.len());
+
+        for (_, field) in &schema.fields {
+            let (remaining, value) = Self::parse_field(data, field)?;
+            data = remaining;
+            fields.push(value);
+        }
+
+        Ok((
+            data,
+            StructValue {
+                schema: Arc::clone(schema),
+                fields,
+            },
+        ))
+    }
+
+    fn parse_field<'d>(
         data: &'d [u8],
         field: &WpiLibStructData<WpiLibStructType>,
-        ty: &WpiLibStructPrimitives,
     ) -> Result<(&'d [u8], EntryValue), anyhow::Error> {
-        let (data, value) = nom::bytes::complete::take::<_, _, ()>(
-            ty.size() * field.count.map_or(1, NonZero::get),
-        )(data)?;
+        let count = field.count.map_or(1, NonZero::get);
 
-        let value = Self::parse_datatype(value, field.count.is_some(), ty.datatype())?;
+        match &field.ty {
+            WpiLibStructType::Primitive(primitive) => {
+                let len = primitive.size() * count;
+                let (remaining, bytes) = nom::bytes::complete::take::<_, _, ()>(len)(data)?;
 
-        Ok((data, value))
+                let value = if primitive.is_char() {
+                    // `char[N]` is N raw bytes, not a WPILog length-prefixed `string[]`.
+                    Self::parse_chars(bytes)
+                } else if field.count.is_some() {
+                    Self::parse_array(bytes, &primitive.datatype())?
+                } else {
+                    Self::parse_scalar(bytes, &primitive.datatype())?
+                };
+
+                Ok((remaining, EntryValue::Arrow(value)))
+            }
+            WpiLibStructType::Custom(nested) => {
+                if field.count.is_none() {
+                    let (remaining, value) = Self::parse_fields(data, nested)?;
+                    return Ok((remaining, EntryValue::Struct(value)));
+                }
+
+                let size = nested.size();
+                if size == 0 {
+                    bail!("cannot parse an array of zero-sized structs");
+                }
+                let len = size
+                    .checked_mul(count)
+                    .ok_or_else(|| anyhow!("struct array size overflow"))?;
+                let (remaining, bytes) = nom::bytes::complete::take::<_, _, ()>(len)(data)?;
+
+                let mut values = Vec::with_capacity(count);
+                for chunk in bytes.chunks_exact(size) {
+                    let (leftover, value) = Self::parse_fields(chunk, nested)?;
+                    debug_assert!(leftover.is_empty(), "chunked struct parse left bytes");
+                    values.push(value);
+                }
+
+                Ok((remaining, EntryValue::StructArray(values)))
+            }
+        }
+    }
+
+    /// Decodes a `char[N]` field: one single-character string per byte.
+    fn parse_chars(bytes: &[u8]) -> ArrayRef {
+        Arc::new(StringArray::from_iter_values(
+            bytes.iter().map(|byte| char::from(*byte).to_string()),
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::EntryValue;
-    use arrow::array::{Array, Float64Array, Int64Array};
-    use hashbrown::HashMap;
+    use super::{EntryValue, StructValue};
+    use crate::values::parse::wpistruct::{StructSchemas, WpiLibStructSchema};
+    use arrow::array::{Array, Float64Array, Int64Array, StringArray};
+
+    fn schemas() -> StructSchemas {
+        StructSchemas::new()
+    }
+
+    fn arrow_of(value: &StructValue, field: &str) -> arrow::array::ArrayRef {
+        let Some(EntryValue::Arrow(array)) = value.get(field) else {
+            panic!("expected {field} to be an Arrow value");
+        };
+        array.clone()
+    }
 
     #[test]
     fn parses_string_arrays_with_length_prefixes() {
@@ -387,7 +455,7 @@ mod tests {
         payload.extend_from_slice(&3u32.to_le_bytes());
         payload.extend_from_slice(b"two");
 
-        let value = EntryValue::parse_from_wpilog("string[]", &payload, &HashMap::new()).unwrap();
+        let value = EntryValue::parse_from_wpilog("string[]", &payload, &mut schemas()).unwrap();
         let EntryValue::Arrow(value) = value else {
             panic!("expected one Arrow array");
         };
@@ -400,8 +468,17 @@ mod tests {
     }
 
     #[test]
+    fn rejects_string_array_counts_that_do_not_fit() {
+        // A corrupt count must not reserve a huge buffer before failing.
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&u32::MAX.to_le_bytes());
+        payload.extend_from_slice(b"ab");
+        assert!(EntryValue::parse_from_wpilog("string[]", &payload, &mut schemas()).is_err());
+    }
+
+    #[test]
     fn parses_empty_primitive_arrays() {
-        let value = EntryValue::parse_from_wpilog("double[]", &[], &HashMap::new()).unwrap();
+        let value = EntryValue::parse_from_wpilog("double[]", &[], &mut schemas()).unwrap();
         let EntryValue::Arrow(value) = value else {
             panic!("expected one Arrow array");
         };
@@ -411,7 +488,7 @@ mod tests {
     #[test]
     fn parses_json_as_text() {
         let value =
-            EntryValue::parse_from_wpilog("json", br#"{"ok":true}"#, &HashMap::new()).unwrap();
+            EntryValue::parse_from_wpilog("json", br#"{"ok":true}"#, &mut schemas()).unwrap();
         let EntryValue::Arrow(value) = value else {
             panic!("expected one Arrow array");
         };
@@ -429,7 +506,7 @@ mod tests {
             &[
                 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0,
             ],
-            &HashMap::new(),
+            &mut schemas(),
         )
         .unwrap();
 
@@ -445,47 +522,83 @@ mod tests {
 
     #[test]
     fn rejects_partial_fixed_width_array_payloads() {
-        assert!(EntryValue::parse_from_wpilog("int64[]", &[1, 2, 3], &HashMap::new()).is_err());
+        assert!(EntryValue::parse_from_wpilog("int64[]", &[1, 2, 3], &mut schemas()).is_err());
+        // Scalars must be exactly one element wide.
+        assert!(EntryValue::parse_from_wpilog("int64", &[1, 2, 3, 4], &mut schemas()).is_err());
+        assert!(
+            EntryValue::parse_from_wpilog("int64", &[1, 2, 3, 4, 5, 6, 7, 8, 9], &mut schemas())
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn parses_narrow_integer_topics() {
+        let value =
+            EntryValue::parse_from_wpilog("int32", &7i32.to_le_bytes(), &mut schemas()).unwrap();
+        let EntryValue::Arrow(value) = value else {
+            panic!("expected one Arrow array");
+        };
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<arrow::array::Int32Array>()
+                .unwrap()
+                .value(0),
+            7
+        );
+
+        let value = EntryValue::parse_from_wpilog("uint8", &[9], &mut schemas()).unwrap();
+        let EntryValue::Arrow(value) = value else {
+            panic!("expected one Arrow array");
+        };
+        assert_eq!(
+            value
+                .as_any()
+                .downcast_ref::<arrow::array::UInt8Array>()
+                .unwrap()
+                .value(0),
+            9
+        );
     }
 
     #[test]
     fn decodes_struct_fields_in_schema_order() {
-        let schema =
-            super::parse::wpistruct::WpiLibStructSchema::parse(b"double x; double y;").unwrap();
-        let mut structs = HashMap::new();
-        structs.insert("struct:Translation2d".to_string(), schema);
+        let mut schemas = schemas();
 
         let mut payload = Vec::new();
         payload.extend_from_slice(&1.25f64.to_le_bytes());
         payload.extend_from_slice(&(-2.5f64).to_le_bytes());
 
         let value =
-            EntryValue::parse_from_wpilog("struct:Translation2d", &payload, &structs).unwrap();
-        let EntryValue::Map(fields) = value else {
-            panic!("expected a struct field map");
-        };
-        let EntryValue::Arrow(x) = fields.get("x").unwrap() else {
-            panic!("expected x to be an Arrow value");
-        };
-        let EntryValue::Arrow(y) = fields.get("y").unwrap() else {
-            panic!("expected y to be an Arrow value");
+            EntryValue::parse_from_wpilog("struct:Translation2d", &payload, &mut schemas).unwrap();
+        let EntryValue::Struct(fields) = value else {
+            panic!("expected a struct value");
         };
         assert_eq!(
-            x.as_any().downcast_ref::<Float64Array>().unwrap().value(0),
+            fields.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+            ["x", "y"]
+        );
+        assert_eq!(
+            arrow_of(&fields, "x")
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
             1.25
         );
         assert_eq!(
-            y.as_any().downcast_ref::<Float64Array>().unwrap().value(0),
+            arrow_of(&fields, "y")
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
             -2.5
         );
     }
 
     #[test]
     fn decodes_struct_arrays_into_ordered_indexed_maps() {
-        let schema =
-            super::parse::wpistruct::WpiLibStructSchema::parse(b"double x; double y;").unwrap();
-        let mut structs = HashMap::new();
-        structs.insert("struct:Translation2d".to_string(), schema);
+        let mut schemas = schemas();
 
         let mut payload = Vec::new();
         for (x, y) in [(1.0f64, 2.0f64), (3.0f64, 4.0f64)] {
@@ -493,27 +606,143 @@ mod tests {
             payload.extend_from_slice(&y.to_le_bytes());
         }
 
-        let value =
-            EntryValue::parse_from_wpilog("struct:Translation2d[]", &payload, &structs).unwrap();
-        let EntryValue::ArrayMap(elements) = value else {
-            panic!("expected an array of struct maps");
+        let value = EntryValue::parse_from_wpilog("struct:Translation2d[]", &payload, &mut schemas)
+            .unwrap();
+        let EntryValue::StructArray(elements) = value else {
+            panic!("expected an array of struct values");
         };
         assert_eq!(elements.len(), 2);
         for (element, expected) in elements.iter().zip([(1.0, 2.0), (3.0, 4.0)]) {
-            let EntryValue::Arrow(x) = element.get("x").unwrap() else {
-                panic!("expected x to be an Arrow value");
-            };
-            let EntryValue::Arrow(y) = element.get("y").unwrap() else {
-                panic!("expected y to be an Arrow value");
-            };
             assert_eq!(
-                x.as_any().downcast_ref::<Float64Array>().unwrap().value(0),
+                arrow_of(element, "x")
+                    .as_any()
+                    .downcast_ref::<Float64Array>()
+                    .unwrap()
+                    .value(0),
                 expected.0
             );
             assert_eq!(
-                y.as_any().downcast_ref::<Float64Array>().unwrap().value(0),
+                arrow_of(element, "y")
+                    .as_any()
+                    .downcast_ref::<Float64Array>()
+                    .unwrap()
+                    .value(0),
                 expected.1
             );
         }
+    }
+
+    #[test]
+    fn decodes_char_arrays_as_raw_bytes() {
+        let mut schemas = schemas();
+        schemas.insert(
+            "struct:HasChars",
+            WpiLibStructSchema::parse(b"char name[3]; double x;").unwrap(),
+        );
+
+        let mut payload = Vec::new();
+        payload.extend_from_slice(b"abc");
+        payload.extend_from_slice(&1.5f64.to_le_bytes());
+
+        let value =
+            EntryValue::parse_from_wpilog("struct:HasChars", &payload, &mut schemas).unwrap();
+        let EntryValue::Struct(fields) = value else {
+            panic!("expected a struct value");
+        };
+        let letters = arrow_of(&fields, "name");
+        let letters = letters.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(letters.len(), 3);
+        assert_eq!(
+            (0..3).map(|i| letters.value(i)).collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
+        assert_eq!(
+            arrow_of(&fields, "x")
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
+            1.5
+        );
+    }
+
+    #[test]
+    fn decodes_nested_struct_array_fields() {
+        let mut schemas = schemas();
+        schemas.insert(
+            "struct:Holder",
+            WpiLibStructSchema::parse(b"struct:Translation2d pts[2]; double z;").unwrap(),
+        );
+
+        let mut payload = Vec::new();
+        for value in [1.0f64, 2.0, 3.0, 4.0, 9.0] {
+            payload.extend_from_slice(&value.to_le_bytes());
+        }
+
+        let value = EntryValue::parse_from_wpilog("struct:Holder", &payload, &mut schemas).unwrap();
+        let EntryValue::Struct(fields) = value else {
+            panic!("expected a struct value");
+        };
+        let Some(EntryValue::StructArray(points)) = fields.get("pts") else {
+            panic!("expected an array of nested structs");
+        };
+        assert_eq!(points.len(), 2);
+        assert_eq!(
+            arrow_of(&points[1], "x")
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
+            3.0
+        );
+        assert_eq!(
+            arrow_of(&fields, "z")
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(0),
+            9.0,
+            "fields after a struct array must stay aligned"
+        );
+    }
+
+    #[test]
+    fn rejects_recursive_struct_values() {
+        let mut schemas = schemas();
+        schemas.insert(
+            "struct:Loop",
+            WpiLibStructSchema::parse(b"struct:Loop self;").unwrap(),
+        );
+        let error =
+            EntryValue::parse_from_wpilog("struct:Loop", &[0; 8], &mut schemas).unwrap_err();
+        assert!(error.to_string().contains("recursive"), "{error}");
+    }
+
+    #[test]
+    fn reports_unknown_structs() {
+        let error =
+            EntryValue::parse_from_wpilog("struct:Unknown", &[0; 8], &mut schemas()).unwrap_err();
+        assert!(matches!(
+            error,
+            super::EntryValueParseError::StructNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn resolves_fully_qualified_struct_names() {
+        let mut schemas = schemas();
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&1.0f64.to_le_bytes());
+        payload.extend_from_slice(&2.0f64.to_le_bytes());
+        let value = EntryValue::parse_from_wpilog(
+            "struct:edu.wpi.first.math.geometry.Translation2d",
+            &payload,
+            &mut schemas,
+        )
+        .unwrap();
+        let EntryValue::Struct(fields) = value else {
+            panic!("expected a struct value");
+        };
+        assert_eq!(fields.len(), 2);
     }
 }

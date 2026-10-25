@@ -26,15 +26,22 @@ public record KeyValuePairs(
 
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<KeyValuePairs> values) {
         int n = values.size();
-        boolean[] present0 = new boolean[n];
+        boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
             var v0_0 = values.get(i) == null ? null : values.get(i).pairs();
             boolean ok0 = (v0_0) != null;
-            present0[i] = ok0;
-            anyNull0 |= !ok0;
+            if (ok0) {
+                if (present0 != null) present0[i] = true;
+            } else {
+                if (present0 == null) {
+                    present0 = new boolean[n];
+                    java.util.Arrays.fill(present0, 0, i, true);
+                }
+                anyNull0 = true;
+            }
         }
-        w.present(path, present0, anyNull0);
+        w.present(path, present0, anyNull0, n);
         long[] counts1 = new long[n];
         int total1 = 0;
         for (int i = 0; i < n; i++) {

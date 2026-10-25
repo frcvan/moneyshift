@@ -29,15 +29,22 @@ public record AnnotationContext(
 
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<AnnotationContext> values) {
         int n = values.size();
-        boolean[] present0 = new boolean[n];
+        boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
             var v0_0 = values.get(i) == null ? null : values.get(i).classMap();
             boolean ok0 = (v0_0) != null;
-            present0[i] = ok0;
-            anyNull0 |= !ok0;
+            if (ok0) {
+                if (present0 != null) present0[i] = true;
+            } else {
+                if (present0 == null) {
+                    present0 = new boolean[n];
+                    java.util.Arrays.fill(present0, 0, i, true);
+                }
+                anyNull0 = true;
+            }
         }
-        w.present(path, present0, anyNull0);
+        w.present(path, present0, anyNull0, n);
         long[] counts1 = new long[n];
         int total1 = 0;
         for (int i = 0; i < n; i++) {
@@ -71,17 +78,24 @@ public record AnnotationContext(
             column3[j1] = value3;
         }
         w.longs(path + "/.items/class_description/info/id", column3);
-        boolean[] present4 = new boolean[itemCount1];
+        boolean[] present4 = null;
         boolean anyNull4 = false;
         for (int j1 = 0; j1 < itemCount1; j1++) {
             var v4_0 = items1.get(j1).classDescription();
             var v4_1 = v4_0.info();
             var v4_2 = v4_1.label();
             boolean ok4 = (v4_2) != null;
-            present4[j1] = ok4;
-            anyNull4 |= !ok4;
+            if (ok4) {
+                if (present4 != null) present4[j1] = true;
+            } else {
+                if (present4 == null) {
+                    present4 = new boolean[itemCount1];
+                    java.util.Arrays.fill(present4, 0, j1, true);
+                }
+                anyNull4 = true;
+            }
         }
-        w.present(path + "/.items/class_description/info/label", present4, anyNull4);
+        w.present(path + "/.items/class_description/info/label", present4, anyNull4, itemCount1);
         java.lang.String[] column5 = new java.lang.String[itemCount1];
         for (int j1 = 0; j1 < itemCount1; j1++) {
             var v5_0 = items1.get(j1).classDescription();
@@ -92,17 +106,24 @@ public record AnnotationContext(
             column5[j1] = value5 == null ? "" : value5;
         }
         w.strings(path + "/.items/class_description/info/label", column5);
-        boolean[] present6 = new boolean[itemCount1];
+        boolean[] present6 = null;
         boolean anyNull6 = false;
         for (int j1 = 0; j1 < itemCount1; j1++) {
             var v6_0 = items1.get(j1).classDescription();
             var v6_1 = v6_0.info();
             var v6_2 = v6_1.color();
             boolean ok6 = (v6_2) != null;
-            present6[j1] = ok6;
-            anyNull6 |= !ok6;
+            if (ok6) {
+                if (present6 != null) present6[j1] = true;
+            } else {
+                if (present6 == null) {
+                    present6 = new boolean[itemCount1];
+                    java.util.Arrays.fill(present6, 0, j1, true);
+                }
+                anyNull6 = true;
+            }
         }
-        w.present(path + "/.items/class_description/info/color", present6, anyNull6);
+        w.present(path + "/.items/class_description/info/color", present6, anyNull6, itemCount1);
         long[] column7 = new long[itemCount1];
         for (int j1 = 0; j1 < itemCount1; j1++) {
             var v7_0 = items1.get(j1).classDescription();
@@ -138,15 +159,22 @@ public record AnnotationContext(
             column9[j8] = value9;
         }
         w.longs(path + "/.items/class_description/keypoint_annotations/.items/id", column9);
-        boolean[] present10 = new boolean[itemCount8];
+        boolean[] present10 = null;
         boolean anyNull10 = false;
         for (int j8 = 0; j8 < itemCount8; j8++) {
             var v10_0 = items8.get(j8).label();
             boolean ok10 = (v10_0) != null;
-            present10[j8] = ok10;
-            anyNull10 |= !ok10;
+            if (ok10) {
+                if (present10 != null) present10[j8] = true;
+            } else {
+                if (present10 == null) {
+                    present10 = new boolean[itemCount8];
+                    java.util.Arrays.fill(present10, 0, j8, true);
+                }
+                anyNull10 = true;
+            }
         }
-        w.present(path + "/.items/class_description/keypoint_annotations/.items/label", present10, anyNull10);
+        w.present(path + "/.items/class_description/keypoint_annotations/.items/label", present10, anyNull10, itemCount8);
         java.lang.String[] column11 = new java.lang.String[itemCount8];
         for (int j8 = 0; j8 < itemCount8; j8++) {
             var v11_0 = items8.get(j8).label();
@@ -155,15 +183,22 @@ public record AnnotationContext(
             column11[j8] = value11 == null ? "" : value11;
         }
         w.strings(path + "/.items/class_description/keypoint_annotations/.items/label", column11);
-        boolean[] present12 = new boolean[itemCount8];
+        boolean[] present12 = null;
         boolean anyNull12 = false;
         for (int j8 = 0; j8 < itemCount8; j8++) {
             var v12_0 = items8.get(j8).color();
             boolean ok12 = (v12_0) != null;
-            present12[j8] = ok12;
-            anyNull12 |= !ok12;
+            if (ok12) {
+                if (present12 != null) present12[j8] = true;
+            } else {
+                if (present12 == null) {
+                    present12 = new boolean[itemCount8];
+                    java.util.Arrays.fill(present12, 0, j8, true);
+                }
+                anyNull12 = true;
+            }
         }
-        w.present(path + "/.items/class_description/keypoint_annotations/.items/color", present12, anyNull12);
+        w.present(path + "/.items/class_description/keypoint_annotations/.items/color", present12, anyNull12, itemCount8);
         long[] column13 = new long[itemCount8];
         for (int j8 = 0; j8 < itemCount8; j8++) {
             var v13_0 = items8.get(j8).color();

@@ -33,15 +33,22 @@ public record TensorData(
 
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TensorData> values) {
         int n = values.size();
-        boolean[] present0 = new boolean[n];
+        boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
             var v0_0 = values.get(i) == null ? null : values.get(i).data();
             boolean ok0 = (v0_0) != null;
-            present0[i] = ok0;
-            anyNull0 |= !ok0;
+            if (ok0) {
+                if (present0 != null) present0[i] = true;
+            } else {
+                if (present0 == null) {
+                    present0 = new boolean[n];
+                    java.util.Arrays.fill(present0, 0, i, true);
+                }
+                anyNull0 = true;
+            }
         }
-        w.present(path, present0, anyNull0);
+        w.present(path, present0, anyNull0, n);
         long[] counts1 = new long[n];
         int total1 = 0;
         for (int i = 0; i < n; i++) {
@@ -68,16 +75,23 @@ public record TensorData(
             unsigned2 |= column2[j1] < 0L;
         }
         w.u64(path + "/shape/.items", column2, unsigned2);
-        boolean[] present3 = new boolean[n];
+        boolean[] present3 = null;
         boolean anyNull3 = false;
         for (int i = 0; i < n; i++) {
             var v3_0 = values.get(i) == null ? null : values.get(i).data();
             var v3_1 = v3_0 == null ? null : v3_0.names();
             boolean ok3 = (v3_1) != null;
-            present3[i] = ok3;
-            anyNull3 |= !ok3;
+            if (ok3) {
+                if (present3 != null) present3[i] = true;
+            } else {
+                if (present3 == null) {
+                    present3 = new boolean[n];
+                    java.util.Arrays.fill(present3, 0, i, true);
+                }
+                anyNull3 = true;
+            }
         }
-        w.present(path + "/names", present3, anyNull3);
+        w.present(path + "/names", present3, anyNull3, n);
         long[] counts4 = new long[n];
         int total4 = 0;
         for (int i = 0; i < n; i++) {

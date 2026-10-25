@@ -36,6 +36,8 @@ public final class NtRecorder {
     private final NetworkTableInstance instance;
     private final ConcurrentHashMap<String, NetworkTableEntry> entries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, EntityState> entities = new ConcurrentHashMap<>();
+    /** Entity states by the unescaped path the caller passed, so {@code log} never re-escapes. */
+    private final ConcurrentHashMap<String, EntityState> inputStates = new ConcurrentHashMap<>();
 
     private NtRecorder(NetworkTableInstance instance) {
         this.instance = Objects.requireNonNull(instance, "instance");
@@ -74,7 +76,12 @@ public final class NtRecorder {
         return instance;
     }
 
-    /** Logs an archetype at {@code entity}, a relative path such as {@code "world/points"}. */
+    /**
+     * Logs an archetype at {@code entity}, a relative path such as {@code "world/points"}.
+     *
+     * <p>The path must have at least one non-empty segment; the root entity is not supported
+     * because it would be a prefix of every other entity's topics.
+     */
     public void log(String entity, Archetype archetype) {
         Objects.requireNonNull(archetype, "archetype");
         write(entity, false, archetype::writeColumns);
@@ -100,8 +107,7 @@ public final class NtRecorder {
         if (values.isEmpty()) {
             return;
         }
-        String normalized = NtPath.encodeEntityPath(entity);
-        EntityState state = state(normalized);
+        EntityState state = stateFor(entity);
         synchronized (state) {
             ensureMode(state, false);
             if (values.get(0) == null) {
@@ -112,8 +118,7 @@ public final class NtRecorder {
             metaLong(state, "layout", 1L);
             metaString(state, "archetype", "");
             metaString(state, "components", joinComponents(state.rawComponents));
-            NtEntityWriter writer = new NtEntityWriter(this, normalized);
-            values.get(0).writeColumns(writer, field, values);
+            values.get(0).writeColumns(state.writer(), field, values);
         }
     }
 
@@ -124,25 +129,56 @@ public final class NtRecorder {
 
     // ------------------------------------------------------------- internals
 
-    private void write(String entity, boolean isStatic, java.util.function.Consumer<NtEntityWriter> body) {
-        String normalized = NtPath.encodeEntityPath(entity);
-        EntityState state = state(normalized);
+    private void write(
+            String entity, boolean isStatic, java.util.function.Consumer<NtEntityWriter> body) {
+        EntityState state = stateFor(entity);
         synchronized (state) {
             ensureMode(state, isStatic);
             state.rawComponents.clear();
             metaLong(state, "layout", 1L);
-            NtEntityWriter writer = new NtEntityWriter(this, normalized);
-            body.accept(writer);
+            body.accept(state.writer());
             if (isStatic) {
                 metaBoolean(state, "static", true);
             }
         }
     }
 
-    private EntityState state(String normalizedEntity) {
+    EntityState state(String normalizedEntity) {
         return entities.computeIfAbsent(
                 normalizedEntity,
-                entity -> new EntityState(entity, NtPath.topicPrefix(entity)));
+                entity -> new EntityState(this, entity, NtPath.ROOT + entity));
+    }
+
+    /**
+     * Resolves a caller-provided entity path, remembering the result.
+     *
+     * <p>Escaping allocates, and robot code logs the same handful of entity paths every loop
+     * iteration, so the escaped form is cached per spelling. Spelling variants that escape to the
+     * same path still share one {@link EntityState}.
+     */
+    EntityState stateFor(String entity) {
+        EntityState cached = inputStates.get(entity);
+        if (cached != null) {
+            return cached;
+        }
+        EntityState state = state(NtPath.encodeEntityPath(entity));
+        inputStates.putIfAbsent(entity, state);
+        return state;
+    }
+
+    /**
+     * The cached entry for one column of one entity.
+     *
+     * <p>Column topics repeat for every log call, so the entry is looked up once instead of
+     * rebuilding the topic string and hashing it on every publish.
+     */
+    NetworkTableEntry columnEntry(EntityState state, String path) {
+        NetworkTableEntry cached = state.columnEntries.get(path);
+        if (cached != null) {
+            return cached;
+        }
+        return state.columnEntries.computeIfAbsent(
+                path, column -> instance.getEntry(state.prefix + '/' + column));
     }
 
     private static void ensureMode(EntityState state, boolean isStatic) {
@@ -181,14 +217,10 @@ public final class NtRecorder {
         return joined.toString();
     }
 
-    void metaString(String entity, String suffix, String value) {
-        metaString(state(entity), suffix, value);
-    }
-
-    private void metaString(EntityState state, String suffix, String value) {
+    void metaString(EntityState state, String suffix, String value) {
         synchronized (state) {
-            if (state.metaStrings.getOrDefault(suffix, null) != null
-                    && state.metaStrings.get(suffix).equals(value)) {
+            String cached = state.metaStrings.get(suffix);
+            if (cached != null && cached.equals(value)) {
                 return;
             }
             state.metaStrings.put(suffix, value);
@@ -196,11 +228,7 @@ public final class NtRecorder {
         }
     }
 
-    void metaLong(String entity, String suffix, long value) {
-        metaLong(state(entity), suffix, value);
-    }
-
-    private void metaLong(EntityState state, String suffix, long value) {
+    void metaLong(EntityState state, String suffix, long value) {
         synchronized (state) {
             Boxed<Long> cached = state.metaLongs.get(suffix);
             if (cached != null && cached.value == value) {
@@ -211,11 +239,7 @@ public final class NtRecorder {
         }
     }
 
-    void metaBoolean(String entity, String suffix, boolean value) {
-        metaBoolean(state(entity), suffix, value);
-    }
-
-    private void metaBoolean(EntityState state, String suffix, boolean value) {
+    void metaBoolean(EntityState state, String suffix, boolean value) {
         synchronized (state) {
             Boxed<Boolean> cached = state.metaBooleans.get(suffix);
             if (cached != null && cached.value == value) {
@@ -226,15 +250,22 @@ public final class NtRecorder {
         }
     }
 
-    void writePresent(String entity, String path, boolean[] values, boolean anyNull) {
-        EntityState state = state(entity);
+    void writePresent(
+            EntityState state, String path, boolean[] values, boolean anyNull, int count) {
         synchronized (state) {
             boolean sticky = state.presentPaths.contains(path);
             if (!anyNull && !sticky) {
                 return;
             }
             state.presentPaths.add(path);
-            entry(state.prefix + '/' + path + "/.present").setBooleanArray(values);
+            boolean[] mask = values;
+            if (mask == null) {
+                // Generated code skips the mask allocation when nothing is null, but a sticky
+                // column still has to be refreshed so readers cannot see a stale mask.
+                mask = new boolean[count];
+                java.util.Arrays.fill(mask, true);
+            }
+            columnEntry(state, path + "/.present").setBooleanArray(mask);
         }
     }
 
@@ -246,10 +277,9 @@ public final class NtRecorder {
      * published as decimal strings under {@code <path>/.u64}; the sidecar is sticky so later
      * batches of small values cannot hide the unsigned ones.
      */
-    void writeU64(String entity, String path, long[] values, boolean hasUnsigned) {
-        EntityState state = state(entity);
+    void writeU64(EntityState state, String path, long[] values, boolean hasUnsigned) {
         synchronized (state) {
-            entry(state.prefix + '/' + path).setIntegerArray(values);
+            columnEntry(state, path).setIntegerArray(values);
             boolean sticky = state.u64Paths.contains(path);
             if (!hasUnsigned && !sticky) {
                 return;
@@ -257,32 +287,13 @@ public final class NtRecorder {
             state.u64Paths.add(path);
             String[] text = new String[values.length];
             for (int i = 0; i < values.length; i++) {
-                text[i] = values[i] < 0L
-                        ? java.lang.Long.toUnsignedString(values[i])
-                        : java.lang.Long.toString(values[i]);
+                text[i] =
+                        values[i] < 0L
+                                ? java.lang.Long.toUnsignedString(values[i])
+                                : java.lang.Long.toString(values[i]);
             }
-            entry(state.prefix + '/' + path + "/.u64").setStringArray(text);
+            columnEntry(state, path + "/.u64").setStringArray(text);
         }
-    }
-
-    void setDoubleArray(String topic, double[] values) {
-        entry(topic).setDoubleArray(values);
-    }
-
-    void setIntegerArray(String topic, long[] values) {
-        entry(topic).setIntegerArray(values);
-    }
-
-    void setBooleanArray(String topic, boolean[] values) {
-        entry(topic).setBooleanArray(values);
-    }
-
-    void setStringArray(String topic, String[] values) {
-        entry(topic).setStringArray(values);
-    }
-
-    void setRaw(String topic, byte[] value) {
-        entry(topic).setRaw(value);
     }
 
     /** Mutable box for cache values, avoiding Optional allocation on the hot path. */
@@ -294,7 +305,9 @@ public final class NtRecorder {
         }
     }
 
-    private static final class EntityState {
+    /** Per-entity publishing state and caches. */
+    static final class EntityState {
+        final NtRecorder recorder;
         final String entity;
         final String prefix;
         final Map<String, String> metaStrings = new HashMap<>();
@@ -303,12 +316,26 @@ public final class NtRecorder {
         final Set<String> presentPaths = new HashSet<>();
         final Set<String> u64Paths = new HashSet<>();
         final LinkedHashMap<String, String> rawComponents = new LinkedHashMap<>();
+        /** Entries by column path (without the entity prefix), filled on first publish. */
+        final ConcurrentHashMap<String, NetworkTableEntry> columnEntries =
+                new ConcurrentHashMap<>();
         boolean modeKnown;
         boolean staticMode;
+        private volatile NtEntityWriter writer;
 
-        EntityState(String entity, String prefix) {
+        EntityState(NtRecorder recorder, String entity, String prefix) {
+            this.recorder = recorder;
             this.entity = entity;
             this.prefix = prefix;
+        }
+
+        NtEntityWriter writer() {
+            NtEntityWriter cached = writer;
+            if (cached == null) {
+                cached = new NtEntityWriter(recorder, this);
+                writer = cached;
+            }
+            return cached;
         }
     }
 }

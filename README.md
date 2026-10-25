@@ -78,6 +78,7 @@ wasm-bindgen --target web --out-dir web/dist target/wasm32-unknown-unknown/relea
 ```sh
 cargo test                                            # Rust: importer, decoder, live logic
 cargo test --test importer_cli                        # external-importer protocol smoke tests
+cargo test --test wire_fixture                        # decodes the Java SDK's wire fixture
 cd moneyshift && ./gradlew :lib:test :example:test     # Java
 cargo run --example decode_rrd -- /tmp/live.rrd        # decode any RRD with Rerun's decoder
 ```
@@ -88,6 +89,12 @@ as read-only.
 The Java type surface is generated: edit `xtask/src/codegen/java.rs` and run
 `cargo xtask java moneyshift/lib/src/main/java`. Generated files are checked in and marked
 `DO NOT EDIT`.
+
+The `/Rerun` wire format is shared by the Java writer and the Rust bridge, so it is pinned by a
+checked-in fixture: `moneyshift/lib/src/test/resources/rerun_wire_fixture.json` is produced by the
+Java `WireFixtureTest` and decoded by `tests/wire_fixture.rs`. Regenerate it after an intentional
+layout change with `./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true`
+and commit it together with the codegen output.
 
 ## Layout
 

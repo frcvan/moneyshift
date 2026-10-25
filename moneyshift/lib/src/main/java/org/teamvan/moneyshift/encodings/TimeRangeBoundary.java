@@ -35,14 +35,21 @@ public sealed interface TimeRangeBoundary extends org.teamvan.moneyshift.NtEncod
     /** Writes this type's NetworkTables columns; one entry per value. */
     public static void writeColumnsStatic(org.teamvan.moneyshift.NtEntityWriter w, java.lang.String path, java.util.List<TimeRangeBoundary> values) {
         int n = values.size();
-        boolean[] present0 = new boolean[n];
+        boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
             boolean ok0 = (values.get(i)) != null;
-            present0[i] = ok0;
-            anyNull0 |= !ok0;
+            if (ok0) {
+                if (present0 != null) present0[i] = true;
+            } else {
+                if (present0 == null) {
+                    present0 = new boolean[n];
+                    java.util.Arrays.fill(present0, 0, i, true);
+                }
+                anyNull0 = true;
+            }
         }
-        w.present(path, present0, anyNull0);
+        w.present(path, present0, anyNull0, n);
         long[] variants1 = new long[n];
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload1_0 = new java.util.ArrayList<>();
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload1_1 = new java.util.ArrayList<>();
