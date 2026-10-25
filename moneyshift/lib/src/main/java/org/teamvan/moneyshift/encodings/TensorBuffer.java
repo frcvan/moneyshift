@@ -254,9 +254,7 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
             long value9 = items8.get(j8);
             column9[j8] = value9;
         }
-        byte[] bytes9 = new byte[column9.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes9).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column9);
-        w.raw(path + "/U64/.items", bytes9);
+        w.longs(path + "/U64/.items", column9);
         }
         if (!payload1_4.isEmpty()) {
             int payloadCount1_4 = payload1_4.size();

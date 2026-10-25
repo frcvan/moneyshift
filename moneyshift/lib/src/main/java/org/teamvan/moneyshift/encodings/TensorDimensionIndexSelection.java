@@ -53,9 +53,7 @@ public record TensorDimensionIndexSelection(
             var value2 = v2_0;
             column2[i] = value2 == null ? 0L : value2;
         }
-        byte[] bytes2 = new byte[column2.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column2);
-        w.raw(path + "/index", bytes2);
+        w.longs(path + "/index", column2);
     }
 
     @Override

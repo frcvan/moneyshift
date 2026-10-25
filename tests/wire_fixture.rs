@@ -89,20 +89,6 @@ fn column(fixture: &ColumnFixture) -> NtValue {
     }
 }
 
-fn raw_column(fixture: &ColumnFixture) -> NtValue {
-    let hex = fixture
-        .value
-        .as_str()
-        .unwrap_or_else(|| panic!("{} should hold a hex string", fixture.ty));
-    assert_eq!(fixture.ty, "raw");
-    assert_eq!(hex.len() % 2, 0, "raw hex must describe whole bytes");
-    let bytes = (0..hex.len())
-        .step_by(2)
-        .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).expect("hex byte"))
-        .collect();
-    NtValue::Raw(bytes)
-}
-
 /// Decodes one fixture entity, returning its batches and asserting that every column had the
 /// instance count the protocol promised.
 fn decode(entity: &EntityFixture) -> Vec<re_types_core::SerializedComponentBatch> {
@@ -129,14 +115,7 @@ fn decode(entity: &EntityFixture) -> Vec<re_types_core::SerializedComponentBatch
     let columns = entity
         .columns
         .iter()
-        .map(|(name, value)| {
-            let value = if value.ty == "raw" {
-                raw_column(value)
-            } else {
-                column(value)
-            };
-            (name.clone(), value)
-        })
+        .map(|(name, value)| (name.clone(), column(value)))
         .collect::<HashMap<_, _>>();
 
     let plan = plan_entity(&meta).expect("the entity should plan");
@@ -283,7 +262,7 @@ fn decodes_nested_structs_lists_and_null_masks() {
 }
 
 #[test]
-fn decodes_union_payloads_and_unsigned_raw_columns() {
+fn decodes_union_payloads_and_unsigned_columns() {
     let fixture = fixture();
     let entity = &fixture.entities[2];
     let batches = decode(entity);
@@ -317,6 +296,6 @@ fn decodes_union_payloads_and_unsigned_raw_columns() {
     assert_eq!(
         values.as_primitive::<UInt64Type>().values(),
         &[9_223_372_036_854_775_808, 0, 7, 13],
-        "an unsigned 64-bit column is reinterpreted from its little-endian bytes"
+        "an unsigned 64-bit column is reinterpreted from its two's-complement bits"
     );
 }

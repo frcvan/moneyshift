@@ -53,9 +53,7 @@ public record Count(
             var value1 = v1_1;
             column1[i] = value1 == null ? 0L : value1;
         }
-        byte[] bytes1 = new byte[column1.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes1).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column1);
-        w.raw(path, bytes1);
+        w.longs(path, column1);
     }
 
     @Override

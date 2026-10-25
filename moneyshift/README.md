@@ -71,8 +71,9 @@ The layout is derived from each component's Arrow datatype: primitives become na
 fixed-size lists recurse into `/0`, `/1`, …; structs into field names; lists into `/.offsets`
 (prefix sums, one entry more than instances) plus flattened `/.items`; dense unions into `/.variant`
 plus one payload path per variant; and nullable nodes add a `/.present` mask. Unsigned 64-bit
-columns are published as `raw`, eight little-endian bytes per instance, so the full unsigned range
-needs no second topic. The `layout` marker is `2` for this layout (`1` was `/.count` plus a
+columns stay native `long[]` topics carrying their two's-complement bits (NetworkTables has no
+unsigned type); the bridge reinterprets those bits, so the full unsigned range needs no second
+topic. The `layout` marker is `2` for this layout (`1` was `/.count` plus a
 `/.u64` decimal sidecar). Metadata topics (including the `.rerun/components` string, which is built
 once per present-component set) are only republished when the archetype or component set changes.
 

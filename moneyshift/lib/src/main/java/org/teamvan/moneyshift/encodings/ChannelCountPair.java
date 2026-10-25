@@ -61,9 +61,7 @@ public record ChannelCountPair(
             var value2 = v2_1;
             column2[i] = value2 == null ? 0L : value2;
         }
-        byte[] bytes2 = new byte[column2.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column2);
-        w.raw(path + "/message_count", bytes2);
+        w.longs(path + "/message_count", column2);
     }
 
     @Override

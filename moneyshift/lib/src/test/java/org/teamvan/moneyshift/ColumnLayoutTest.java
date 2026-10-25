@@ -63,19 +63,18 @@ class ColumnLayoutTest {
     }
 
     @Test
-    void uInt64UsesLittleEndianRawColumns() {
+    void uInt64KeepsAll64BitsInANativeColumn() {
         recorder.logComponent("l/count", "value", List.of(new Count(5), new Count(7)));
         assertArrayEquals(
-                new byte[] {5, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0},
-                raw("/Rerun/l/count/value"),
-                "eight little-endian bytes per instance");
+                new long[] {5, 7},
+                integers("/Rerun/l/count/value"),
+                "unsigned 64-bit columns stay native integer arrays");
 
-        // `Long.MIN_VALUE` is 2^63 as an unsigned 64-bit integer, which only the raw layout can
-        // represent without a second topic.
+        // `Long.MIN_VALUE` is 2^63 as an unsigned 64-bit integer; the signed bits round-trip and
+        // no decimal sidecar topic is needed.
         recorder.logComponent("l/big", "value", List.of(new Count(Long.MIN_VALUE)));
         assertArrayEquals(
-                new byte[] {0, 0, 0, 0, 0, 0, 0, (byte) 0x80},
-                raw("/Rerun/l/big/value"));
+                new long[] {Long.MIN_VALUE}, integers("/Rerun/l/big/value"), "raw bits");
         assertFalse(instance.getEntry("/Rerun/l/big/value/.u64").exists());
     }
 
@@ -225,10 +224,6 @@ class ColumnLayoutTest {
 
     private NtEntityWriter recorderWriter(String entity) {
         return new NtEntityWriter(recorder, entity);
-    }
-
-    private byte[] raw(String topic) {
-        return instance.getEntry(topic).getRaw(new byte[0]);
     }
 
     private double[] doubles(String topic) {

@@ -123,8 +123,8 @@ Useful when changing the console binary:
 - Metadata lives under `<entity>/.rerun/` (`layout`, `archetype`, `components`, `static`).
 - Component columns are native NT arrays (`double[]`, `long[]`, `boolean[]`, `string[]`, `raw`)
   laid out per the datatype table in TASK.md. No JSON envelopes for values. `UInt64` leaves are
-  `raw` with eight little-endian bytes per instance, and `List` nodes publish `/.offsets` prefix
-  sums (one more entry than instances) plus flattened `/.items`.
+  `long[]` carrying two's-complement bits (the decoder reinterprets them as unsigned), and `List`
+  nodes publish `/.offsets` prefix sums (one more entry than instances) plus flattened `/.items`.
 - Nullable nodes publish their mask at `<path>/.present` only when a batch contains nulls (or when
   the mask was published before, so it can be refreshed). The generator emits the mask lazily and
   `NtRecorder.writePresent` fills it for all-present batches; absent masks decode as all-valid.

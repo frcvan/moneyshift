@@ -77,9 +77,7 @@ public record ChannelMessageCounts(
             long value3 = v3_1;
             column3[j1] = value3;
         }
-        byte[] bytes3 = new byte[column3.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes3).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column3);
-        w.raw(path + "/.items/message_count", bytes3);
+        w.longs(path + "/.items/message_count", column3);
     }
 
     @Override

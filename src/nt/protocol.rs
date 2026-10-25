@@ -8,7 +8,7 @@
 //! |---|---|
 //! | `Boolean` | `P` = `boolean[]` |
 //! | integers | `P` = `long[]` |
-//! | `UInt64` | `P` = `raw`, eight little-endian bytes per instance |
+//! | `UInt64` | `P` = `long[]` two's-complement bits, reinterpreted as unsigned |
 //! | floats | `P` = `double[]` |
 //! | `Utf8` | `P` = `string[]` |
 //! | `Binary` | `P` = `raw`, `P/.lengths` = `long[]` |
@@ -410,12 +410,8 @@ impl ComponentPlan {
             | ArrowDataType::Int64
             | ArrowDataType::UInt8
             | ArrowDataType::UInt16
-            | ArrowDataType::UInt32 => column().and_then(NtValue::longs).map_or(0, <[i64]>::len),
-            // Unsigned 64-bit values are published as eight little-endian bytes per instance,
-            // which keeps the full range without a decimal sidecar topic.
-            ArrowDataType::UInt64 => column()
-                .and_then(NtValue::raw)
-                .map_or(0, |bytes| bytes.len() / 8),
+            | ArrowDataType::UInt32
+            | ArrowDataType::UInt64 => column().and_then(NtValue::longs).map_or(0, <[i64]>::len),
             ArrowDataType::Float16 | ArrowDataType::Float32 | ArrowDataType::Float64 => {
                 column().and_then(NtValue::doubles).map_or(0, <[f64]>::len)
             }
@@ -552,21 +548,20 @@ impl ComponentPlan {
                 }
             }
             ArrowDataType::UInt64 => {
-                let bytes = column.and_then(NtValue::raw);
-                check_len(bytes.map(|bytes| bytes.len() / 8), count, path, warnings);
-                let bytes = bytes.unwrap_or(&[]);
-                let value = |index: usize| -> u64 {
-                    let start = index * 8;
-                    match bytes.get(start..start + 8) {
-                        Some(chunk) => u64::from_le_bytes(chunk.try_into().expect("8 bytes")),
-                        None => 0,
-                    }
-                };
+                // NetworkTables has no unsigned integer type, so the column carries the
+                // two's-complement bits and the values are reinterpreted here. Every unsigned
+                // value maps to exactly one bit pattern, so nothing is lost and no sidecar is
+                // needed.
+                let values = column.and_then(NtValue::longs);
+                check_len(values.map(<[i64]>::len), count, path, warnings);
+                let values = values.unwrap_or(&[]);
                 match &nulls {
-                    None => Arc::new(UInt64Array::from_iter_values((0..count).map(value))),
+                    None => Arc::new(UInt64Array::from_iter_values(
+                        (0..count).map(|i| value_at(values, i, 0) as u64),
+                    )),
                     Some(nulls) => Arc::new(
                         (0..count)
-                            .map(|i| nulls.is_valid(i).then(|| value(i)))
+                            .map(|i| nulls.is_valid(i).then(|| value_at(values, i, 0) as u64))
                             .collect::<UInt64Array>(),
                     ),
                 }
@@ -1233,13 +1228,9 @@ mod tests {
         // `TensorData` exercises a struct root with a `List<UInt64>`, a `TensorBuffer` union and a
         // `List<Utf8>` field, all in one reflection-driven decode.
         let meta = meta(&[("tensor", "rerun.components.TensorData")]);
-        let mut shape_bytes = Vec::new();
-        for value in [2u64, 3] {
-            shape_bytes.extend_from_slice(&value.to_le_bytes());
-        }
         let columns = columns(&[
             ("tensor/shape/.offsets", NtValue::Longs(vec![0, 2])),
-            ("tensor/shape/.items", NtValue::Raw(shape_bytes)),
+            ("tensor/shape/.items", NtValue::Longs(vec![2, 3])),
             ("tensor/buffer/.variant", NtValue::Longs(vec![0])),
             ("tensor/buffer/U8/.offsets", NtValue::Longs(vec![0, 4])),
             ("tensor/buffer/U8/.items", NtValue::Longs(vec![1, 2, 3, 4])),
@@ -1323,20 +1314,16 @@ mod tests {
     }
 
     #[test]
-    fn decodes_unsigned_64_bit_raw_columns() {
+    fn decodes_unsigned_64_bit_columns_from_signed_bits() {
         // `Scalar` is an f64, so use the raw datatype for the u64 path instead.
         let datatype = DataType::UInt64;
-        let mut bytes = Vec::new();
-        for value in [u64::MAX, 0, 7] {
-            bytes.extend_from_slice(&value.to_le_bytes());
-        }
-        let cols = columns(&[("value", NtValue::Raw(bytes))]);
+        let cols = columns(&[("value", NtValue::Longs(vec![-1, 0, 7]))]);
         let array = build(&datatype, &cols, "value", 3).unwrap();
         let array = array.as_primitive::<arrow::datatypes::UInt64Type>();
         assert_eq!(array.values(), &[u64::MAX, 0, 7]);
 
         // A short column keeps the promised instance count instead of panicking.
-        let cols = columns(&[("value", NtValue::Raw(7u64.to_le_bytes().to_vec()))]);
+        let cols = columns(&[("value", NtValue::Longs(vec![7]))]);
         let array = build(&datatype, &cols, "value", 2).unwrap();
         let array = array.as_primitive::<arrow::datatypes::UInt64Type>();
         assert_eq!(array.value(0), 7);

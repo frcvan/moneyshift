@@ -48,11 +48,11 @@
       "static": false,
       "columns": {
         "data/buffer/.variant": {"type": "int[]", "value": [3]},
-        "data/buffer/U64/.items": {"type": "raw", "value": "0000000000000080000000000000000007000000000000000d00000000000000"},
+        "data/buffer/U64/.items": {"type": "int[]", "value": [-9223372036854775808, 0, 7, 13]},
         "data/buffer/U64/.offsets": {"type": "int[]", "value": [0, 4]},
         "data/names/.items": {"type": "string[]", "value": ["height", "width"]},
         "data/names/.offsets": {"type": "int[]", "value": [0, 2]},
-        "data/shape/.items": {"type": "raw", "value": "02000000000000000200000000000000"},
+        "data/shape/.items": {"type": "int[]", "value": [2, 2]},
         "data/shape/.offsets": {"type": "int[]", "value": [0, 2]}
       }
     }

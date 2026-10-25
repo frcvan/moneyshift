@@ -75,9 +75,7 @@ public record TensorData(
             long value2 = items1.get(j1);
             column2[j1] = value2;
         }
-        byte[] bytes2 = new byte[column2.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column2);
-        w.raw(path + "/shape/.items", bytes2);
+        w.longs(path + "/shape/.items", column2);
         boolean[] present3 = null;
         boolean anyNull3 = false;
         for (int i = 0; i < n; i++) {
@@ -269,9 +267,7 @@ public record TensorData(
             long value14 = items13.get(j13);
             column14[j13] = value14;
         }
-        byte[] bytes14 = new byte[column14.length * java.lang.Long.BYTES];
-        java.nio.ByteBuffer.wrap(bytes14).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column14);
-        w.raw(path + "/buffer/U64/.items", bytes14);
+        w.longs(path + "/buffer/U64/.items", column14);
         }
         if (!payload6_4.isEmpty()) {
             int payloadCount6_4 = payload6_4.size();

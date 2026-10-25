@@ -1569,7 +1569,6 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
             ctx.count
         )
         .unwrap();
-        let unsigned = matches!(atomic, AtomicDataType::UInt64);
         let zero = match array_type {
             "boolean" => "false",
             "double" => "0.0",
@@ -1603,24 +1602,10 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         }
         writeln!(self.code, "        }}").unwrap();
 
-        if unsigned {
-            // NetworkTables topics cannot switch type and `long[]` cannot hold the top half of
-            // the unsigned range, so the column is published as eight little-endian bytes per
-            // instance and reinterpreted by the decoder.
-            writeln!(
-                self.code,
-                "        byte[] bytes{id} = new byte[column{id}.length * java.lang.Long.BYTES];"
-            )
-            .unwrap();
-            writeln!(
-                self.code,
-                "        java.nio.ByteBuffer.wrap(bytes{id}).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column{id});"
-            )
-            .unwrap();
-            writeln!(self.code, "        w.raw({}, bytes{id});", ctx.path()).unwrap();
-        } else {
-            writeln!(self.code, "        w.{writer}({}, column{id});", ctx.path()).unwrap();
-        }
+        // `UInt64` is published as a regular `long[]`: every unsigned value has a unique
+        // two's-complement bit pattern, so the decoder reinterprets the bits as `u64` and no
+        // sidecar topic or byte packing is needed.
+        writeln!(self.code, "        w.{writer}({}, column{id});", ctx.path()).unwrap();
         let _ = is_float;
         Ok(())
     }

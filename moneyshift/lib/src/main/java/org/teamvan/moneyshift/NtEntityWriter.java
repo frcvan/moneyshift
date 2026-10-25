@@ -49,10 +49,7 @@ public final class NtEntityWriter {
         recorder.columnEntry(state, path).setIntegerArray(values);
     }
 
-    /**
-     * Publishes an opaque byte column, e.g. {@code Binary} payloads or unsigned 64-bit values
-     * packed as eight little-endian bytes per instance.
-     */
+    /** Publishes an opaque byte column, e.g. a {@code Binary} payload. */
     public void raw(String path, byte[] value) {
         recorder.columnEntry(state, path).setRaw(value);
     }
