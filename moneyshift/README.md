@@ -53,6 +53,52 @@ entity path needs at least one non-empty segment, because a root prefix would al
 other entity's topics. `log("", ...)`, `log("/", ...)` and `NtPath.encodeEntityPath("")` throw
 `IllegalArgumentException`.
 
+## FIRST field and robot overlays
+
+`org.teamvan.moneyshift.frc.FirstMetadata` declares FIRST data for the bridge. It is not Rerun
+protocol data: one plain NetworkTables string at `/Firstrun/layout`.
+
+```java
+FirstMetadata.builder()
+        .robot(254, "/AdvantageKit/RealOutputs/Drive/Pose2d")
+        .swerve(254, "/AdvantageKit/RealOutputs/SwerveStates/Measured")
+        .camera(254, "front", 0.30, 0.0, 0.50, 0.0, -10.0, 0.0, 70.0,
+                "/Camera/front/stream")
+        .path("auto", "/AdvantageKit/RealOutputs/PathPlanner/ActivePath")
+        .build()
+        .publish(NtRecorder.getInstance());
+```
+
+The pose topic may publish `struct:Pose2d`, `struct:Pose3d`, or a `double[]` of `[x, y, yaw]`; the
+swerve topic publishes `struct:SwerveModuleState[]`; path topics publish `struct:Pose2d[]` or
+`struct:Translation2d[]`.
+
+A camera optionally takes a ninth argument, the network name of a plain `raw` NetworkTables topic
+that publishes **one encoded frame per update**. The bridge logs each frame on the camera entity,
+with the recording's `robot_time`: Annex-B H.264/H.265 samples become Rerun `VideoStream` samples
+(one sample per frame, with keyframes marked), and JPEG or PNG frames become `EncodedImage`, which
+is what an MJPEG camera topic carries. Frames are shown on the camera's frustum in the 3D view and
+in any 2D view of that entity, so a saved recording replays the camera footage next to the field.
+From that declaration the bridge draws:
+
+| Entity | Contents |
+| --- | --- |
+| `first/field` | field lines, from the declared geometry |
+| `first/field/carpet` | the carpet plane |
+| `first/field/tags` | AprilTag plates |
+| `first/field/model` | optional glTF/GLB field model (`fieldModel(...)`) |
+| `first/robots/<team>` | `Transform3D` driven by the declared pose topic |
+| `first/robots/<team>/model` | static bounding box (`Boxes3D`, default 0.9 m square) |
+| `first/robots/<team>/swerve` | per-module speed and steering vectors (`Arrows3D`) |
+| `first/robots/<team>/cameras/<name>` | camera transform, pinhole frustum, and video (`Pinhole`, `VideoStream`/`EncodedImage`) |
+| `first/paths/<name>` | planned path as a line strip |
+| `first2d/...` | a top-down mirror of the field, tags, paths and robot footprints |
+
+`FieldGeometry.standard()` is the season-neutral carpet, perimeter and center line; pass your own
+`FieldGeometry` with `lines` and `tags` for a season. Nothing about a particular game is baked into
+the SDK, and the field's 16.541 m by 8.069 m size is not configurable. The 2D mirror negates `y`,
+so a default 2D view reads like the game-manual field diagram.
+
 ## What is on the wire
 
 For one log call:

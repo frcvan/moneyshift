@@ -12,6 +12,8 @@ pub mod values;
 pub mod wpilog;
 
 #[cfg(not(target_arch = "wasm32"))]
+pub mod first;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod live;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod nt;

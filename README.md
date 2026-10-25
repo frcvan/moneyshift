@@ -42,6 +42,21 @@ The live bridge subscribes to every topic on the team's NetworkTables server and
 - everything else through the same WPILib-struct heuristics the WPILog importer uses, so plain
   robot code, AdvantageKit and dashboard topics are graphed without extra work.
 
+Robot code can also publish one `/Firstrun/layout` string (see
+[`FirstMetadata`](moneyshift/README.md#first-field-and-robot-overlays)). It declares which topics
+carry each robot's pose, swerve module states and planned paths, and what the field and cameras
+look like; the bridge then adds the carpet, field lines, tags, robot bounding boxes, swerve
+vectors, camera frustums, paths and a 2D top-down mirror under `first/` and `first2d/` - no
+`/Rerun` topics required on the robot.
+
+A camera can also name a `raw` topic that publishes one encoded frame per update. H.264/H.265
+samples are logged with `VideoStream` and JPEG/PNG frames with `EncodedImage` on the camera's
+entity, so the recording scrubs through camera footage on the frustum next to the 3D field.
+
+`cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]` renders a field with two
+swerve robots, camera video and a planned path for checking the overlays without a robot. Without
+a clip it renders a synthetic one with `ffmpeg`, and skips video when `ffmpeg` is missing.
+
 ```sh
 rerun-importer-firstrun --nt --team 254 --spawn
 rerun-importer-firstrun --nt --nt-addr 10.0.0.2 --save /tmp/live.rrd

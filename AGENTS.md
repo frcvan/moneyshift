@@ -25,6 +25,7 @@ is generated from the `re_type_definitions` git tag `0.40.0`.
 | `src/conv.rs`, `src/conv/components.rs`          | Heuristics that turn raw values into Rerun archetypes and chunks                   |
 | `src/nt/`                                        | `/Rerun` column decoder (`protocol.rs`) and plain-topic adapter (`native.rs`)      |
 | `src/live.rs`                                    | Live NT subscription, debounce, timestamps, sinks and reconnect                    |
+| `src/first.rs`                                   | `/Firstrun/layout` declaration: field, robot and pose overlays for the live bridge |
 | `src/importer.rs`, `src/cli.rs`                  | WPI-log to RRD importer and the hand-written CLI parser                            |
 | `xtask/`                                         | Code generator: `re_type_definitions` → Java sources (`xtask/src/codegen/java.rs`) |
 | `moneyshift/lib/`                                | Java library (`org.teamvan.moneyshift`)                                            |
@@ -97,6 +98,12 @@ Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUE
 - Hand-written runtime: `NtRecorder`, `NtEntityWriter`, `NtPath`, `Archetype`, `NtComponent`,
   `NtEncoding`. The old wire-protocol classes (Arrow, protobuf, gRPC, RRD, blueprints) are gone;
   do not reintroduce them.
+- `org.teamvan.moneyshift.frc.FirstMetadata` publishes the `/Firstrun/layout` declaration the
+  bridge reads; `src/first.rs` owns the drawing. Robot bodies span `0..2h` above the carpet (a
+  pose is on the floor), swerve vectors are drawn above the body, and a camera's optional
+  `video_topic` is a plain `raw` topic carrying one encoded frame per update:
+  `first::classify_frame` maps Annex-B H.264/H.265 to `VideoStream` samples and JPEG/PNG to
+  `EncodedImage` on the camera entity.
 - Tests publish to in-process NT instances and assert exact topic paths and values.
 - Published artifacts (jar, sources, javadoc) must each stay under **5 MB**;
   `:lib:checkPublicationSize` enforces it and runs from `:lib:check`. Javadoc uses `-no-fonts`

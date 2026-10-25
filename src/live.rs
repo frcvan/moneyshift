@@ -25,6 +25,7 @@ use re_sdk::{RecordingStream, RecordingStreamBuilder};
 
 use crate::cli::{LiveArgs, LiveSink};
 use crate::conv::{self, ConversionOptions};
+use crate::first;
 use crate::log::{EntryLog, Timestamp};
 use crate::nt::{native, protocol};
 
@@ -292,6 +293,21 @@ struct LiveState {
     entities_by_topic: HashMap<String, EntityPath>,
     /// Value topics seen before their entity's metadata; claimed when the entity appears.
     orphans: HashMap<String, protocol::NtValue>,
+    /// The latest `/Firstrun/layout` declaration, and whether it still needs drawing.
+    layout: Option<first::Layout>,
+    layout_pending: bool,
+    /// Robots by pose topic, so every pose update is a map lookup.
+    pose_robots: HashMap<String, first::Robot>,
+    pending_poses: Vec<(first::Robot, first::Pose)>,
+    /// Robots by swerve-states topic.
+    swerve_robots: HashMap<String, first::Robot>,
+    pending_swerve: Vec<(first::Robot, Vec<first::SwerveModuleState>)>,
+    /// Path names by the topic their poses arrive on.
+    path_names: HashMap<String, String>,
+    pending_paths: Vec<(String, Vec<first::Pose>)>,
+    /// Cameras by the `raw` topic their encoded frames arrive on.
+    camera_topics: HashMap<String, (u16, first::Camera)>,
+    pending_frames: Vec<(u16, first::Camera, Vec<u8>)>,
     queue: FlushQueue,
     native: EntryLog,
     native_updates: Vec<PendingUpdate>,
@@ -308,6 +324,16 @@ impl LiveState {
             entities: HashMap::new(),
             entities_by_topic: HashMap::new(),
             orphans: HashMap::new(),
+            layout: None,
+            layout_pending: false,
+            pose_robots: HashMap::new(),
+            pending_poses: Vec::new(),
+            swerve_robots: HashMap::new(),
+            pending_swerve: Vec::new(),
+            path_names: HashMap::new(),
+            pending_paths: Vec::new(),
+            camera_topics: HashMap::new(),
+            pending_frames: Vec::new(),
             queue: FlushQueue::new(),
             native: EntryLog::new(),
             native_updates: Vec::new(),
@@ -373,6 +399,87 @@ impl LiveState {
                     }
                     self.orphans.insert(name.to_owned(), column);
                 }
+            }
+            return;
+        }
+
+        if name == first::TOPIC {
+            match value.as_str().map(first::Layout::parse) {
+                Some(Ok(layout)) => {
+                    // Robot code may republish the same declaration every loop; only redraw
+                    // when the declaration actually changed.
+                    if self.layout.as_ref() != Some(&layout) {
+                        re_log::info!("drawing FIRST data from the declaration on {name}");
+                        self.pose_robots = layout.robots_by_pose_topic();
+                        self.swerve_robots = layout.robots_by_swerve_topic();
+                        self.path_names = layout.paths_by_topic();
+                        self.camera_topics = layout.cameras_by_video_topic();
+                        self.layout = Some(layout);
+                        self.layout_pending = true;
+                        self.queue.schedule(now);
+                    }
+                }
+                Some(Err(error)) => self.warn_once(
+                    format!("{name}:parse"),
+                    format!("ignoring the FIRST declaration on {name}: {error:#}"),
+                ),
+                None => {}
+            }
+            return;
+        }
+
+        if let Some(robot) = self.swerve_robots.get(name) {
+            match first::swerve_states_from_nt(topic.r#type(), value) {
+                Some(states) => {
+                    self.pending_swerve.push((robot.clone(), states));
+                    self.queue.schedule(now);
+                }
+                None => self.warn_once(
+                    format!("{name}:swerve"),
+                    format!("ignoring swerve states on {name} that are not SwerveModuleState[]"),
+                ),
+            }
+            return;
+        }
+
+        if let Some(robot) = self.pose_robots.get(name) {
+            match first::Pose::from_nt(topic.r#type(), value) {
+                Some(pose) => {
+                    self.pending_poses.push((robot.clone(), pose));
+                    self.queue.schedule(now);
+                }
+                None => self.warn_once(
+                    format!("{name}:pose"),
+                    format!("ignoring a pose on {name} that is not a Pose2d/Pose3d"),
+                ),
+            }
+            return;
+        }
+
+        if let Some(path) = self.path_names.get(name) {
+            match first::poses_from_nt(topic.r#type(), value) {
+                Some(poses) => {
+                    self.pending_paths.push((path.clone(), poses));
+                    self.queue.schedule(now);
+                }
+                None => self.warn_once(
+                    format!("{name}:path"),
+                    format!("ignoring path poses on {name} that are not Pose2d[]/Translation2d[]"),
+                ),
+            }
+            return;
+        }
+
+        if let Some((team, camera)) = self.camera_topics.get(name).cloned() {
+            match first::frame_from_nt(topic.r#type(), value) {
+                Some(bytes) => {
+                    self.pending_frames.push((team, camera, bytes));
+                    self.queue.schedule(now);
+                }
+                None => self.warn_once(
+                    format!("{name}:camera"),
+                    format!("ignoring a camera frame on {name} that is not a raw topic"),
+                ),
             }
             return;
         }
@@ -471,8 +578,34 @@ impl LiveState {
         } else {
             self.queue.take_due(now)
         };
-        if entities.is_empty() && self.native_updates.is_empty() {
+        let layout_pending = std::mem::take(&mut self.layout_pending);
+        if entities.is_empty()
+            && self.native_updates.is_empty()
+            && self.pending_poses.is_empty()
+            && self.pending_swerve.is_empty()
+            && self.pending_paths.is_empty()
+            && self.pending_frames.is_empty()
+            && !layout_pending
+        {
             return;
+        }
+
+        let prefix = self
+            .args
+            .entity_path_prefix
+            .as_deref()
+            .map(EntityPath::from);
+        if layout_pending {
+            let error = self
+                .layout
+                .as_ref()
+                .and_then(|layout| layout.log_static(stream, prefix.as_ref()).err());
+            if let Some(error) = error {
+                self.warn_once(
+                    "first:static".to_owned(),
+                    format!("could not draw the FIRST field: {error:#}"),
+                );
+            }
         }
 
         let robot_ns = self.robot_time_ns();
@@ -548,6 +681,71 @@ impl LiveState {
                     self.warn_once(
                         format!("{entity}:decode"),
                         format!("failed to decode {entity}: {error}"),
+                    );
+                }
+            }
+        }
+
+        if !self.pending_swerve.is_empty() {
+            for (robot, states) in std::mem::take(&mut self.pending_swerve) {
+                if let Err(error) =
+                    first::log_swerve(stream, &robot, &states, robot_cell, prefix.as_ref())
+                {
+                    self.warn_once(
+                        format!("first:swerve:{}", robot.team),
+                        format!(
+                            "could not draw team {}'s swerve states: {error:#}",
+                            robot.team
+                        ),
+                    );
+                }
+            }
+        }
+
+        if !self.pending_paths.is_empty() {
+            for (name, poses) in std::mem::take(&mut self.pending_paths) {
+                if let Err(error) =
+                    first::log_path(stream, &name, &poses, robot_cell, prefix.as_ref())
+                {
+                    self.warn_once(
+                        format!("first:path:{name}"),
+                        format!("could not draw path {name}: {error:#}"),
+                    );
+                }
+            }
+        }
+
+        if !self.pending_frames.is_empty() {
+            for (team, camera, bytes) in std::mem::take(&mut self.pending_frames) {
+                match first::log_frame(stream, team, &camera, &bytes, robot_cell, prefix.as_ref()) {
+                    Ok(true) => {}
+                    Ok(false) => self.warn_once(
+                        format!("first:video:{team}:{}", camera.name),
+                        format!(
+                            "ignoring an unrecognized camera frame from team {team}'s {} camera: \
+                             expected H.264/H.265, JPEG or PNG",
+                            camera.name
+                        ),
+                    ),
+                    Err(error) => self.warn_once(
+                        format!("first:video:{team}:{}:log", camera.name),
+                        format!(
+                            "could not log a frame from team {team}'s {} camera: {error:#}",
+                            camera.name
+                        ),
+                    ),
+                }
+            }
+        }
+
+        if !self.pending_poses.is_empty() {
+            for (robot, pose) in std::mem::take(&mut self.pending_poses) {
+                if let Err(error) =
+                    first::log_pose(stream, &robot, pose, robot_cell, prefix.as_ref())
+                {
+                    self.warn_once(
+                        format!("first:pose:{}", robot.team),
+                        format!("could not draw team {}'s pose: {error:#}", robot.team),
                     );
                 }
             }
