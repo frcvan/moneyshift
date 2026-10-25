@@ -30,18 +30,20 @@ public record Blob(
             }
         }
         w.present(path, present0, anyNull0, n);
-        long[] counts1 = new long[n];
+        long[] offsets1 = new long[n + 1];
         int total1 = 0;
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).data();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.data();
             java.util.List<java.lang.Short> list1 = v1_0;
-            counts1[i] = list1 == null ? 0L : list1.size();
-            total1 += (int) counts1[i];
+            total1 += list1 == null ? 0 : list1.size();
+            offsets1[i + 1] = total1;
         }
-        w.longs(path + "/.count", counts1);
+        w.longs(path + "/.offsets", offsets1);
         java.util.ArrayList<java.lang.Short> items1 = new java.util.ArrayList<>(total1);
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).data();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.data();
             java.util.List<java.lang.Short> list1 = v1_0;
             if (list1 != null) items1.addAll(list1);
         }

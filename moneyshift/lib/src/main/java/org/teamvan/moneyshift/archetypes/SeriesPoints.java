@@ -64,31 +64,59 @@ public record SeriesPoints(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (colors != null && !colors.isEmpty()) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        if (!markers.isEmpty()) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("markers").append('=').append(org.teamvan.moneyshift.components.MarkerShape.COMPONENT_TYPE);
         }
-        if (names != null && !names.isEmpty()) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("names").append('=').append(org.teamvan.moneyshift.components.Name.COMPONENT_TYPE);
         }
-        if (visibleSeries != null && !visibleSeries.isEmpty()) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("visible_series").append('=').append(org.teamvan.moneyshift.components.Visible.COMPONENT_TYPE);
         }
-        if (markerSizes != null && !markerSizes.isEmpty()) {
+        if ((mask & 16L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("marker_sizes").append('=').append(org.teamvan.moneyshift.components.MarkerSize.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (colors != null && !colors.isEmpty()) mask |= 1L;
+        if (!markers.isEmpty()) mask |= 2L;
+        if (names != null && !names.isEmpty()) mask |= 4L;
+        if (visibleSeries != null && !visibleSeries.isEmpty()) mask |= 8L;
+        if (markerSizes != null && !markerSizes.isEmpty()) mask |= 16L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (colors != null && !colors.isEmpty()) {
             org.teamvan.moneyshift.components.Color.writeColumnsStatic(w, "colors", colors);
         }

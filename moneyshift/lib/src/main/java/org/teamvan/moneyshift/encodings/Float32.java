@@ -31,7 +31,8 @@ public record Float32(
         w.present(path, present0, anyNull0, n);
         double[] column1 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).value();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.value();
             var value1 = v1_0;
             column1[i] = value1 == null ? 0.0 : value1;
         }

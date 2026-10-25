@@ -122,7 +122,9 @@ Useful when changing the console binary:
   (`[A-Za-z0-9_-]` unreserved, `/` separator).
 - Metadata lives under `<entity>/.rerun/` (`layout`, `archetype`, `components`, `static`).
 - Component columns are native NT arrays (`double[]`, `long[]`, `boolean[]`, `string[]`, `raw`)
-  laid out per the datatype table in TASK.md. No JSON envelopes for values.
+  laid out per the datatype table in TASK.md. No JSON envelopes for values. `UInt64` leaves are
+  `raw` with eight little-endian bytes per instance, and `List` nodes publish `/.offsets` prefix
+  sums (one more entry than instances) plus flattened `/.items`.
 - Nullable nodes publish their mask at `<path>/.present` only when a batch contains nulls (or when
   the mask was published before, so it can be refreshed). The generator emits the mask lazily and
   `NtRecorder.writePresent` fills it for all-present batches; absent masks decode as all-valid.
@@ -131,6 +133,11 @@ Useful when changing the console binary:
 - Fixed-size-list component columns are published per element component (`positions/0`), but
   Rerun stores fixed-size lists contiguously per instance. The decoder must interleave them; a
   concat of the columns is only correct for single-component lists.
+- The decoder resolves each published column into a per-component trie of column segments
+  (`ComponentPlan`) and then walks it, so no path string is built or hashed per datatype node.
+  Keep new wire columns as trie children instead of looking them up by string.
+- Struct values in WPILog data are parsed straight into `EntryLog` (`add_struct_bytes`); the
+  `EntryValue::Struct` tree is the reference implementation and must stay in sync.
 - `moneyshift/lib/src/test/resources/rerun_wire_fixture.json` pins the wire layout. It is produced
   by the Java `WireFixtureTest` and decoded by `tests/wire_fixture.rs`; regenerate it (see
   `moneyshift/README.md`) when a layout change is intentional.

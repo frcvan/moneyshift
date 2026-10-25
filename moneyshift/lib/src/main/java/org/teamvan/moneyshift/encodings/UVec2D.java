@@ -43,7 +43,8 @@ public record UVec2D(
         w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).xy();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.xy();
             var v1_1 = v1_0 == null ? null : v1_0[0];
             var value1 = v1_1;
             column1[i] = value1 == null ? 0L : value1;
@@ -51,7 +52,8 @@ public record UVec2D(
         w.longs(path + "/0", column1);
         long[] column2 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).xy();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.xy();
             var v2_1 = v2_0 == null ? null : v2_0[1];
             var value2 = v2_1;
             column2[i] = value2 == null ? 0L : value2;

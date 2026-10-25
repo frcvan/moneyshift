@@ -90,51 +90,84 @@ public record Mesh3D(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (!vertexPositions.isEmpty()) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("vertex_positions").append('=').append(org.teamvan.moneyshift.components.Position3D.COMPONENT_TYPE);
         }
-        if (triangleIndices != null && !triangleIndices.isEmpty()) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("triangle_indices").append('=').append(org.teamvan.moneyshift.components.TriangleIndices.COMPONENT_TYPE);
         }
-        if (vertexNormals != null && !vertexNormals.isEmpty()) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("vertex_normals").append('=').append(org.teamvan.moneyshift.components.Vector3D.COMPONENT_TYPE);
         }
-        if (vertexColors != null && !vertexColors.isEmpty()) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("vertex_colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        if (vertexTexcoords != null && !vertexTexcoords.isEmpty()) {
+        if ((mask & 16L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("vertex_texcoords").append('=').append(org.teamvan.moneyshift.components.Texcoord2D.COMPONENT_TYPE);
         }
-        if (albedoFactor != null) {
+        if ((mask & 32L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("albedo_factor").append('=').append(org.teamvan.moneyshift.components.AlbedoFactor.COMPONENT_TYPE);
         }
-        if (faceRendering != null) {
+        if ((mask & 64L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("face_rendering").append('=').append(org.teamvan.moneyshift.components.MeshFaceRendering.COMPONENT_TYPE);
         }
-        if (albedoTextureBuffer != null) {
+        if ((mask & 128L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("albedo_texture_buffer").append('=').append(org.teamvan.moneyshift.components.ImageBuffer.COMPONENT_TYPE);
         }
-        if (albedoTextureFormat != null) {
+        if ((mask & 256L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("albedo_texture_format").append('=').append(org.teamvan.moneyshift.components.ImageFormat.COMPONENT_TYPE);
         }
-        if (classIds != null && !classIds.isEmpty()) {
+        if ((mask & 512L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (!vertexPositions.isEmpty()) mask |= 1L;
+        if (triangleIndices != null && !triangleIndices.isEmpty()) mask |= 2L;
+        if (vertexNormals != null && !vertexNormals.isEmpty()) mask |= 4L;
+        if (vertexColors != null && !vertexColors.isEmpty()) mask |= 8L;
+        if (vertexTexcoords != null && !vertexTexcoords.isEmpty()) mask |= 16L;
+        if (albedoFactor != null) mask |= 32L;
+        if (faceRendering != null) mask |= 64L;
+        if (albedoTextureBuffer != null) mask |= 128L;
+        if (albedoTextureFormat != null) mask |= 256L;
+        if (classIds != null && !classIds.isEmpty()) mask |= 512L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (!vertexPositions.isEmpty()) {
             org.teamvan.moneyshift.components.Position3D.writeColumnsStatic(w, "vertex_positions", vertexPositions);
         }

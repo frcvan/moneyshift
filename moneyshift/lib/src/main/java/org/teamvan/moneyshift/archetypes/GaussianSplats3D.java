@@ -60,35 +60,64 @@ public record GaussianSplats3D(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (!centers.isEmpty()) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("centers").append('=').append(org.teamvan.moneyshift.components.Position3D.COMPONENT_TYPE);
         }
-        if (scales != null && !scales.isEmpty()) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("scales").append('=').append(org.teamvan.moneyshift.components.Scale3D.COMPONENT_TYPE);
         }
-        if (quaternions != null && !quaternions.isEmpty()) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("quaternions").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
-        if (colors != null && !colors.isEmpty()) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        if (shCoefficients != null && !shCoefficients.isEmpty()) {
+        if ((mask & 16L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("sh_coefficients").append('=').append(org.teamvan.moneyshift.components.SphericalHarmonics3Rgb.COMPONENT_TYPE);
         }
-        if (sphericalHarmonicsDegree != null) {
+        if ((mask & 32L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("spherical_harmonics_degree").append('=').append(org.teamvan.moneyshift.components.SphericalHarmonicsDegree.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (!centers.isEmpty()) mask |= 1L;
+        if (scales != null && !scales.isEmpty()) mask |= 2L;
+        if (quaternions != null && !quaternions.isEmpty()) mask |= 4L;
+        if (colors != null && !colors.isEmpty()) mask |= 8L;
+        if (shCoefficients != null && !shCoefficients.isEmpty()) mask |= 16L;
+        if (sphericalHarmonicsDegree != null) mask |= 32L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (!centers.isEmpty()) {
             org.teamvan.moneyshift.components.Position3D.writeColumnsStatic(w, "centers", centers);
         }

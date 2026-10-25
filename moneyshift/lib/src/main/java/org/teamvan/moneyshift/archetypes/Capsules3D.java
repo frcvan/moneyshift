@@ -93,55 +93,89 @@ public record Capsules3D(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (!lengths.isEmpty()) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("lengths").append('=').append(org.teamvan.moneyshift.components.Length.COMPONENT_TYPE);
         }
-        if (!radii.isEmpty()) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        if (translations != null && !translations.isEmpty()) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("translations").append('=').append(org.teamvan.moneyshift.components.Translation3D.COMPONENT_TYPE);
         }
-        if (rotationAxisAngles != null && !rotationAxisAngles.isEmpty()) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("rotation_axis_angles").append('=').append(org.teamvan.moneyshift.components.RotationAxisAngle.COMPONENT_TYPE);
         }
-        if (quaternions != null && !quaternions.isEmpty()) {
+        if ((mask & 16L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("quaternions").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
-        if (colors != null && !colors.isEmpty()) {
+        if ((mask & 32L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("colors").append('=').append(org.teamvan.moneyshift.components.Color.COMPONENT_TYPE);
         }
-        if (lineRadii != null && !lineRadii.isEmpty()) {
+        if ((mask & 64L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("line_radii").append('=').append(org.teamvan.moneyshift.components.Radius.COMPONENT_TYPE);
         }
-        if (fillMode != null) {
+        if ((mask & 128L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("fill_mode").append('=').append(org.teamvan.moneyshift.components.FillMode.COMPONENT_TYPE);
         }
-        if (labels != null && !labels.isEmpty()) {
+        if ((mask & 256L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("labels").append('=').append(org.teamvan.moneyshift.components.Text.COMPONENT_TYPE);
         }
-        if (showLabels != null) {
+        if ((mask & 512L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("show_labels").append('=').append(org.teamvan.moneyshift.components.ShowLabels.COMPONENT_TYPE);
         }
-        if (classIds != null && !classIds.isEmpty()) {
+        if ((mask & 1024L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("class_ids").append('=').append(org.teamvan.moneyshift.components.ClassId.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (!lengths.isEmpty()) mask |= 1L;
+        if (!radii.isEmpty()) mask |= 2L;
+        if (translations != null && !translations.isEmpty()) mask |= 4L;
+        if (rotationAxisAngles != null && !rotationAxisAngles.isEmpty()) mask |= 8L;
+        if (quaternions != null && !quaternions.isEmpty()) mask |= 16L;
+        if (colors != null && !colors.isEmpty()) mask |= 32L;
+        if (lineRadii != null && !lineRadii.isEmpty()) mask |= 64L;
+        if (fillMode != null) mask |= 128L;
+        if (labels != null && !labels.isEmpty()) mask |= 256L;
+        if (showLabels != null) mask |= 512L;
+        if (classIds != null && !classIds.isEmpty()) mask |= 1024L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (!lengths.isEmpty()) {
             org.teamvan.moneyshift.components.Length.writeColumnsStatic(w, "lengths", lengths);
         }

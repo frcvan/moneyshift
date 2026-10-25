@@ -1063,24 +1063,24 @@ impl<'a> JavaGenerator<'a> {
             "    public java.lang.String archetypeName() {{\n        return ARCHETYPE_NAME;\n    }}"
         )
         .unwrap();
+        // The `.rerun/components` string only depends on which fields are present, so it is built
+        // once per presence mask. Logging the same archetype every loop iteration then only reads
+        // a cached string, and the recorder skips the topic rewrite.
         writeln!(code).unwrap();
-        writeln!(code, "    @Override").unwrap();
         writeln!(
             code,
-            "    public void writeColumns({CORE_PACKAGE}.NtEntityWriter w) {{"
+            "    private static final class ComponentsCache {{\n        final long mask;\n        final java.lang.String components;\n\n        ComponentsCache(long mask, java.lang.String components) {{\n            this.mask = mask;\n            this.components = components;\n        }}\n    }}\n\n    private static volatile ComponentsCache cachedComponents;\n\n    private static java.lang.String componentsFor(long mask) {{\n        ComponentsCache cached = cachedComponents;\n        if (cached != null && cached.mask == mask) {{\n            return cached.components;\n        }}\n        java.lang.StringBuilder components = new java.lang.StringBuilder();"
         )
         .unwrap();
-        writeln!(
-            code,
-            "        java.lang.StringBuilder components = new java.lang.StringBuilder();"
-        )
-        .unwrap();
-        for field in &object.fields {
-            let field_name = Self::java_field_name(field);
+        for (index, field) in object.fields.iter().enumerate() {
             let component_fqname = field.typ.fqname().unwrap_or_default();
             let component = &self.objects[component_fqname];
-            let condition = present_condition(field);
-            writeln!(code, "        if ({condition}) {{").unwrap();
+            writeln!(
+                code,
+                "        if ((mask & {}L) != 0) {{",
+                component_mask(index)
+            )
+            .unwrap();
             writeln!(
                 code,
                 "            if (components.length() > 0) components.append(',');"
@@ -1089,17 +1089,38 @@ impl<'a> JavaGenerator<'a> {
             writeln!(
                 code,
                 "            components.append(\"{}\").append('=').append({}.COMPONENT_TYPE);",
-                field.name,
+                escape_java_string(&field.name),
                 java_class(&component.fqname)
             )
             .unwrap();
             writeln!(code, "        }}").unwrap();
-            let _ = component;
+        }
+        writeln!(
+            code,
+            "        java.lang.String joined = components.toString();\n        cachedComponents = new ComponentsCache(mask, joined);\n        return joined;\n    }}"
+        )
+        .unwrap();
+        writeln!(code).unwrap();
+        writeln!(code, "    @Override").unwrap();
+        writeln!(
+            code,
+            "    public void writeColumns({CORE_PACKAGE}.NtEntityWriter w) {{"
+        )
+        .unwrap();
+        writeln!(code, "        long mask = 0L;").unwrap();
+        for (index, field) in object.fields.iter().enumerate() {
+            let condition = present_condition(field);
+            writeln!(
+                code,
+                "        if ({condition}) mask |= {}L;",
+                component_mask(index)
+            )
+            .unwrap();
         }
         writeln!(code, "        w.metaString(\"archetype\", ARCHETYPE_NAME);").unwrap();
         writeln!(
             code,
-            "        w.metaString(\"components\", components.toString());"
+            "        w.metaString(\"components\", componentsFor(mask));"
         )
         .unwrap();
         for field in &object.fields {
@@ -1244,6 +1265,11 @@ impl<'a> JavaGenerator<'a> {
     }
 }
 
+/// The presence bit of archetype field `index`, as used by the generated `ComponentsCache`.
+fn component_mask(index: usize) -> u64 {
+    1u64 << index
+}
+
 /// The Java condition under which an archetype field has data to write.
 fn present_condition(field: &re_types_builder::ObjectField) -> String {
     let field_name = JavaGenerator::java_field_name(field);
@@ -1266,8 +1292,9 @@ fn present_condition(field: &re_types_builder::ObjectField) -> String {
 ///
 /// The layout follows the protocol:
 ///
-/// * `List` writes a per-instance count column (`P/.count`, `long[]`) and puts the flattened
-///   elements under `P/.items`, so lists of different lengths in one batch decode unambiguously.
+/// * `List` writes the prefix sums of its element counts (`P/.offsets`, `long[]`, one more entry
+///   than instances) and puts the flattened elements under `P/.items`, so lists of different
+///   lengths in one batch decode unambiguously.
 /// * `Union` writes a per-instance field ordinal (`P/.variant`, `long[]`, `-1` for null) and each
 ///   variant's payload under `P/<variant field name>`.
 ///
@@ -1363,6 +1390,12 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
     /// Emits the accessor locals for `chain` and returns the expression holding the node value.
     fn chain_expr(&mut self, chain: &Chain, id: usize, indent: &str) -> String {
         let mut current = chain.root.clone();
+        if !chain.steps.is_empty() {
+            // Bind the instance lookup once: every accessor used to re-evaluate `values.get(i)`.
+            let local = format!("v{id}_root");
+            writeln!(self.code, "{indent}var {local} = {current};").unwrap();
+            current = local;
+        }
         for (depth, step) in chain.steps.iter().enumerate() {
             let local = format!("v{id}_{depth}");
             if step.parent_may_be_null {
@@ -1398,6 +1431,8 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         ctx: &NodeCtx,
     ) -> Result<()> {
         let indent = "        ".to_owned();
+        // A mask is only emitted for nodes whose Arrow field is nullable: the codegen already
+        // knows that non-nullable nodes cannot produce a null, so they get no mask at all.
         if node_nullable {
             let id = self.id();
             // The mask is allocated lazily: most batches have no nulls at all, and a mask costs
@@ -1534,11 +1569,7 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
             ctx.count
         )
         .unwrap();
-        let mut unsigned = false;
-        if matches!(atomic, AtomicDataType::UInt64) {
-            writeln!(self.code, "        boolean unsigned{id} = false;").unwrap();
-            unsigned = true;
-        }
+        let unsigned = matches!(atomic, AtomicDataType::UInt64);
         let zero = match array_type {
             "boolean" => "false",
             "double" => "0.0",
@@ -1570,27 +1601,23 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
             )
             .unwrap();
         }
-        if unsigned {
-            writeln!(
-                self.code,
-                "{inner}unsigned{id} |= column{id}[{i}] < 0L;",
-                i = ctx.index
-            )
-            .unwrap();
-        }
         writeln!(self.code, "        }}").unwrap();
 
         if unsigned {
-            // NT topics have a fixed type, so a column can never switch from `long[]` to
-            // `string[]`. Keep the native array authoritative and publish overflowing values as
-            // decimal strings under `P/.u64`; once that sidecar exists it is republished with
-            // every batch so a batch of small values cannot shadow the unsigned ones.
+            // NetworkTables topics cannot switch type and `long[]` cannot hold the top half of
+            // the unsigned range, so the column is published as eight little-endian bytes per
+            // instance and reinterpreted by the decoder.
             writeln!(
                 self.code,
-                "        w.u64({}, column{id}, unsigned{id});",
-                ctx.path()
+                "        byte[] bytes{id} = new byte[column{id}.length * java.lang.Long.BYTES];"
             )
             .unwrap();
+            writeln!(
+                self.code,
+                "        java.nio.ByteBuffer.wrap(bytes{id}).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column{id});"
+            )
+            .unwrap();
+            writeln!(self.code, "        w.raw({}, bytes{id});", ctx.path()).unwrap();
         } else {
             writeln!(self.code, "        w.{writer}({}, column{id});", ctx.path()).unwrap();
         }
@@ -1701,7 +1728,7 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         let elem = self.generator.java_type_boxed(elem_type);
         writeln!(
             self.code,
-            "        long[] counts{id} = new long[{}];",
+            "        long[] offsets{id} = new long[{} + 1];",
             ctx.count
         )
         .unwrap();
@@ -1722,20 +1749,19 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         .unwrap();
         writeln!(
             self.code,
-            "{inner}counts{id}[{i}] = list{id} == null ? 0L : list{id}.size();",
-            i = ctx.index
+            "{inner}total{id} += list{id} == null ? 0 : list{id}.size();"
         )
         .unwrap();
         writeln!(
             self.code,
-            "{inner}total{id} += (int) counts{id}[{i}];",
+            "{inner}offsets{id}[{i} + 1] = total{id};",
             i = ctx.index
         )
         .unwrap();
         writeln!(self.code, "        }}").unwrap();
         writeln!(
             self.code,
-            "        w.longs({} + \"/.count\", counts{id});",
+            "        w.longs({} + \"/.offsets\", offsets{id});",
             ctx.path()
         )
         .unwrap();

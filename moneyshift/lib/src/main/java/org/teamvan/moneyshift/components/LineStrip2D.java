@@ -34,7 +34,8 @@ public record LineStrip2D(
         boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
-            var v0_0 = values.get(i) == null ? null : values.get(i).points();
+            var v0_root = values.get(i);
+            var v0_0 = v0_root == null ? null : v0_root.points();
             boolean ok0 = (v0_0) != null;
             if (ok0) {
                 if (present0 != null) present0[i] = true;
@@ -47,25 +48,28 @@ public record LineStrip2D(
             }
         }
         w.present(path, present0, anyNull0, n);
-        long[] counts1 = new long[n];
+        long[] offsets1 = new long[n + 1];
         int total1 = 0;
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).points();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.points();
             java.util.List<org.teamvan.moneyshift.encodings.Vec2D> list1 = v1_0;
-            counts1[i] = list1 == null ? 0L : list1.size();
-            total1 += (int) counts1[i];
+            total1 += list1 == null ? 0 : list1.size();
+            offsets1[i + 1] = total1;
         }
-        w.longs(path + "/.count", counts1);
+        w.longs(path + "/.offsets", offsets1);
         java.util.ArrayList<org.teamvan.moneyshift.encodings.Vec2D> items1 = new java.util.ArrayList<>(total1);
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).points();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.points();
             java.util.List<org.teamvan.moneyshift.encodings.Vec2D> list1 = v1_0;
             if (list1 != null) items1.addAll(list1);
         }
         int itemCount1 = items1.size();
         double[] column2 = new double[itemCount1];
         for (int j1 = 0; j1 < itemCount1; j1++) {
-            var v2_0 = items1.get(j1).xy();
+            var v2_root = items1.get(j1);
+            var v2_0 = v2_root.xy();
             var v2_1 = v2_0[0];
             double value2 = v2_1;
             column2[j1] = value2;
@@ -73,7 +77,8 @@ public record LineStrip2D(
         w.doubles(path + "/.items/0", column2);
         double[] column3 = new double[itemCount1];
         for (int j1 = 0; j1 < itemCount1; j1++) {
-            var v3_0 = items1.get(j1).xy();
+            var v3_root = items1.get(j1);
+            var v3_0 = v3_root.xy();
             var v3_1 = v3_0[1];
             double value3 = v3_1;
             column3[j1] = value3;

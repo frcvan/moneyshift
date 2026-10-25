@@ -59,7 +59,8 @@ public record ClassDescription(
         w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).info();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.info();
             var v1_1 = v1_0 == null ? null : v1_0.id();
             var value1 = v1_1;
             column1[i] = value1 == null ? 0L : value1;
@@ -68,7 +69,8 @@ public record ClassDescription(
         boolean[] present2 = null;
         boolean anyNull2 = false;
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).info();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.info();
             var v2_1 = v2_0 == null ? null : v2_0.label();
             boolean ok2 = (v2_1) != null;
             if (ok2) {
@@ -84,7 +86,8 @@ public record ClassDescription(
         w.present(path + "/info/label", present2, anyNull2, n);
         java.lang.String[] column3 = new java.lang.String[n];
         for (int i = 0; i < n; i++) {
-            var v3_0 = values.get(i) == null ? null : values.get(i).info();
+            var v3_root = values.get(i);
+            var v3_0 = v3_root == null ? null : v3_root.info();
             var v3_1 = v3_0 == null ? null : v3_0.label();
             var v3_2 = v3_1 == null ? null : v3_1.value();
             java.lang.String value3 = v3_2;
@@ -94,7 +97,8 @@ public record ClassDescription(
         boolean[] present4 = null;
         boolean anyNull4 = false;
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).info();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.info();
             var v4_1 = v4_0 == null ? null : v4_0.color();
             boolean ok4 = (v4_1) != null;
             if (ok4) {
@@ -110,32 +114,36 @@ public record ClassDescription(
         w.present(path + "/info/color", present4, anyNull4, n);
         long[] column5 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v5_0 = values.get(i) == null ? null : values.get(i).info();
+            var v5_root = values.get(i);
+            var v5_0 = v5_root == null ? null : v5_root.info();
             var v5_1 = v5_0 == null ? null : v5_0.color();
             var v5_2 = v5_1 == null ? null : v5_1.rgba();
             var value5 = v5_2;
             column5[i] = value5 == null ? 0L : value5;
         }
         w.longs(path + "/info/color", column5);
-        long[] counts6 = new long[n];
+        long[] offsets6 = new long[n + 1];
         int total6 = 0;
         for (int i = 0; i < n; i++) {
-            var v6_0 = values.get(i) == null ? null : values.get(i).keypointAnnotations();
+            var v6_root = values.get(i);
+            var v6_0 = v6_root == null ? null : v6_root.keypointAnnotations();
             java.util.List<org.teamvan.moneyshift.encodings.AnnotationInfo> list6 = v6_0;
-            counts6[i] = list6 == null ? 0L : list6.size();
-            total6 += (int) counts6[i];
+            total6 += list6 == null ? 0 : list6.size();
+            offsets6[i + 1] = total6;
         }
-        w.longs(path + "/keypoint_annotations" + "/.count", counts6);
+        w.longs(path + "/keypoint_annotations" + "/.offsets", offsets6);
         java.util.ArrayList<org.teamvan.moneyshift.encodings.AnnotationInfo> items6 = new java.util.ArrayList<>(total6);
         for (int i = 0; i < n; i++) {
-            var v6_0 = values.get(i) == null ? null : values.get(i).keypointAnnotations();
+            var v6_root = values.get(i);
+            var v6_0 = v6_root == null ? null : v6_root.keypointAnnotations();
             java.util.List<org.teamvan.moneyshift.encodings.AnnotationInfo> list6 = v6_0;
             if (list6 != null) items6.addAll(list6);
         }
         int itemCount6 = items6.size();
         long[] column7 = new long[itemCount6];
         for (int j6 = 0; j6 < itemCount6; j6++) {
-            var v7_0 = items6.get(j6).id();
+            var v7_root = items6.get(j6);
+            var v7_0 = v7_root.id();
             long value7 = v7_0;
             column7[j6] = value7;
         }
@@ -143,7 +151,8 @@ public record ClassDescription(
         boolean[] present8 = null;
         boolean anyNull8 = false;
         for (int j6 = 0; j6 < itemCount6; j6++) {
-            var v8_0 = items6.get(j6).label();
+            var v8_root = items6.get(j6);
+            var v8_0 = v8_root.label();
             boolean ok8 = (v8_0) != null;
             if (ok8) {
                 if (present8 != null) present8[j6] = true;
@@ -158,7 +167,8 @@ public record ClassDescription(
         w.present(path + "/keypoint_annotations/.items/label", present8, anyNull8, itemCount6);
         java.lang.String[] column9 = new java.lang.String[itemCount6];
         for (int j6 = 0; j6 < itemCount6; j6++) {
-            var v9_0 = items6.get(j6).label();
+            var v9_root = items6.get(j6);
+            var v9_0 = v9_root.label();
             var v9_1 = v9_0 == null ? null : v9_0.value();
             java.lang.String value9 = v9_1;
             column9[j6] = value9 == null ? "" : value9;
@@ -167,7 +177,8 @@ public record ClassDescription(
         boolean[] present10 = null;
         boolean anyNull10 = false;
         for (int j6 = 0; j6 < itemCount6; j6++) {
-            var v10_0 = items6.get(j6).color();
+            var v10_root = items6.get(j6);
+            var v10_0 = v10_root.color();
             boolean ok10 = (v10_0) != null;
             if (ok10) {
                 if (present10 != null) present10[j6] = true;
@@ -182,31 +193,35 @@ public record ClassDescription(
         w.present(path + "/keypoint_annotations/.items/color", present10, anyNull10, itemCount6);
         long[] column11 = new long[itemCount6];
         for (int j6 = 0; j6 < itemCount6; j6++) {
-            var v11_0 = items6.get(j6).color();
+            var v11_root = items6.get(j6);
+            var v11_0 = v11_root.color();
             var v11_1 = v11_0 == null ? null : v11_0.rgba();
             var value11 = v11_1;
             column11[j6] = value11 == null ? 0L : value11;
         }
         w.longs(path + "/keypoint_annotations/.items/color", column11);
-        long[] counts12 = new long[n];
+        long[] offsets12 = new long[n + 1];
         int total12 = 0;
         for (int i = 0; i < n; i++) {
-            var v12_0 = values.get(i) == null ? null : values.get(i).keypointConnections();
+            var v12_root = values.get(i);
+            var v12_0 = v12_root == null ? null : v12_root.keypointConnections();
             java.util.List<org.teamvan.moneyshift.encodings.KeypointPair> list12 = v12_0;
-            counts12[i] = list12 == null ? 0L : list12.size();
-            total12 += (int) counts12[i];
+            total12 += list12 == null ? 0 : list12.size();
+            offsets12[i + 1] = total12;
         }
-        w.longs(path + "/keypoint_connections" + "/.count", counts12);
+        w.longs(path + "/keypoint_connections" + "/.offsets", offsets12);
         java.util.ArrayList<org.teamvan.moneyshift.encodings.KeypointPair> items12 = new java.util.ArrayList<>(total12);
         for (int i = 0; i < n; i++) {
-            var v12_0 = values.get(i) == null ? null : values.get(i).keypointConnections();
+            var v12_root = values.get(i);
+            var v12_0 = v12_root == null ? null : v12_root.keypointConnections();
             java.util.List<org.teamvan.moneyshift.encodings.KeypointPair> list12 = v12_0;
             if (list12 != null) items12.addAll(list12);
         }
         int itemCount12 = items12.size();
         long[] column13 = new long[itemCount12];
         for (int j12 = 0; j12 < itemCount12; j12++) {
-            var v13_0 = items12.get(j12).keypoint0();
+            var v13_root = items12.get(j12);
+            var v13_0 = v13_root.keypoint0();
             var v13_1 = v13_0.id();
             long value13 = v13_1;
             column13[j12] = value13;
@@ -214,7 +229,8 @@ public record ClassDescription(
         w.longs(path + "/keypoint_connections/.items/keypoint0", column13);
         long[] column14 = new long[itemCount12];
         for (int j12 = 0; j12 < itemCount12; j12++) {
-            var v14_0 = items12.get(j12).keypoint1();
+            var v14_root = items12.get(j12);
+            var v14_0 = v14_root.keypoint1();
             var v14_1 = v14_0.id();
             long value14 = v14_1;
             column14[j12] = value14;

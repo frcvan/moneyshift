@@ -31,19 +31,44 @@ public record GraphEdges(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (!edges.isEmpty()) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("edges").append('=').append(org.teamvan.moneyshift.components.GraphEdge.COMPONENT_TYPE);
         }
-        if (graphType != null) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("graph_type").append('=').append(org.teamvan.moneyshift.components.GraphType.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (!edges.isEmpty()) mask |= 1L;
+        if (graphType != null) mask |= 2L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (!edges.isEmpty()) {
             org.teamvan.moneyshift.components.GraphEdge.writeColumnsStatic(w, "edges", edges);
         }

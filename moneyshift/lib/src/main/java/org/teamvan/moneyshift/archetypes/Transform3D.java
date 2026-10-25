@@ -93,43 +93,74 @@ public record Transform3D(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (translation != null) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("translation").append('=').append(org.teamvan.moneyshift.components.Translation3D.COMPONENT_TYPE);
         }
-        if (rotationAxisAngle != null) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("rotation_axis_angle").append('=').append(org.teamvan.moneyshift.components.RotationAxisAngle.COMPONENT_TYPE);
         }
-        if (quaternion != null) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("quaternion").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
-        if (scale != null) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("scale").append('=').append(org.teamvan.moneyshift.components.Scale3D.COMPONENT_TYPE);
         }
-        if (mat3x3 != null) {
+        if ((mask & 16L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("mat3x3").append('=').append(org.teamvan.moneyshift.components.TransformMat3x3.COMPONENT_TYPE);
         }
-        if (relation != null) {
+        if ((mask & 32L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("relation").append('=').append(org.teamvan.moneyshift.components.TransformRelation.COMPONENT_TYPE);
         }
-        if (childFrame != null) {
+        if ((mask & 64L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("child_frame").append('=').append(org.teamvan.moneyshift.components.TransformFrameId.COMPONENT_TYPE);
         }
-        if (parentFrame != null) {
+        if ((mask & 128L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("parent_frame").append('=').append(org.teamvan.moneyshift.components.TransformFrameId.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (translation != null) mask |= 1L;
+        if (rotationAxisAngle != null) mask |= 2L;
+        if (quaternion != null) mask |= 4L;
+        if (scale != null) mask |= 8L;
+        if (mat3x3 != null) mask |= 16L;
+        if (relation != null) mask |= 32L;
+        if (childFrame != null) mask |= 64L;
+        if (parentFrame != null) mask |= 128L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (translation != null) {
             org.teamvan.moneyshift.components.Translation3D.writeColumnsStatic(w, "translation", java.util.List.of(translation));
         }

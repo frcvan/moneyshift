@@ -42,7 +42,8 @@ public record TimeRange(
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload1_0 = new java.util.ArrayList<>();
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload1_1 = new java.util.ArrayList<>();
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).start();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.start();
             org.teamvan.moneyshift.encodings.TimeRangeBoundary value1 = v1_0;
             if (value1 == null) {
                 variants1[i] = -1L;
@@ -63,7 +64,8 @@ public record TimeRange(
             int payloadCount1_0 = payload1_0.size();
         long[] column2 = new long[payloadCount1_0];
         for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
-            var v2_0 = payload1_0.get(k1_0).value();
+            var v2_root = payload1_0.get(k1_0);
+            var v2_0 = v2_root.value();
             long value2 = v2_0;
             column2[k1_0] = value2;
         }
@@ -73,7 +75,8 @@ public record TimeRange(
             int payloadCount1_1 = payload1_1.size();
         long[] column3 = new long[payloadCount1_1];
         for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
-            var v3_0 = payload1_1.get(k1_1).value();
+            var v3_root = payload1_1.get(k1_1);
+            var v3_0 = v3_root.value();
             long value3 = v3_0;
             column3[k1_1] = value3;
         }
@@ -83,7 +86,8 @@ public record TimeRange(
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload4_0 = new java.util.ArrayList<>();
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload4_1 = new java.util.ArrayList<>();
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).end();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.end();
             org.teamvan.moneyshift.encodings.TimeRangeBoundary value4 = v4_0;
             if (value4 == null) {
                 variants4[i] = -1L;
@@ -104,7 +108,8 @@ public record TimeRange(
             int payloadCount4_0 = payload4_0.size();
         long[] column5 = new long[payloadCount4_0];
         for (int k4_0 = 0; k4_0 < payloadCount4_0; k4_0++) {
-            var v5_0 = payload4_0.get(k4_0).value();
+            var v5_root = payload4_0.get(k4_0);
+            var v5_0 = v5_root.value();
             long value5 = v5_0;
             column5[k4_0] = value5;
         }
@@ -114,7 +119,8 @@ public record TimeRange(
             int payloadCount4_1 = payload4_1.size();
         long[] column6 = new long[payloadCount4_1];
         for (int k4_1 = 0; k4_1 < payloadCount4_1; k4_1++) {
-            var v6_0 = payload4_1.get(k4_1).value();
+            var v6_root = payload4_1.get(k4_1);
+            var v6_0 = v6_root.value();
             long value6 = v6_0;
             column6[k4_1] = value6;
         }

@@ -31,7 +31,8 @@ public record Count(
         boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
-            var v0_0 = values.get(i) == null ? null : values.get(i).value();
+            var v0_root = values.get(i);
+            var v0_0 = v0_root == null ? null : v0_root.value();
             boolean ok0 = (v0_0) != null;
             if (ok0) {
                 if (present0 != null) present0[i] = true;
@@ -45,15 +46,16 @@ public record Count(
         }
         w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
-        boolean unsigned1 = false;
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).value();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.value();
             var v1_1 = v1_0 == null ? null : v1_0.value();
             var value1 = v1_1;
             column1[i] = value1 == null ? 0L : value1;
-            unsigned1 |= column1[i] < 0L;
         }
-        w.u64(path, column1, unsigned1);
+        byte[] bytes1 = new byte[column1.length * java.lang.Long.BYTES];
+        java.nio.ByteBuffer.wrap(bytes1).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column1);
+        w.raw(path, bytes1);
     }
 
     @Override

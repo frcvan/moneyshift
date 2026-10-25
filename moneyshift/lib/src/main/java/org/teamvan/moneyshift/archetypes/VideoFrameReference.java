@@ -60,27 +60,54 @@ public record VideoFrameReference(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (true) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("timestamp").append('=').append(org.teamvan.moneyshift.components.VideoTimestamp.COMPONENT_TYPE);
         }
-        if (videoReference != null) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("video_reference").append('=').append(org.teamvan.moneyshift.components.EntityPath.COMPONENT_TYPE);
         }
-        if (opacity != null) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("opacity").append('=').append(org.teamvan.moneyshift.components.Opacity.COMPONENT_TYPE);
         }
-        if (drawOrder != null) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("draw_order").append('=').append(org.teamvan.moneyshift.components.DrawOrder.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (true) mask |= 1L;
+        if (videoReference != null) mask |= 2L;
+        if (opacity != null) mask |= 4L;
+        if (drawOrder != null) mask |= 8L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (true) {
             org.teamvan.moneyshift.components.VideoTimestamp.writeColumnsStatic(w, "timestamp", java.util.List.of(timestamp));
         }

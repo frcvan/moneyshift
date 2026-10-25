@@ -269,33 +269,6 @@ public final class NtRecorder {
         }
     }
 
-    /**
-     * Writes an unsigned 64-bit column and, when needed, its decimal string sidecar.
-     *
-     * <p>NetworkTables fixes a topic's type on first publish, so the column cannot switch between
-     * {@code long[]} and {@code string[]}. Values that exceed {@link Long#MAX_VALUE} are therefore
-     * published as decimal strings under {@code <path>/.u64}; the sidecar is sticky so later
-     * batches of small values cannot hide the unsigned ones.
-     */
-    void writeU64(EntityState state, String path, long[] values, boolean hasUnsigned) {
-        synchronized (state) {
-            columnEntry(state, path).setIntegerArray(values);
-            boolean sticky = state.u64Paths.contains(path);
-            if (!hasUnsigned && !sticky) {
-                return;
-            }
-            state.u64Paths.add(path);
-            String[] text = new String[values.length];
-            for (int i = 0; i < values.length; i++) {
-                text[i] =
-                        values[i] < 0L
-                                ? java.lang.Long.toUnsignedString(values[i])
-                                : java.lang.Long.toString(values[i]);
-            }
-            columnEntry(state, path + "/.u64").setStringArray(text);
-        }
-    }
-
     /** Mutable box for cache values, avoiding Optional allocation on the hot path. */
     private static final class Boxed<T> {
         final T value;
@@ -314,7 +287,6 @@ public final class NtRecorder {
         final Map<String, Boxed<Long>> metaLongs = new HashMap<>();
         final Map<String, Boxed<Boolean>> metaBooleans = new HashMap<>();
         final Set<String> presentPaths = new HashSet<>();
-        final Set<String> u64Paths = new HashSet<>();
         final LinkedHashMap<String, String> rawComponents = new LinkedHashMap<>();
         /** Entries by column path (without the entity prefix), filled on first publish. */
         final ConcurrentHashMap<String, NetworkTableEntry> columnEntries =

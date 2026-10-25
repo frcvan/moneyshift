@@ -9,8 +9,8 @@ use arrow::{
     datatypes::DataType,
 };
 use parse::wpistruct::{
-    ResolveError, StructSchemas, UnresolvedWpiLibStructType, WpiLibStructData, WpiLibStructSchema,
-    WpiLibStructType,
+    ResolveError, StructSchemas, UnresolvedWpiLibStructType, WpiLibStructData,
+    WpiLibStructPrimitives, WpiLibStructSchema, WpiLibStructType,
 };
 
 pub mod parse;
@@ -106,6 +106,54 @@ impl From<anyhow::Error> for EntryValueParseError {
 }
 
 impl EntryValue {
+    /// Whether a WPILog type string names a WPILib struct type rather than a primitive.
+    #[must_use]
+    pub fn is_struct_type(ty: &str) -> bool {
+        let ty = ty.strip_suffix("[]").unwrap_or(ty);
+        !matches!(
+            ty,
+            "raw"
+                | "byte"
+                | "bytes"
+                | "boolean"
+                | "bool"
+                | "int64"
+                | "int"
+                | "long"
+                | "int32"
+                | "int16"
+                | "int8"
+                | "uint64"
+                | "uint32"
+                | "uint16"
+                | "uint8"
+                | "float"
+                | "float32"
+                | "double"
+                | "float64"
+                | "string"
+                | "json"
+                | "structschema"
+        )
+    }
+
+    /// Decodes one primitive struct field: `bytes` holds exactly one value (or `count` values).
+    pub fn parse_struct_leaf(
+        bytes: &[u8],
+        primitive: WpiLibStructPrimitives,
+        count: Option<NonZero<usize>>,
+    ) -> Result<ArrayRef, anyhow::Error> {
+        if primitive.is_char() {
+            // `char[N]` is N raw bytes, not a WPILog length-prefixed `string[]`.
+            return Ok(Self::parse_chars(bytes));
+        }
+        if count.is_some() {
+            Self::parse_array(bytes, &primitive.datatype())
+        } else {
+            Self::parse_scalar(bytes, &primitive.datatype())
+        }
+    }
+
     pub fn parse_from_wpilog(
         mut ty: &str,
         data: &[u8],

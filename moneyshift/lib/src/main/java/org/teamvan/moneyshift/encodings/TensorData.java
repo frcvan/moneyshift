@@ -57,34 +57,37 @@ public record TensorData(
             }
         }
         w.present(path, present0, anyNull0, n);
-        long[] counts1 = new long[n];
+        long[] offsets1 = new long[n + 1];
         int total1 = 0;
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).shape();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.shape();
             java.util.List<java.lang.Long> list1 = v1_0;
-            counts1[i] = list1 == null ? 0L : list1.size();
-            total1 += (int) counts1[i];
+            total1 += list1 == null ? 0 : list1.size();
+            offsets1[i + 1] = total1;
         }
-        w.longs(path + "/shape" + "/.count", counts1);
+        w.longs(path + "/shape" + "/.offsets", offsets1);
         java.util.ArrayList<java.lang.Long> items1 = new java.util.ArrayList<>(total1);
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).shape();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.shape();
             java.util.List<java.lang.Long> list1 = v1_0;
             if (list1 != null) items1.addAll(list1);
         }
         int itemCount1 = items1.size();
         long[] column2 = new long[itemCount1];
-        boolean unsigned2 = false;
         for (int j1 = 0; j1 < itemCount1; j1++) {
             long value2 = items1.get(j1);
             column2[j1] = value2;
-            unsigned2 |= column2[j1] < 0L;
         }
-        w.u64(path + "/shape/.items", column2, unsigned2);
+        byte[] bytes2 = new byte[column2.length * java.lang.Long.BYTES];
+        java.nio.ByteBuffer.wrap(bytes2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column2);
+        w.raw(path + "/shape/.items", bytes2);
         boolean[] present3 = null;
         boolean anyNull3 = false;
         for (int i = 0; i < n; i++) {
-            var v3_0 = values.get(i) == null ? null : values.get(i).names();
+            var v3_root = values.get(i);
+            var v3_0 = v3_root == null ? null : v3_root.names();
             boolean ok3 = (v3_0) != null;
             if (ok3) {
                 if (present3 != null) present3[i] = true;
@@ -97,18 +100,20 @@ public record TensorData(
             }
         }
         w.present(path + "/names", present3, anyNull3, n);
-        long[] counts4 = new long[n];
+        long[] offsets4 = new long[n + 1];
         int total4 = 0;
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).names();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.names();
             java.util.List<java.lang.String> list4 = v4_0;
-            counts4[i] = list4 == null ? 0L : list4.size();
-            total4 += (int) counts4[i];
+            total4 += list4 == null ? 0 : list4.size();
+            offsets4[i + 1] = total4;
         }
-        w.longs(path + "/names" + "/.count", counts4);
+        w.longs(path + "/names" + "/.offsets", offsets4);
         java.util.ArrayList<java.lang.String> items4 = new java.util.ArrayList<>(total4);
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).names();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.names();
             java.util.List<java.lang.String> list4 = v4_0;
             if (list4 != null) items4.addAll(list4);
         }
@@ -132,7 +137,8 @@ public record TensorData(
         java.util.ArrayList<java.util.List<java.lang.Float>> payload6_9 = new java.util.ArrayList<>();
         java.util.ArrayList<java.util.List<java.lang.Double>> payload6_10 = new java.util.ArrayList<>();
         for (int i = 0; i < n; i++) {
-            var v6_0 = values.get(i) == null ? null : values.get(i).buffer();
+            var v6_root = values.get(i);
+            var v6_0 = v6_root == null ? null : v6_root.buffer();
             org.teamvan.moneyshift.encodings.TensorBuffer value6 = v6_0;
             if (value6 == null) {
                 variants6[i] = -1L;
@@ -176,14 +182,14 @@ public record TensorData(
         w.longs(path + "/buffer" + "/.variant", variants6);
         if (!payload6_0.isEmpty()) {
             int payloadCount6_0 = payload6_0.size();
-        long[] counts7 = new long[payloadCount6_0];
+        long[] offsets7 = new long[payloadCount6_0 + 1];
         int total7 = 0;
         for (int k6_0 = 0; k6_0 < payloadCount6_0; k6_0++) {
             java.util.List<java.lang.Short> list7 = payload6_0.get(k6_0);
-            counts7[k6_0] = list7 == null ? 0L : list7.size();
-            total7 += (int) counts7[k6_0];
+            total7 += list7 == null ? 0 : list7.size();
+            offsets7[k6_0 + 1] = total7;
         }
-        w.longs(path + "/buffer/U8" + "/.count", counts7);
+        w.longs(path + "/buffer/U8" + "/.offsets", offsets7);
         java.util.ArrayList<java.lang.Short> items7 = new java.util.ArrayList<>(total7);
         for (int k6_0 = 0; k6_0 < payloadCount6_0; k6_0++) {
             java.util.List<java.lang.Short> list7 = payload6_0.get(k6_0);
@@ -199,14 +205,14 @@ public record TensorData(
         }
         if (!payload6_1.isEmpty()) {
             int payloadCount6_1 = payload6_1.size();
-        long[] counts9 = new long[payloadCount6_1];
+        long[] offsets9 = new long[payloadCount6_1 + 1];
         int total9 = 0;
         for (int k6_1 = 0; k6_1 < payloadCount6_1; k6_1++) {
             java.util.List<java.lang.Integer> list9 = payload6_1.get(k6_1);
-            counts9[k6_1] = list9 == null ? 0L : list9.size();
-            total9 += (int) counts9[k6_1];
+            total9 += list9 == null ? 0 : list9.size();
+            offsets9[k6_1 + 1] = total9;
         }
-        w.longs(path + "/buffer/U16" + "/.count", counts9);
+        w.longs(path + "/buffer/U16" + "/.offsets", offsets9);
         java.util.ArrayList<java.lang.Integer> items9 = new java.util.ArrayList<>(total9);
         for (int k6_1 = 0; k6_1 < payloadCount6_1; k6_1++) {
             java.util.List<java.lang.Integer> list9 = payload6_1.get(k6_1);
@@ -222,14 +228,14 @@ public record TensorData(
         }
         if (!payload6_2.isEmpty()) {
             int payloadCount6_2 = payload6_2.size();
-        long[] counts11 = new long[payloadCount6_2];
+        long[] offsets11 = new long[payloadCount6_2 + 1];
         int total11 = 0;
         for (int k6_2 = 0; k6_2 < payloadCount6_2; k6_2++) {
             java.util.List<java.lang.Long> list11 = payload6_2.get(k6_2);
-            counts11[k6_2] = list11 == null ? 0L : list11.size();
-            total11 += (int) counts11[k6_2];
+            total11 += list11 == null ? 0 : list11.size();
+            offsets11[k6_2 + 1] = total11;
         }
-        w.longs(path + "/buffer/U32" + "/.count", counts11);
+        w.longs(path + "/buffer/U32" + "/.offsets", offsets11);
         java.util.ArrayList<java.lang.Long> items11 = new java.util.ArrayList<>(total11);
         for (int k6_2 = 0; k6_2 < payloadCount6_2; k6_2++) {
             java.util.List<java.lang.Long> list11 = payload6_2.get(k6_2);
@@ -245,14 +251,14 @@ public record TensorData(
         }
         if (!payload6_3.isEmpty()) {
             int payloadCount6_3 = payload6_3.size();
-        long[] counts13 = new long[payloadCount6_3];
+        long[] offsets13 = new long[payloadCount6_3 + 1];
         int total13 = 0;
         for (int k6_3 = 0; k6_3 < payloadCount6_3; k6_3++) {
             java.util.List<java.lang.Long> list13 = payload6_3.get(k6_3);
-            counts13[k6_3] = list13 == null ? 0L : list13.size();
-            total13 += (int) counts13[k6_3];
+            total13 += list13 == null ? 0 : list13.size();
+            offsets13[k6_3 + 1] = total13;
         }
-        w.longs(path + "/buffer/U64" + "/.count", counts13);
+        w.longs(path + "/buffer/U64" + "/.offsets", offsets13);
         java.util.ArrayList<java.lang.Long> items13 = new java.util.ArrayList<>(total13);
         for (int k6_3 = 0; k6_3 < payloadCount6_3; k6_3++) {
             java.util.List<java.lang.Long> list13 = payload6_3.get(k6_3);
@@ -260,24 +266,24 @@ public record TensorData(
         }
         int itemCount13 = items13.size();
         long[] column14 = new long[itemCount13];
-        boolean unsigned14 = false;
         for (int j13 = 0; j13 < itemCount13; j13++) {
             long value14 = items13.get(j13);
             column14[j13] = value14;
-            unsigned14 |= column14[j13] < 0L;
         }
-        w.u64(path + "/buffer/U64/.items", column14, unsigned14);
+        byte[] bytes14 = new byte[column14.length * java.lang.Long.BYTES];
+        java.nio.ByteBuffer.wrap(bytes14).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column14);
+        w.raw(path + "/buffer/U64/.items", bytes14);
         }
         if (!payload6_4.isEmpty()) {
             int payloadCount6_4 = payload6_4.size();
-        long[] counts15 = new long[payloadCount6_4];
+        long[] offsets15 = new long[payloadCount6_4 + 1];
         int total15 = 0;
         for (int k6_4 = 0; k6_4 < payloadCount6_4; k6_4++) {
             java.util.List<java.lang.Byte> list15 = payload6_4.get(k6_4);
-            counts15[k6_4] = list15 == null ? 0L : list15.size();
-            total15 += (int) counts15[k6_4];
+            total15 += list15 == null ? 0 : list15.size();
+            offsets15[k6_4 + 1] = total15;
         }
-        w.longs(path + "/buffer/I8" + "/.count", counts15);
+        w.longs(path + "/buffer/I8" + "/.offsets", offsets15);
         java.util.ArrayList<java.lang.Byte> items15 = new java.util.ArrayList<>(total15);
         for (int k6_4 = 0; k6_4 < payloadCount6_4; k6_4++) {
             java.util.List<java.lang.Byte> list15 = payload6_4.get(k6_4);
@@ -293,14 +299,14 @@ public record TensorData(
         }
         if (!payload6_5.isEmpty()) {
             int payloadCount6_5 = payload6_5.size();
-        long[] counts17 = new long[payloadCount6_5];
+        long[] offsets17 = new long[payloadCount6_5 + 1];
         int total17 = 0;
         for (int k6_5 = 0; k6_5 < payloadCount6_5; k6_5++) {
             java.util.List<java.lang.Short> list17 = payload6_5.get(k6_5);
-            counts17[k6_5] = list17 == null ? 0L : list17.size();
-            total17 += (int) counts17[k6_5];
+            total17 += list17 == null ? 0 : list17.size();
+            offsets17[k6_5 + 1] = total17;
         }
-        w.longs(path + "/buffer/I16" + "/.count", counts17);
+        w.longs(path + "/buffer/I16" + "/.offsets", offsets17);
         java.util.ArrayList<java.lang.Short> items17 = new java.util.ArrayList<>(total17);
         for (int k6_5 = 0; k6_5 < payloadCount6_5; k6_5++) {
             java.util.List<java.lang.Short> list17 = payload6_5.get(k6_5);
@@ -316,14 +322,14 @@ public record TensorData(
         }
         if (!payload6_6.isEmpty()) {
             int payloadCount6_6 = payload6_6.size();
-        long[] counts19 = new long[payloadCount6_6];
+        long[] offsets19 = new long[payloadCount6_6 + 1];
         int total19 = 0;
         for (int k6_6 = 0; k6_6 < payloadCount6_6; k6_6++) {
             java.util.List<java.lang.Integer> list19 = payload6_6.get(k6_6);
-            counts19[k6_6] = list19 == null ? 0L : list19.size();
-            total19 += (int) counts19[k6_6];
+            total19 += list19 == null ? 0 : list19.size();
+            offsets19[k6_6 + 1] = total19;
         }
-        w.longs(path + "/buffer/I32" + "/.count", counts19);
+        w.longs(path + "/buffer/I32" + "/.offsets", offsets19);
         java.util.ArrayList<java.lang.Integer> items19 = new java.util.ArrayList<>(total19);
         for (int k6_6 = 0; k6_6 < payloadCount6_6; k6_6++) {
             java.util.List<java.lang.Integer> list19 = payload6_6.get(k6_6);
@@ -339,14 +345,14 @@ public record TensorData(
         }
         if (!payload6_7.isEmpty()) {
             int payloadCount6_7 = payload6_7.size();
-        long[] counts21 = new long[payloadCount6_7];
+        long[] offsets21 = new long[payloadCount6_7 + 1];
         int total21 = 0;
         for (int k6_7 = 0; k6_7 < payloadCount6_7; k6_7++) {
             java.util.List<java.lang.Long> list21 = payload6_7.get(k6_7);
-            counts21[k6_7] = list21 == null ? 0L : list21.size();
-            total21 += (int) counts21[k6_7];
+            total21 += list21 == null ? 0 : list21.size();
+            offsets21[k6_7 + 1] = total21;
         }
-        w.longs(path + "/buffer/I64" + "/.count", counts21);
+        w.longs(path + "/buffer/I64" + "/.offsets", offsets21);
         java.util.ArrayList<java.lang.Long> items21 = new java.util.ArrayList<>(total21);
         for (int k6_7 = 0; k6_7 < payloadCount6_7; k6_7++) {
             java.util.List<java.lang.Long> list21 = payload6_7.get(k6_7);
@@ -362,14 +368,14 @@ public record TensorData(
         }
         if (!payload6_8.isEmpty()) {
             int payloadCount6_8 = payload6_8.size();
-        long[] counts23 = new long[payloadCount6_8];
+        long[] offsets23 = new long[payloadCount6_8 + 1];
         int total23 = 0;
         for (int k6_8 = 0; k6_8 < payloadCount6_8; k6_8++) {
             java.util.List<java.lang.Float> list23 = payload6_8.get(k6_8);
-            counts23[k6_8] = list23 == null ? 0L : list23.size();
-            total23 += (int) counts23[k6_8];
+            total23 += list23 == null ? 0 : list23.size();
+            offsets23[k6_8 + 1] = total23;
         }
-        w.longs(path + "/buffer/F16" + "/.count", counts23);
+        w.longs(path + "/buffer/F16" + "/.offsets", offsets23);
         java.util.ArrayList<java.lang.Float> items23 = new java.util.ArrayList<>(total23);
         for (int k6_8 = 0; k6_8 < payloadCount6_8; k6_8++) {
             java.util.List<java.lang.Float> list23 = payload6_8.get(k6_8);
@@ -385,14 +391,14 @@ public record TensorData(
         }
         if (!payload6_9.isEmpty()) {
             int payloadCount6_9 = payload6_9.size();
-        long[] counts25 = new long[payloadCount6_9];
+        long[] offsets25 = new long[payloadCount6_9 + 1];
         int total25 = 0;
         for (int k6_9 = 0; k6_9 < payloadCount6_9; k6_9++) {
             java.util.List<java.lang.Float> list25 = payload6_9.get(k6_9);
-            counts25[k6_9] = list25 == null ? 0L : list25.size();
-            total25 += (int) counts25[k6_9];
+            total25 += list25 == null ? 0 : list25.size();
+            offsets25[k6_9 + 1] = total25;
         }
-        w.longs(path + "/buffer/F32" + "/.count", counts25);
+        w.longs(path + "/buffer/F32" + "/.offsets", offsets25);
         java.util.ArrayList<java.lang.Float> items25 = new java.util.ArrayList<>(total25);
         for (int k6_9 = 0; k6_9 < payloadCount6_9; k6_9++) {
             java.util.List<java.lang.Float> list25 = payload6_9.get(k6_9);
@@ -408,14 +414,14 @@ public record TensorData(
         }
         if (!payload6_10.isEmpty()) {
             int payloadCount6_10 = payload6_10.size();
-        long[] counts27 = new long[payloadCount6_10];
+        long[] offsets27 = new long[payloadCount6_10 + 1];
         int total27 = 0;
         for (int k6_10 = 0; k6_10 < payloadCount6_10; k6_10++) {
             java.util.List<java.lang.Double> list27 = payload6_10.get(k6_10);
-            counts27[k6_10] = list27 == null ? 0L : list27.size();
-            total27 += (int) counts27[k6_10];
+            total27 += list27 == null ? 0 : list27.size();
+            offsets27[k6_10 + 1] = total27;
         }
-        w.longs(path + "/buffer/F64" + "/.count", counts27);
+        w.longs(path + "/buffer/F64" + "/.offsets", offsets27);
         java.util.ArrayList<java.lang.Double> items27 = new java.util.ArrayList<>(total27);
         for (int k6_10 = 0; k6_10 < payloadCount6_10; k6_10++) {
             java.util.List<java.lang.Double> list27 = payload6_10.get(k6_10);

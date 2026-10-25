@@ -29,7 +29,8 @@ public record Range1D(
         boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
-            var v0_0 = values.get(i) == null ? null : values.get(i).range();
+            var v0_root = values.get(i);
+            var v0_0 = v0_root == null ? null : v0_root.range();
             boolean ok0 = (v0_0) != null;
             if (ok0) {
                 if (present0 != null) present0[i] = true;
@@ -44,7 +45,8 @@ public record Range1D(
         w.present(path, present0, anyNull0, n);
         double[] column1 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).range();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.range();
             var v1_1 = v1_0 == null ? null : v1_0.range();
             var v1_2 = v1_1 == null ? null : v1_1[0];
             var value1 = v1_2;
@@ -53,7 +55,8 @@ public record Range1D(
         w.doubles(path + "/0", column1);
         double[] column2 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).range();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.range();
             var v2_1 = v2_0 == null ? null : v2_0.range();
             var v2_2 = v2_1 == null ? null : v2_1[1];
             var value2 = v2_2;

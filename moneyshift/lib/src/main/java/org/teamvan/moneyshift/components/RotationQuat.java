@@ -33,7 +33,8 @@ public record RotationQuat(
         boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
-            var v0_0 = values.get(i) == null ? null : values.get(i).quaternion();
+            var v0_root = values.get(i);
+            var v0_0 = v0_root == null ? null : v0_root.quaternion();
             boolean ok0 = (v0_0) != null;
             if (ok0) {
                 if (present0 != null) present0[i] = true;
@@ -48,7 +49,8 @@ public record RotationQuat(
         w.present(path, present0, anyNull0, n);
         double[] column1 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).quaternion();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.quaternion();
             var v1_1 = v1_0 == null ? null : v1_0.xyzw();
             var v1_2 = v1_1 == null ? null : v1_1[0];
             var value1 = v1_2;
@@ -57,7 +59,8 @@ public record RotationQuat(
         w.doubles(path + "/0", column1);
         double[] column2 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).quaternion();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.quaternion();
             var v2_1 = v2_0 == null ? null : v2_0.xyzw();
             var v2_2 = v2_1 == null ? null : v2_1[1];
             var value2 = v2_2;
@@ -66,7 +69,8 @@ public record RotationQuat(
         w.doubles(path + "/1", column2);
         double[] column3 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v3_0 = values.get(i) == null ? null : values.get(i).quaternion();
+            var v3_root = values.get(i);
+            var v3_0 = v3_root == null ? null : v3_root.quaternion();
             var v3_1 = v3_0 == null ? null : v3_0.xyzw();
             var v3_2 = v3_1 == null ? null : v3_1[2];
             var value3 = v3_2;
@@ -75,7 +79,8 @@ public record RotationQuat(
         w.doubles(path + "/2", column3);
         double[] column4 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).quaternion();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.quaternion();
             var v4_1 = v4_0 == null ? null : v4_0.xyzw();
             var v4_2 = v4_1 == null ? null : v4_1[3];
             var value4 = v4_2;

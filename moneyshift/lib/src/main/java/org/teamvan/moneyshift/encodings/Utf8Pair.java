@@ -46,7 +46,8 @@ public record Utf8Pair(
         w.present(path, present0, anyNull0, n);
         java.lang.String[] column1 = new java.lang.String[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).first();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.first();
             var v1_1 = v1_0 == null ? null : v1_0.value();
             java.lang.String value1 = v1_1;
             column1[i] = value1 == null ? "" : value1;
@@ -54,7 +55,8 @@ public record Utf8Pair(
         w.strings(path + "/first", column1);
         java.lang.String[] column2 = new java.lang.String[n];
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).second();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.second();
             var v2_1 = v2_0 == null ? null : v2_0.value();
             java.lang.String value2 = v2_1;
             column2[i] = value2 == null ? "" : value2;

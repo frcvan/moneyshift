@@ -50,14 +50,11 @@ public final class NtEntityWriter {
     }
 
     /**
-     * Publishes an unsigned 64-bit column.
-     *
-     * <p>The native {@code long[]} column is always written (bit-reinterpreting values above
-     * {@link Long#MAX_VALUE}); when an instance needs the full unsigned range, a decimal
-     * {@code string[]} sidecar is written under {@code path/.u64} and kept up to date from then on.
+     * Publishes an opaque byte column, e.g. {@code Binary} payloads or unsigned 64-bit values
+     * packed as eight little-endian bytes per instance.
      */
-    public void u64(String path, long[] values, boolean hasUnsigned) {
-        recorder.writeU64(state, path, values, hasUnsigned);
+    public void raw(String path, byte[] value) {
+        recorder.columnEntry(state, path).setRaw(value);
     }
 
     public void booleans(String path, boolean[] values) {
@@ -66,10 +63,6 @@ public final class NtEntityWriter {
 
     public void strings(String path, String[] values) {
         recorder.columnEntry(state, path).setStringArray(values);
-    }
-
-    public void raw(String path, byte[] value) {
-        recorder.columnEntry(state, path).setRaw(value);
     }
 
     /**

@@ -104,43 +104,74 @@ public record Volume3D(
         return ARCHETYPE_NAME;
     }
 
-    @Override
-    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+    private static final class ComponentsCache {
+        final long mask;
+        final java.lang.String components;
+
+        ComponentsCache(long mask, java.lang.String components) {
+            this.mask = mask;
+            this.components = components;
+        }
+    }
+
+    private static volatile ComponentsCache cachedComponents;
+
+    private static java.lang.String componentsFor(long mask) {
+        ComponentsCache cached = cachedComponents;
+        if (cached != null && cached.mask == mask) {
+            return cached.components;
+        }
         java.lang.StringBuilder components = new java.lang.StringBuilder();
-        if (true) {
+        if ((mask & 1L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("values").append('=').append(org.teamvan.moneyshift.components.TensorData.COMPONENT_TYPE);
         }
-        if (voxelSize != null) {
+        if ((mask & 2L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("voxel_size").append('=').append(org.teamvan.moneyshift.components.VoxelSize.COMPONENT_TYPE);
         }
-        if (translation != null) {
+        if ((mask & 4L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("translation").append('=').append(org.teamvan.moneyshift.components.Translation3D.COMPONENT_TYPE);
         }
-        if (quaternion != null) {
+        if ((mask & 8L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("quaternion").append('=').append(org.teamvan.moneyshift.components.RotationQuat.COMPONENT_TYPE);
         }
-        if (valueRange != null) {
+        if ((mask & 16L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("value_range").append('=').append(org.teamvan.moneyshift.components.ValueRange.COMPONENT_TYPE);
         }
-        if (gamma != null) {
+        if ((mask & 32L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("gamma").append('=').append(org.teamvan.moneyshift.components.GammaCorrection.COMPONENT_TYPE);
         }
-        if (colormap != null) {
+        if ((mask & 64L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("colormap").append('=').append(org.teamvan.moneyshift.components.Colormap.COMPONENT_TYPE);
         }
-        if (opticalDensity != null) {
+        if ((mask & 128L) != 0) {
             if (components.length() > 0) components.append(',');
             components.append("optical_density").append('=').append(org.teamvan.moneyshift.components.OpticalDensity.COMPONENT_TYPE);
         }
+        java.lang.String joined = components.toString();
+        cachedComponents = new ComponentsCache(mask, joined);
+        return joined;
+    }
+
+    @Override
+    public void writeColumns(org.teamvan.moneyshift.NtEntityWriter w) {
+        long mask = 0L;
+        if (true) mask |= 1L;
+        if (voxelSize != null) mask |= 2L;
+        if (translation != null) mask |= 4L;
+        if (quaternion != null) mask |= 8L;
+        if (valueRange != null) mask |= 16L;
+        if (gamma != null) mask |= 32L;
+        if (colormap != null) mask |= 64L;
+        if (opticalDensity != null) mask |= 128L;
         w.metaString("archetype", ARCHETYPE_NAME);
-        w.metaString("components", components.toString());
+        w.metaString("components", componentsFor(mask));
         if (true) {
             org.teamvan.moneyshift.components.TensorData.writeColumnsStatic(w, "values", java.util.List.of(values));
         }

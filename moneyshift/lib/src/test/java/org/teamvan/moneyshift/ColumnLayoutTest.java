@@ -63,29 +63,24 @@ class ColumnLayoutTest {
     }
 
     @Test
-    void uInt64KeepsNativeArraysAndAddsADecimalSidecar() {
-        recorder.logComponent("l/count", "value", List.of(new Count(5)));
-        assertArrayEquals(new long[] {5}, integers("/Rerun/l/count/value"));
-        assertFalse(instance.getEntry("/Rerun/l/count/value/.u64").exists());
+    void uInt64UsesLittleEndianRawColumns() {
+        recorder.logComponent("l/count", "value", List.of(new Count(5), new Count(7)));
+        assertArrayEquals(
+                new byte[] {5, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0},
+                raw("/Rerun/l/count/value"),
+                "eight little-endian bytes per instance");
 
-        // `Long.MIN_VALUE` is 2^63 as an unsigned 64-bit integer. The native column keeps the
-        // raw bits; the decimal sidecar carries the value that does not fit in a signed long.
+        // `Long.MIN_VALUE` is 2^63 as an unsigned 64-bit integer, which only the raw layout can
+        // represent without a second topic.
         recorder.logComponent("l/big", "value", List.of(new Count(Long.MIN_VALUE)));
         assertArrayEquals(
-                new long[] {Long.MIN_VALUE}, integers("/Rerun/l/big/value"), "raw bits");
-        assertArrayEquals(
-                new String[] {"9223372036854775808"},
-                strings("/Rerun/l/big/value/.u64"));
-
-        // The sidecar is sticky: a later batch of small values must not hide it.
-        recorder.logComponent("l/big", "value", List.of(new Count(7)));
-        assertArrayEquals(new long[] {7}, integers("/Rerun/l/big/value"));
-        assertArrayEquals(
-                new String[] {"7"}, strings("/Rerun/l/big/value/.u64"));
+                new byte[] {0, 0, 0, 0, 0, 0, 0, (byte) 0x80},
+                raw("/Rerun/l/big/value"));
+        assertFalse(instance.getEntry("/Rerun/l/big/value/.u64").exists());
     }
 
     @Test
-    void listsUsePerInstanceCountsAndFlattenedItems() {
+    void listsUsePrefixOffsetsAndFlattenedItems() {
         ClassDescription description =
                 new ClassDescription(
                         new AnnotationInfo(1, "thing", 0xFF00E5FFL),
@@ -97,7 +92,7 @@ class ColumnLayoutTest {
                 List.of(new AnnotationContext(List.of(new ClassDescriptionMapElem(7, description)))));
 
         assertArrayEquals(
-                new long[] {1}, integers("/Rerun/l/annotations/class_map/.count"));
+                new long[] {0, 1}, integers("/Rerun/l/annotations/class_map/.offsets"));
         assertArrayEquals(
                 new long[] {7}, integers("/Rerun/l/annotations/class_map/.items/class_id"));
         assertArrayEquals(
@@ -113,9 +108,9 @@ class ColumnLayoutTest {
                 integers(
                         "/Rerun/l/annotations/class_map/.items/class_description/info/color"));
         assertArrayEquals(
-                new long[] {1},
+                new long[] {0, 1},
                 integers(
-                        "/Rerun/l/annotations/class_map/.items/class_description/keypoint_annotations/.count"));
+                        "/Rerun/l/annotations/class_map/.items/class_description/keypoint_annotations/.offsets"));
         assertArrayEquals(
                 new long[] {2},
                 integers(
@@ -230,6 +225,10 @@ class ColumnLayoutTest {
 
     private NtEntityWriter recorderWriter(String entity) {
         return new NtEntityWriter(recorder, entity);
+    }
+
+    private byte[] raw(String topic) {
+        return instance.getEntry(topic).getRaw(new byte[0]);
     }
 
     private double[] doubles(String topic) {

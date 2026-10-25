@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    num::TryFromIntError,
+    num::{NonZero, TryFromIntError},
     path::Path,
     sync::Arc,
 };
@@ -13,7 +13,10 @@ use re_log_types::{EntityPath, NonMinI64, TimeInt};
 
 use crate::values::{
     EntryValue, EntryValueParseError, StructValue,
-    parse::wpistruct::{StructSchemas, UnresolvedWpiLibStructType, WpiLibStructSchema},
+    parse::wpistruct::{
+        ResolveError, StructSchemas, UnresolvedWpiLibStructType, WpiLibStructData,
+        WpiLibStructSchema, WpiLibStructType,
+    },
 };
 
 /// Upper bound on struct values buffered while waiting for their schema.
@@ -165,6 +168,24 @@ impl EntryLog {
             self.types.insert(key.clone(), ty.to_owned());
         }
 
+        // Structs are parsed straight into the log. Building an `EntryValue` tree first would
+        // allocate one `Vec` per struct (and per struct array element) only to flatten it again
+        // into the per-field entries below.
+        if EntryValue::is_struct_type(ty) {
+            let (name, is_array) = match ty.strip_suffix("[]") {
+                Some(name) => (name, true),
+                None => (ty, false),
+            };
+            return match self.schemas.resolve(name) {
+                Ok(schema) => self.add_struct_bytes(key, timestamp, value, &schema, is_array),
+                Err(ResolveError::NotFound(name)) => {
+                    self.queue_struct(key, timestamp, ty, value, &name);
+                    Ok(())
+                }
+                Err(err) => Err(anyhow::anyhow!("{err}")),
+            };
+        }
+
         match EntryValue::parse_from_wpilog(ty, value, &mut self.schemas) {
             Ok(v) => self.add_entryvalue(key, timestamp, v),
             Err(EntryValueParseError::StructNotFound(name)) => {
@@ -172,6 +193,111 @@ impl EntryLog {
                 Ok(())
             }
             Err(EntryValueParseError::Other(e)) => Err(e),
+        }
+    }
+
+    /// Parses one struct value (or array of them) directly into the per-field entries.
+    fn add_struct_bytes(
+        &mut self,
+        key: EntityPath,
+        timestamp: Timestamp,
+        data: &[u8],
+        schema: &Arc<WpiLibStructSchema<WpiLibStructType>>,
+        is_array: bool,
+    ) -> Result<(), anyhow::Error> {
+        if !is_array {
+            let remaining = self.parse_struct_fields(&key, timestamp, data, schema)?;
+            anyhow::ensure!(remaining.is_empty(), "struct payload has trailing bytes");
+            return Ok(());
+        }
+
+        let size = schema.size();
+        anyhow::ensure!(size != 0, "cannot parse an array of zero-sized structs");
+        let chunks = data.chunks_exact(size);
+        anyhow::ensure!(
+            chunks.remainder().is_empty(),
+            "struct array payload has {} trailing bytes",
+            chunks.remainder().len()
+        );
+
+        let length = self.paths.field(&key, "length");
+        self.add_entryvalue(
+            length,
+            timestamp,
+            EntryValue::Arrow(Arc::new(Int64Array::from_iter_values([
+                (data.len() / size) as i64,
+            ]))),
+        )?;
+        for (index, chunk) in chunks.enumerate() {
+            let element = self.paths.index(&key, index);
+            let remaining = self.parse_struct_fields(&element, timestamp, chunk, schema)?;
+            debug_assert!(remaining.is_empty(), "chunked struct parse left bytes");
+        }
+        Ok(())
+    }
+
+    /// Parses the fields of one struct instance under `key`, in schema order.
+    fn parse_struct_fields<'d>(
+        &mut self,
+        key: &EntityPath,
+        timestamp: Timestamp,
+        data: &'d [u8],
+        schema: &Arc<WpiLibStructSchema<WpiLibStructType>>,
+    ) -> Result<&'d [u8], anyhow::Error> {
+        let mut data = data;
+        for (name, field) in &schema.fields {
+            let child = self.paths.field(key, name);
+            data = self.parse_struct_field(&child, timestamp, data, field)?;
+        }
+        Ok(data)
+    }
+
+    fn parse_struct_field<'d>(
+        &mut self,
+        key: &EntityPath,
+        timestamp: Timestamp,
+        data: &'d [u8],
+        field: &WpiLibStructData<WpiLibStructType>,
+    ) -> Result<&'d [u8], anyhow::Error> {
+        let count = field.count.map_or(1, NonZero::get);
+
+        match &field.ty {
+            WpiLibStructType::Primitive(primitive) => {
+                let len = primitive.size() * count;
+                let Some((bytes, remaining)) = data.split_at_checked(len) else {
+                    anyhow::bail!("not enough data for a {primitive:?}[{count}] field");
+                };
+                let array = EntryValue::parse_struct_leaf(bytes, *primitive, field.count)?;
+                self.add_entryvalue(key.clone(), timestamp, EntryValue::Arrow(array))?;
+                Ok(remaining)
+            }
+            WpiLibStructType::Custom(nested) => {
+                if field.count.is_none() {
+                    return self.parse_struct_fields(key, timestamp, data, nested);
+                }
+
+                let size = nested.size();
+                anyhow::ensure!(size != 0, "cannot parse an array of zero-sized structs");
+                let len = size
+                    .checked_mul(count)
+                    .ok_or_else(|| anyhow::anyhow!("struct array size overflow"))?;
+                let Some((bytes, remaining)) = data.split_at_checked(len) else {
+                    anyhow::bail!("not enough data for a struct[{count}] field");
+                };
+
+                let length = self.paths.field(key, "length");
+                self.add_entryvalue(
+                    length,
+                    timestamp,
+                    EntryValue::Arrow(Arc::new(Int64Array::from_iter_values([count as i64]))),
+                )?;
+                for (index, chunk) in bytes.chunks_exact(size).enumerate() {
+                    let element = self.paths.index(key, index);
+                    let leftover = self.parse_struct_fields(&element, timestamp, chunk, nested)?;
+                    debug_assert!(leftover.is_empty(), "chunked struct parse left bytes");
+                }
+                Ok(remaining)
+            }
         }
     }
 
@@ -568,6 +694,30 @@ mod tests {
             log.get_entry(&key.join(&EntityPath::from_single_string("length")))
                 .is_some()
         );
+    }
+
+    #[test]
+    fn struct_fast_path_matches_the_entry_value_tree() {
+        // `add_entry` decodes structs straight into the log; the tree parser is the reference
+        // implementation, so both must produce byte-identical entries.
+        let mut fast = EntryLog::new();
+        let mut tree = EntryLog::new();
+        let mut payload = Vec::new();
+        for value in [1.0f64, 2.0, 3.0] {
+            payload.extend_from_slice(&value.to_le_bytes());
+        }
+        let key = EntityPath::from_single_string("pose");
+
+        for ty in ["struct:Pose2d", "struct:Pose2d[]"] {
+            fast.add_entry(key.clone(), Timestamp(7), ty, &payload)
+                .unwrap();
+            let value =
+                crate::values::EntryValue::parse_from_wpilog(ty, &payload, &mut tree.schemas)
+                    .unwrap();
+            tree.add_entryvalue(key.clone(), Timestamp(7), value)
+                .unwrap();
+            assert_eq!(fast.get_changed(), tree.get_changed(), "{ty}");
+        }
     }
 
     #[test]

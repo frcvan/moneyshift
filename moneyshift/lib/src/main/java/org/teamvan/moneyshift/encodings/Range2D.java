@@ -40,7 +40,8 @@ public record Range2D(
         w.present(path, present0, anyNull0, n);
         double[] column1 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).xRange();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.xRange();
             var v1_1 = v1_0 == null ? null : v1_0.range();
             var v1_2 = v1_1 == null ? null : v1_1[0];
             var value1 = v1_2;
@@ -49,7 +50,8 @@ public record Range2D(
         w.doubles(path + "/x_range/0", column1);
         double[] column2 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).xRange();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.xRange();
             var v2_1 = v2_0 == null ? null : v2_0.range();
             var v2_2 = v2_1 == null ? null : v2_1[1];
             var value2 = v2_2;
@@ -58,7 +60,8 @@ public record Range2D(
         w.doubles(path + "/x_range/1", column2);
         double[] column3 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v3_0 = values.get(i) == null ? null : values.get(i).yRange();
+            var v3_root = values.get(i);
+            var v3_0 = v3_root == null ? null : v3_root.yRange();
             var v3_1 = v3_0 == null ? null : v3_0.range();
             var v3_2 = v3_1 == null ? null : v3_1[0];
             var value3 = v3_2;
@@ -67,7 +70,8 @@ public record Range2D(
         w.doubles(path + "/y_range/0", column3);
         double[] column4 = new double[n];
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).yRange();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.yRange();
             var v4_1 = v4_0 == null ? null : v4_0.range();
             var v4_2 = v4_1 == null ? null : v4_1[1];
             var value4 = v4_2;

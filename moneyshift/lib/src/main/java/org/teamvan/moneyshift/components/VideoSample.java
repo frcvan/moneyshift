@@ -34,7 +34,8 @@ public record VideoSample(
         boolean[] present0 = null;
         boolean anyNull0 = false;
         for (int i = 0; i < n; i++) {
-            var v0_0 = values.get(i) == null ? null : values.get(i).buffer();
+            var v0_root = values.get(i);
+            var v0_0 = v0_root == null ? null : v0_root.buffer();
             boolean ok0 = (v0_0) != null;
             if (ok0) {
                 if (present0 != null) present0[i] = true;
@@ -47,19 +48,21 @@ public record VideoSample(
             }
         }
         w.present(path, present0, anyNull0, n);
-        long[] counts1 = new long[n];
+        long[] offsets1 = new long[n + 1];
         int total1 = 0;
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).buffer();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.buffer();
             var v1_1 = v1_0 == null ? null : v1_0.data();
             java.util.List<java.lang.Short> list1 = v1_1;
-            counts1[i] = list1 == null ? 0L : list1.size();
-            total1 += (int) counts1[i];
+            total1 += list1 == null ? 0 : list1.size();
+            offsets1[i + 1] = total1;
         }
-        w.longs(path + "/.count", counts1);
+        w.longs(path + "/.offsets", offsets1);
         java.util.ArrayList<java.lang.Short> items1 = new java.util.ArrayList<>(total1);
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).buffer();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.buffer();
             var v1_1 = v1_0 == null ? null : v1_0.data();
             java.util.List<java.lang.Short> list1 = v1_1;
             if (list1 != null) items1.addAll(list1);

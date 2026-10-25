@@ -47,7 +47,8 @@ public record VisibleTimeRange(
         w.present(path, present0, anyNull0, n);
         java.lang.String[] column1 = new java.lang.String[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).timeline();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.timeline();
             var v1_1 = v1_0 == null ? null : v1_0.value();
             java.lang.String value1 = v1_1;
             column1[i] = value1 == null ? "" : value1;
@@ -57,7 +58,8 @@ public record VisibleTimeRange(
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload2_0 = new java.util.ArrayList<>();
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload2_1 = new java.util.ArrayList<>();
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).range();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.range();
             var v2_1 = v2_0 == null ? null : v2_0.start();
             org.teamvan.moneyshift.encodings.TimeRangeBoundary value2 = v2_1;
             if (value2 == null) {
@@ -79,7 +81,8 @@ public record VisibleTimeRange(
             int payloadCount2_0 = payload2_0.size();
         long[] column3 = new long[payloadCount2_0];
         for (int k2_0 = 0; k2_0 < payloadCount2_0; k2_0++) {
-            var v3_0 = payload2_0.get(k2_0).value();
+            var v3_root = payload2_0.get(k2_0);
+            var v3_0 = v3_root.value();
             long value3 = v3_0;
             column3[k2_0] = value3;
         }
@@ -89,7 +92,8 @@ public record VisibleTimeRange(
             int payloadCount2_1 = payload2_1.size();
         long[] column4 = new long[payloadCount2_1];
         for (int k2_1 = 0; k2_1 < payloadCount2_1; k2_1++) {
-            var v4_0 = payload2_1.get(k2_1).value();
+            var v4_root = payload2_1.get(k2_1);
+            var v4_0 = v4_root.value();
             long value4 = v4_0;
             column4[k2_1] = value4;
         }
@@ -99,7 +103,8 @@ public record VisibleTimeRange(
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload5_0 = new java.util.ArrayList<>();
         java.util.ArrayList<org.teamvan.moneyshift.encodings.TimeInt> payload5_1 = new java.util.ArrayList<>();
         for (int i = 0; i < n; i++) {
-            var v5_0 = values.get(i) == null ? null : values.get(i).range();
+            var v5_root = values.get(i);
+            var v5_0 = v5_root == null ? null : v5_root.range();
             var v5_1 = v5_0 == null ? null : v5_0.end();
             org.teamvan.moneyshift.encodings.TimeRangeBoundary value5 = v5_1;
             if (value5 == null) {
@@ -121,7 +126,8 @@ public record VisibleTimeRange(
             int payloadCount5_0 = payload5_0.size();
         long[] column6 = new long[payloadCount5_0];
         for (int k5_0 = 0; k5_0 < payloadCount5_0; k5_0++) {
-            var v6_0 = payload5_0.get(k5_0).value();
+            var v6_root = payload5_0.get(k5_0);
+            var v6_0 = v6_root.value();
             long value6 = v6_0;
             column6[k5_0] = value6;
         }
@@ -131,7 +137,8 @@ public record VisibleTimeRange(
             int payloadCount5_1 = payload5_1.size();
         long[] column7 = new long[payloadCount5_1];
         for (int k5_1 = 0; k5_1 < payloadCount5_1; k5_1++) {
-            var v7_0 = payload5_1.get(k5_1).value();
+            var v7_root = payload5_1.get(k5_1);
+            var v7_0 = v7_root.value();
             long value7 = v7_0;
             column7[k5_1] = value7;
         }

@@ -51,7 +51,8 @@ public record AnnotationInfo(
         w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).id();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.id();
             var value1 = v1_0;
             column1[i] = value1 == null ? 0L : value1;
         }
@@ -59,7 +60,8 @@ public record AnnotationInfo(
         boolean[] present2 = null;
         boolean anyNull2 = false;
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).label();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.label();
             boolean ok2 = (v2_0) != null;
             if (ok2) {
                 if (present2 != null) present2[i] = true;
@@ -74,7 +76,8 @@ public record AnnotationInfo(
         w.present(path + "/label", present2, anyNull2, n);
         java.lang.String[] column3 = new java.lang.String[n];
         for (int i = 0; i < n; i++) {
-            var v3_0 = values.get(i) == null ? null : values.get(i).label();
+            var v3_root = values.get(i);
+            var v3_0 = v3_root == null ? null : v3_root.label();
             var v3_1 = v3_0 == null ? null : v3_0.value();
             java.lang.String value3 = v3_1;
             column3[i] = value3 == null ? "" : value3;
@@ -83,7 +86,8 @@ public record AnnotationInfo(
         boolean[] present4 = null;
         boolean anyNull4 = false;
         for (int i = 0; i < n; i++) {
-            var v4_0 = values.get(i) == null ? null : values.get(i).color();
+            var v4_root = values.get(i);
+            var v4_0 = v4_root == null ? null : v4_root.color();
             boolean ok4 = (v4_0) != null;
             if (ok4) {
                 if (present4 != null) present4[i] = true;
@@ -98,7 +102,8 @@ public record AnnotationInfo(
         w.present(path + "/color", present4, anyNull4, n);
         long[] column5 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v5_0 = values.get(i) == null ? null : values.get(i).color();
+            var v5_root = values.get(i);
+            var v5_0 = v5_root == null ? null : v5_root.color();
             var v5_1 = v5_0 == null ? null : v5_0.rgba();
             var value5 = v5_1;
             column5[i] = value5 == null ? 0L : value5;

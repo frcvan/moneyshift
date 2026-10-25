@@ -74,7 +74,8 @@ public sealed interface TimeRangeBoundary extends org.teamvan.moneyshift.NtEncod
             int payloadCount1_0 = payload1_0.size();
         long[] column2 = new long[payloadCount1_0];
         for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
-            var v2_0 = payload1_0.get(k1_0).value();
+            var v2_root = payload1_0.get(k1_0);
+            var v2_0 = v2_root.value();
             long value2 = v2_0;
             column2[k1_0] = value2;
         }
@@ -84,7 +85,8 @@ public sealed interface TimeRangeBoundary extends org.teamvan.moneyshift.NtEncod
             int payloadCount1_1 = payload1_1.size();
         long[] column3 = new long[payloadCount1_1];
         for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
-            var v3_0 = payload1_1.get(k1_1).value();
+            var v3_root = payload1_1.get(k1_1);
+            var v3_0 = v3_root.value();
             long value3 = v3_0;
             column3[k1_1] = value3;
         }

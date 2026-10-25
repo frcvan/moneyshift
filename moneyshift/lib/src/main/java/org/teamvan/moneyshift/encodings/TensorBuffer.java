@@ -166,14 +166,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         w.longs(path + "/.variant", variants1);
         if (!payload1_0.isEmpty()) {
             int payloadCount1_0 = payload1_0.size();
-        long[] counts2 = new long[payloadCount1_0];
+        long[] offsets2 = new long[payloadCount1_0 + 1];
         int total2 = 0;
         for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
             java.util.List<java.lang.Short> list2 = payload1_0.get(k1_0);
-            counts2[k1_0] = list2 == null ? 0L : list2.size();
-            total2 += (int) counts2[k1_0];
+            total2 += list2 == null ? 0 : list2.size();
+            offsets2[k1_0 + 1] = total2;
         }
-        w.longs(path + "/U8" + "/.count", counts2);
+        w.longs(path + "/U8" + "/.offsets", offsets2);
         java.util.ArrayList<java.lang.Short> items2 = new java.util.ArrayList<>(total2);
         for (int k1_0 = 0; k1_0 < payloadCount1_0; k1_0++) {
             java.util.List<java.lang.Short> list2 = payload1_0.get(k1_0);
@@ -189,14 +189,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_1.isEmpty()) {
             int payloadCount1_1 = payload1_1.size();
-        long[] counts4 = new long[payloadCount1_1];
+        long[] offsets4 = new long[payloadCount1_1 + 1];
         int total4 = 0;
         for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
             java.util.List<java.lang.Integer> list4 = payload1_1.get(k1_1);
-            counts4[k1_1] = list4 == null ? 0L : list4.size();
-            total4 += (int) counts4[k1_1];
+            total4 += list4 == null ? 0 : list4.size();
+            offsets4[k1_1 + 1] = total4;
         }
-        w.longs(path + "/U16" + "/.count", counts4);
+        w.longs(path + "/U16" + "/.offsets", offsets4);
         java.util.ArrayList<java.lang.Integer> items4 = new java.util.ArrayList<>(total4);
         for (int k1_1 = 0; k1_1 < payloadCount1_1; k1_1++) {
             java.util.List<java.lang.Integer> list4 = payload1_1.get(k1_1);
@@ -212,14 +212,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_2.isEmpty()) {
             int payloadCount1_2 = payload1_2.size();
-        long[] counts6 = new long[payloadCount1_2];
+        long[] offsets6 = new long[payloadCount1_2 + 1];
         int total6 = 0;
         for (int k1_2 = 0; k1_2 < payloadCount1_2; k1_2++) {
             java.util.List<java.lang.Long> list6 = payload1_2.get(k1_2);
-            counts6[k1_2] = list6 == null ? 0L : list6.size();
-            total6 += (int) counts6[k1_2];
+            total6 += list6 == null ? 0 : list6.size();
+            offsets6[k1_2 + 1] = total6;
         }
-        w.longs(path + "/U32" + "/.count", counts6);
+        w.longs(path + "/U32" + "/.offsets", offsets6);
         java.util.ArrayList<java.lang.Long> items6 = new java.util.ArrayList<>(total6);
         for (int k1_2 = 0; k1_2 < payloadCount1_2; k1_2++) {
             java.util.List<java.lang.Long> list6 = payload1_2.get(k1_2);
@@ -235,14 +235,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_3.isEmpty()) {
             int payloadCount1_3 = payload1_3.size();
-        long[] counts8 = new long[payloadCount1_3];
+        long[] offsets8 = new long[payloadCount1_3 + 1];
         int total8 = 0;
         for (int k1_3 = 0; k1_3 < payloadCount1_3; k1_3++) {
             java.util.List<java.lang.Long> list8 = payload1_3.get(k1_3);
-            counts8[k1_3] = list8 == null ? 0L : list8.size();
-            total8 += (int) counts8[k1_3];
+            total8 += list8 == null ? 0 : list8.size();
+            offsets8[k1_3 + 1] = total8;
         }
-        w.longs(path + "/U64" + "/.count", counts8);
+        w.longs(path + "/U64" + "/.offsets", offsets8);
         java.util.ArrayList<java.lang.Long> items8 = new java.util.ArrayList<>(total8);
         for (int k1_3 = 0; k1_3 < payloadCount1_3; k1_3++) {
             java.util.List<java.lang.Long> list8 = payload1_3.get(k1_3);
@@ -250,24 +250,24 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         int itemCount8 = items8.size();
         long[] column9 = new long[itemCount8];
-        boolean unsigned9 = false;
         for (int j8 = 0; j8 < itemCount8; j8++) {
             long value9 = items8.get(j8);
             column9[j8] = value9;
-            unsigned9 |= column9[j8] < 0L;
         }
-        w.u64(path + "/U64/.items", column9, unsigned9);
+        byte[] bytes9 = new byte[column9.length * java.lang.Long.BYTES];
+        java.nio.ByteBuffer.wrap(bytes9).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column9);
+        w.raw(path + "/U64/.items", bytes9);
         }
         if (!payload1_4.isEmpty()) {
             int payloadCount1_4 = payload1_4.size();
-        long[] counts10 = new long[payloadCount1_4];
+        long[] offsets10 = new long[payloadCount1_4 + 1];
         int total10 = 0;
         for (int k1_4 = 0; k1_4 < payloadCount1_4; k1_4++) {
             java.util.List<java.lang.Byte> list10 = payload1_4.get(k1_4);
-            counts10[k1_4] = list10 == null ? 0L : list10.size();
-            total10 += (int) counts10[k1_4];
+            total10 += list10 == null ? 0 : list10.size();
+            offsets10[k1_4 + 1] = total10;
         }
-        w.longs(path + "/I8" + "/.count", counts10);
+        w.longs(path + "/I8" + "/.offsets", offsets10);
         java.util.ArrayList<java.lang.Byte> items10 = new java.util.ArrayList<>(total10);
         for (int k1_4 = 0; k1_4 < payloadCount1_4; k1_4++) {
             java.util.List<java.lang.Byte> list10 = payload1_4.get(k1_4);
@@ -283,14 +283,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_5.isEmpty()) {
             int payloadCount1_5 = payload1_5.size();
-        long[] counts12 = new long[payloadCount1_5];
+        long[] offsets12 = new long[payloadCount1_5 + 1];
         int total12 = 0;
         for (int k1_5 = 0; k1_5 < payloadCount1_5; k1_5++) {
             java.util.List<java.lang.Short> list12 = payload1_5.get(k1_5);
-            counts12[k1_5] = list12 == null ? 0L : list12.size();
-            total12 += (int) counts12[k1_5];
+            total12 += list12 == null ? 0 : list12.size();
+            offsets12[k1_5 + 1] = total12;
         }
-        w.longs(path + "/I16" + "/.count", counts12);
+        w.longs(path + "/I16" + "/.offsets", offsets12);
         java.util.ArrayList<java.lang.Short> items12 = new java.util.ArrayList<>(total12);
         for (int k1_5 = 0; k1_5 < payloadCount1_5; k1_5++) {
             java.util.List<java.lang.Short> list12 = payload1_5.get(k1_5);
@@ -306,14 +306,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_6.isEmpty()) {
             int payloadCount1_6 = payload1_6.size();
-        long[] counts14 = new long[payloadCount1_6];
+        long[] offsets14 = new long[payloadCount1_6 + 1];
         int total14 = 0;
         for (int k1_6 = 0; k1_6 < payloadCount1_6; k1_6++) {
             java.util.List<java.lang.Integer> list14 = payload1_6.get(k1_6);
-            counts14[k1_6] = list14 == null ? 0L : list14.size();
-            total14 += (int) counts14[k1_6];
+            total14 += list14 == null ? 0 : list14.size();
+            offsets14[k1_6 + 1] = total14;
         }
-        w.longs(path + "/I32" + "/.count", counts14);
+        w.longs(path + "/I32" + "/.offsets", offsets14);
         java.util.ArrayList<java.lang.Integer> items14 = new java.util.ArrayList<>(total14);
         for (int k1_6 = 0; k1_6 < payloadCount1_6; k1_6++) {
             java.util.List<java.lang.Integer> list14 = payload1_6.get(k1_6);
@@ -329,14 +329,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_7.isEmpty()) {
             int payloadCount1_7 = payload1_7.size();
-        long[] counts16 = new long[payloadCount1_7];
+        long[] offsets16 = new long[payloadCount1_7 + 1];
         int total16 = 0;
         for (int k1_7 = 0; k1_7 < payloadCount1_7; k1_7++) {
             java.util.List<java.lang.Long> list16 = payload1_7.get(k1_7);
-            counts16[k1_7] = list16 == null ? 0L : list16.size();
-            total16 += (int) counts16[k1_7];
+            total16 += list16 == null ? 0 : list16.size();
+            offsets16[k1_7 + 1] = total16;
         }
-        w.longs(path + "/I64" + "/.count", counts16);
+        w.longs(path + "/I64" + "/.offsets", offsets16);
         java.util.ArrayList<java.lang.Long> items16 = new java.util.ArrayList<>(total16);
         for (int k1_7 = 0; k1_7 < payloadCount1_7; k1_7++) {
             java.util.List<java.lang.Long> list16 = payload1_7.get(k1_7);
@@ -352,14 +352,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_8.isEmpty()) {
             int payloadCount1_8 = payload1_8.size();
-        long[] counts18 = new long[payloadCount1_8];
+        long[] offsets18 = new long[payloadCount1_8 + 1];
         int total18 = 0;
         for (int k1_8 = 0; k1_8 < payloadCount1_8; k1_8++) {
             java.util.List<java.lang.Float> list18 = payload1_8.get(k1_8);
-            counts18[k1_8] = list18 == null ? 0L : list18.size();
-            total18 += (int) counts18[k1_8];
+            total18 += list18 == null ? 0 : list18.size();
+            offsets18[k1_8 + 1] = total18;
         }
-        w.longs(path + "/F16" + "/.count", counts18);
+        w.longs(path + "/F16" + "/.offsets", offsets18);
         java.util.ArrayList<java.lang.Float> items18 = new java.util.ArrayList<>(total18);
         for (int k1_8 = 0; k1_8 < payloadCount1_8; k1_8++) {
             java.util.List<java.lang.Float> list18 = payload1_8.get(k1_8);
@@ -375,14 +375,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_9.isEmpty()) {
             int payloadCount1_9 = payload1_9.size();
-        long[] counts20 = new long[payloadCount1_9];
+        long[] offsets20 = new long[payloadCount1_9 + 1];
         int total20 = 0;
         for (int k1_9 = 0; k1_9 < payloadCount1_9; k1_9++) {
             java.util.List<java.lang.Float> list20 = payload1_9.get(k1_9);
-            counts20[k1_9] = list20 == null ? 0L : list20.size();
-            total20 += (int) counts20[k1_9];
+            total20 += list20 == null ? 0 : list20.size();
+            offsets20[k1_9 + 1] = total20;
         }
-        w.longs(path + "/F32" + "/.count", counts20);
+        w.longs(path + "/F32" + "/.offsets", offsets20);
         java.util.ArrayList<java.lang.Float> items20 = new java.util.ArrayList<>(total20);
         for (int k1_9 = 0; k1_9 < payloadCount1_9; k1_9++) {
             java.util.List<java.lang.Float> list20 = payload1_9.get(k1_9);
@@ -398,14 +398,14 @@ public sealed interface TensorBuffer extends org.teamvan.moneyshift.NtEncoding<T
         }
         if (!payload1_10.isEmpty()) {
             int payloadCount1_10 = payload1_10.size();
-        long[] counts22 = new long[payloadCount1_10];
+        long[] offsets22 = new long[payloadCount1_10 + 1];
         int total22 = 0;
         for (int k1_10 = 0; k1_10 < payloadCount1_10; k1_10++) {
             java.util.List<java.lang.Double> list22 = payload1_10.get(k1_10);
-            counts22[k1_10] = list22 == null ? 0L : list22.size();
-            total22 += (int) counts22[k1_10];
+            total22 += list22 == null ? 0 : list22.size();
+            offsets22[k1_10 + 1] = total22;
         }
-        w.longs(path + "/F64" + "/.count", counts22);
+        w.longs(path + "/F64" + "/.offsets", offsets22);
         java.util.ArrayList<java.lang.Double> items22 = new java.util.ArrayList<>(total22);
         for (int k1_10 = 0; k1_10 < payloadCount1_10; k1_10++) {
             java.util.List<java.lang.Double> list22 = payload1_10.get(k1_10);

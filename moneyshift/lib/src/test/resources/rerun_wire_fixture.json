@@ -23,22 +23,22 @@
       "components": "context=rerun.components.AnnotationContext",
       "static": false,
       "columns": {
-        "context/.count": {"type": "int[]", "value": [2]},
         "context/.items/class_description/info/color": {"type": "int[]", "value": [4279312947, 0]},
         "context/.items/class_description/info/color/.present": {"type": "boolean[]", "value": [true, false]},
         "context/.items/class_description/info/id": {"type": "int[]", "value": [1, 2]},
         "context/.items/class_description/info/label": {"type": "string[]", "value": ["person", ""]},
         "context/.items/class_description/info/label/.present": {"type": "boolean[]", "value": [true, false]},
-        "context/.items/class_description/keypoint_annotations/.count": {"type": "int[]", "value": [0, 1]},
         "context/.items/class_description/keypoint_annotations/.items/color": {"type": "int[]", "value": [0]},
         "context/.items/class_description/keypoint_annotations/.items/color/.present": {"type": "boolean[]", "value": [false]},
         "context/.items/class_description/keypoint_annotations/.items/id": {"type": "int[]", "value": [3]},
         "context/.items/class_description/keypoint_annotations/.items/label": {"type": "string[]", "value": [""]},
         "context/.items/class_description/keypoint_annotations/.items/label/.present": {"type": "boolean[]", "value": [false]},
-        "context/.items/class_description/keypoint_connections/.count": {"type": "int[]", "value": [0, 0]},
+        "context/.items/class_description/keypoint_annotations/.offsets": {"type": "int[]", "value": [0, 0, 1]},
         "context/.items/class_description/keypoint_connections/.items/keypoint0": {"type": "int[]", "value": []},
         "context/.items/class_description/keypoint_connections/.items/keypoint1": {"type": "int[]", "value": []},
-        "context/.items/class_id": {"type": "int[]", "value": [1, 2]}
+        "context/.items/class_description/keypoint_connections/.offsets": {"type": "int[]", "value": [0, 0, 0]},
+        "context/.items/class_id": {"type": "int[]", "value": [1, 2]},
+        "context/.offsets": {"type": "int[]", "value": [0, 2]}
       }
     },
     {
@@ -48,13 +48,12 @@
       "static": false,
       "columns": {
         "data/buffer/.variant": {"type": "int[]", "value": [3]},
-        "data/buffer/U64/.count": {"type": "int[]", "value": [4]},
-        "data/buffer/U64/.items": {"type": "int[]", "value": [-9223372036854775808, 0, 7, 13]},
-        "data/buffer/U64/.items/.u64": {"type": "string[]", "value": ["9223372036854775808", "0", "7", "13"]},
-        "data/names/.count": {"type": "int[]", "value": [2]},
+        "data/buffer/U64/.items": {"type": "raw", "value": "0000000000000080000000000000000007000000000000000d00000000000000"},
+        "data/buffer/U64/.offsets": {"type": "int[]", "value": [0, 4]},
         "data/names/.items": {"type": "string[]", "value": ["height", "width"]},
-        "data/shape/.count": {"type": "int[]", "value": [2]},
-        "data/shape/.items": {"type": "int[]", "value": [2, 2]}
+        "data/names/.offsets": {"type": "int[]", "value": [0, 2]},
+        "data/shape/.items": {"type": "raw", "value": "02000000000000000200000000000000"},
+        "data/shape/.offsets": {"type": "int[]", "value": [0, 2]}
       }
     }
   ]

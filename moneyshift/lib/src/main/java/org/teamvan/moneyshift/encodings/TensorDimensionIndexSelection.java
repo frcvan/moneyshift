@@ -40,20 +40,22 @@ public record TensorDimensionIndexSelection(
         w.present(path, present0, anyNull0, n);
         long[] column1 = new long[n];
         for (int i = 0; i < n; i++) {
-            var v1_0 = values.get(i) == null ? null : values.get(i).dimension();
+            var v1_root = values.get(i);
+            var v1_0 = v1_root == null ? null : v1_root.dimension();
             var value1 = v1_0;
             column1[i] = value1 == null ? 0L : value1;
         }
         w.longs(path + "/dimension", column1);
         long[] column2 = new long[n];
-        boolean unsigned2 = false;
         for (int i = 0; i < n; i++) {
-            var v2_0 = values.get(i) == null ? null : values.get(i).index();
+            var v2_root = values.get(i);
+            var v2_0 = v2_root == null ? null : v2_root.index();
             var value2 = v2_0;
             column2[i] = value2 == null ? 0L : value2;
-            unsigned2 |= column2[i] < 0L;
         }
-        w.u64(path + "/index", column2, unsigned2);
+        byte[] bytes2 = new byte[column2.length * java.lang.Long.BYTES];
+        java.nio.ByteBuffer.wrap(bytes2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asLongBuffer().put(column2);
+        w.raw(path + "/index", bytes2);
     }
 
     @Override
