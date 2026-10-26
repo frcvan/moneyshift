@@ -23,7 +23,7 @@ import org.teamvan.moneyshift.NtRecorder;
  *         .robot(254, "/AdvantageKit/RealOutputs/Drive/Pose2d")
  *         .swerve(254, "/AdvantageKit/RealOutputs/SwerveStates/Measured")
  *         .camera(254, "front", 0.30, 0.0, 0.50, 0.0, -10.0, 0.0, 70.0,
- *                 "/Camera/front/stream")
+ *                 "http://10.6.32.8:1181/stream.mjpg")
  *         .path("auto", "/AdvantageKit/RealOutputs/PathPlanner/ActivePath")
  *         .build()
  *         .publish(NtRecorder.getInstance());
@@ -31,10 +31,9 @@ import org.teamvan.moneyshift.NtRecorder;
  *
  * <p>Pose topics may publish {@code struct:Pose2d}, {@code struct:Pose3d}, or a {@code double[]}
  * of {@code [x, y, yaw]}. Swerve topics publish {@code struct:SwerveModuleState[]}. Path topics
- * publish {@code struct:Pose2d[]} or {@code struct:Translation2d[]}. A camera may name a
- * {@code raw} topic that publishes one encoded frame per update: H.264/H.265 samples are logged
- * with Rerun's {@code VideoStream} archetype and JPEG/PNG frames with {@code EncodedImage}, on the
- * camera's own entity. The bridge maps each update onto {@code first/...} and its 2D mirror.
+ * publish {@code struct:Pose2d[]} or {@code struct:Translation2d[]}. A camera may name the MJPEG
+ * stream PhotonVision serves for it, and the bridge records that stream on the camera's own
+ * entity. The bridge maps each update onto {@code first/...} and its 2D mirror.
  */
 public final class FirstMetadata {
     /** The plain NetworkTables topic the bridge reads the declaration from. */
@@ -174,8 +173,8 @@ public final class FirstMetadata {
                     json.append(",\"pitch\":").append(number(camera.pitchDegrees()));
                     json.append(",\"yaw\":").append(number(camera.yawDegrees()));
                     json.append(",\"fov\":").append(number(camera.horizontalFovDegrees()));
-                    if (camera.videoTopic() != null) {
-                        json.append(",\"video_topic\":").append(quoted(camera.videoTopic()));
+                    if (camera.stream() != null) {
+                        json.append(",\"stream\":").append(quoted(camera.stream()));
                     }
                     json.append('}');
                 }
@@ -284,11 +283,10 @@ public final class FirstMetadata {
      * <p>Angles are degrees; {@code roll}/{@code pitch}/{@code yaw} rotate the camera out of the
      * robot frame and {@code horizontalFovDegrees} sizes the drawn frustum.
      *
-     * <p>{@code videoTopic} optionally names a plain {@code raw} NetworkTables topic that
-     * publishes one encoded frame per update. The bridge logs those frames on the camera entity
-     * with Rerun's {@code VideoStream} archetype (H.264/H.265), so a recording scrubs through the
-     * camera footage next to the 3D field. JPEG or PNG frames are logged as {@code EncodedImage}
-     * instead, which is what MJPEG camera topics carry.
+     * <p>{@code stream} is PhotonVision's MJPEG URL for this camera
+     * ({@code http://10.63.91.11:1181/stream.mjpg}). Cameras are just links to a
+     * {@code multipart/x-mixed-replace} stream, so the bridge reads the stream itself and logs
+     * every JPEG frame on the camera entity, where the recording shows it on the frustum.
      */
     public record Camera(
             String name,
@@ -299,7 +297,7 @@ public final class FirstMetadata {
             double pitchDegrees,
             double yawDegrees,
             double horizontalFovDegrees,
-            String videoTopic) {
+            String stream) {
         public Camera {
             requireSegment(name, "camera name");
             requireFinite(x, "x");
@@ -313,8 +311,8 @@ public final class FirstMetadata {
                 throw new IllegalArgumentException(
                         "horizontalFovDegrees must be in (0, 180), got " + horizontalFovDegrees);
             }
-            if (videoTopic != null) {
-                requireTopic(videoTopic, "videoTopic");
+            if (stream != null) {
+                requireStreamUrl(stream);
             }
         }
     }
@@ -417,10 +415,11 @@ public final class FirstMetadata {
         }
 
         /**
-         * Declares a camera and the {@code raw} topic its encoded frames arrive on.
+         * Declares a camera and the MJPEG URL its frames arrive on.
          *
-         * <p>The bridge logs the frames with Rerun's {@code VideoStream} archetype (H.264/H.265)
-         * or {@code EncodedImage} (JPEG/PNG), on the camera's entity.
+         * <p>PhotonVision serves camera 0 at {@code http://<coprocessor>:1181/stream.mjpg} and
+         * camera 1 at {@code :1182}. The bridge reads the stream and logs every JPEG frame on the
+         * camera's entity.
          */
         public Builder camera(
                 int team,
@@ -432,7 +431,7 @@ public final class FirstMetadata {
                 double pitchDegrees,
                 double yawDegrees,
                 double horizontalFovDegrees,
-                String videoTopic) {
+                String stream) {
             requireTeam(team);
             List<Camera> mounted = cameras.computeIfAbsent(team, ignored -> new ArrayList<>());
             Camera camera =
@@ -445,7 +444,7 @@ public final class FirstMetadata {
                             pitchDegrees,
                             yawDegrees,
                             horizontalFovDegrees,
-                            videoTopic);
+                            stream);
             for (Camera existing : mounted) {
                 if (existing.name().equals(name)) {
                     throw new IllegalArgumentException(
@@ -492,6 +491,25 @@ public final class FirstMetadata {
             throw new IllegalArgumentException(
                     "team " + team + " has swerve or camera data but is not declared");
         }
+    }
+
+    /** PhotonVision's MJPEG URLs: plain HTTP with a host and a path, no TLS. */
+    private static String requireStreamUrl(String url) {
+        Objects.requireNonNull(url, "stream");
+        if (!url.startsWith("http://") || url.length() <= "http://".length()) {
+            throw new IllegalArgumentException(
+                    "stream must be an http:// MJPEG url, got \"" + url + "\"");
+        }
+        String rest = url.substring("http://".length());
+        int slash = rest.indexOf('/');
+        String host = slash < 0 ? rest : rest.substring(0, slash);
+        if (host.isEmpty()) {
+            throw new IllegalArgumentException("stream has no host: \"" + url + "\"");
+        }
+        if (url.chars().anyMatch(Character::isWhitespace)) {
+            throw new IllegalArgumentException("stream must not contain whitespace: \"" + url + "\"");
+        }
+        return url;
     }
 
     private static String requireTopic(String topic, String name) {

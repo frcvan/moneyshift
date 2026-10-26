@@ -62,6 +62,10 @@ pub struct LiveArgs {
     pub quiet: bool,
     /// Prefix applied to every mapped entity (mostly for tests and recordings).
     pub entity_path_prefix: Option<String>,
+    /// A model file that replaces the declaration's field model.
+    pub field_model: Option<PathBuf>,
+    /// A model file that replaces every robot's bounding box.
+    pub robot_model: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,6 +110,8 @@ impl LiveArgs {
             sink: LiveSink::Spawn,
             quiet: false,
             entity_path_prefix: None,
+            field_model: None,
+            robot_model: None,
         }
     }
 }
@@ -205,6 +211,12 @@ where
             "--robot-time-topic" => {
                 live_args.robot_time_topic = Some(next_value(&arg)?);
             }
+            "--field-model" => {
+                live_args.field_model = Some(PathBuf::from(next_value(&arg)?));
+            }
+            "--robot-model" => {
+                live_args.robot_model = Some(PathBuf::from(next_value(&arg)?));
+            }
             "--spawn" => set_sink(&mut sink, LiveSink::Spawn)?,
             "--stdout" => set_sink(&mut sink, LiveSink::Stdout)?,
             "--connect" => set_sink(&mut sink, LiveSink::Connect(next_value(&arg)?))?,
@@ -230,9 +242,15 @@ where
         return Ok(Command::Live(live_args));
     }
 
-    if team.is_some() || nt_addr.is_some() || sink.is_some() {
+    if team.is_some()
+        || nt_addr.is_some()
+        || sink.is_some()
+        || live_args.field_model.is_some()
+        || live_args.robot_model.is_some()
+    {
         return Err(CliError(
-            "--team, --nt-addr and the sink flags need --nt".to_owned(),
+            "--team, --nt-addr, --field-model, --robot-model and the sink flags need --nt"
+                .to_owned(),
         ));
     }
 
@@ -301,6 +319,9 @@ pub fn usage() -> &'static str {
         "  --team <n>                   connect to the NT server of team <n>\n",
         "  --nt-addr <ip>               connect to a specific NT server\n",
         "  --robot-time-topic <topic>   use this topic as the robot_time source\n",
+        "  --field-model <path>         draw this glTF/GLB/OBJ/STL field model instead of the\n",
+        "                               one the declaration names\n",
+        "  --robot-model <path>         draw this model for every robot instead of a box\n",
         "  --spawn                      start a viewer (default)\n",
         "  --connect <url>              send to a running viewer\n",
         "  --save <path.rrd>            write a recording instead\n",
@@ -372,6 +393,25 @@ mod tests {
         assert_eq!(args.team, Some(254));
         assert_eq!(args.sink, LiveSink::Save(PathBuf::from("out.rrd")));
         assert!(!args.quiet);
+    }
+
+    #[test]
+    fn parses_custom_model_flags() {
+        let Ok(Command::Live(args)) = cmd(&[
+            "--nt",
+            "--field-model",
+            "field.glb",
+            "--robot-model",
+            "robot.glb",
+        ]) else {
+            panic!("expected live mode");
+        };
+        assert_eq!(args.field_model, Some(PathBuf::from("field.glb")));
+        assert_eq!(args.robot_model, Some(PathBuf::from("robot.glb")));
+
+        // Only the live bridge draws a field, so the importer mode rejects them.
+        assert!(cmd(&["--field-model", "field.glb", "log.wpilog"]).is_err());
+        assert!(cmd(&["--robot-model", "robot.glb", "log.wpilog"]).is_err());
     }
 
     #[test]

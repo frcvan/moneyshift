@@ -63,22 +63,29 @@ FirstMetadata.builder()
         .robot(254, "/AdvantageKit/RealOutputs/Drive/Pose2d")
         .swerve(254, "/AdvantageKit/RealOutputs/SwerveStates/Measured")
         .camera(254, "front", 0.30, 0.0, 0.50, 0.0, -10.0, 0.0, 70.0,
-                "/Camera/front/stream")
+                "http://10.6.32.8:1181/stream.mjpg")
         .path("auto", "/AdvantageKit/RealOutputs/PathPlanner/ActivePath")
         .build()
         .publish(NtRecorder.getInstance());
 ```
 
 The pose topic may publish `struct:Pose2d`, `struct:Pose3d`, or a `double[]` of `[x, y, yaw]`; the
-swerve topic publishes `struct:SwerveModuleState[]`; path topics publish `struct:Pose2d[]` or
-`struct:Translation2d[]`.
+swerve topic publishes `struct:SwerveModuleState[]` (WPILib 2027 calls it
+`struct:SwerveModuleVelocity[]`, which the bridge also accepts); path topics publish
+`struct:Pose2d[]` or `struct:Translation2d[]`.
 
-A camera optionally takes a ninth argument, the network name of a plain `raw` NetworkTables topic
-that publishes **one encoded frame per update**. The bridge logs each frame on the camera entity,
-with the recording's `robot_time`: Annex-B H.264/H.265 samples become Rerun `VideoStream` samples
-(one sample per frame, with keyframes marked), and JPEG or PNG frames become `EncodedImage`, which
-is what an MJPEG camera topic carries. Frames are shown on the camera's frustum in the 3D view and
-in any 2D view of that entity, so a saved recording replays the camera footage next to the field.
+A camera optionally takes a ninth argument, PhotonVision's MJPEG URL for it
+(`http://<coprocessor>:1181/stream.mjpg` for camera 0, `:1182` for camera 1). A camera is only a
+link to that `multipart/x-mixed-replace` stream: the bridge hands the URL to `ffmpeg`, which needs
+to be on `PATH`, and logs an H.264 `VideoStream` on the camera's `image` entity at the recording's
+`robot_time`, so a live session plays the footage smoothly.
+
+A 2D view of a camera must be rooted at its `image` entity: Rerun only shows a pinhole's 2D content
+inside that content's own 2D space, so a view rooted at the field reports that its target frame has
+no pinhole root. When the declaration names a camera the bridge also sends a viewer layout with a
+2D view for it. Rerun 0.40 renders videos in 2D views only, so the footage does not show on the
+frustum in the 3D view.
+
 From that declaration the bridge draws:
 
 | Entity | Contents |
@@ -86,18 +93,20 @@ From that declaration the bridge draws:
 | `first/field` | field lines, from the declared geometry |
 | `first/field/carpet` | the carpet plane |
 | `first/field/tags` | AprilTag plates |
-| `first/field/model` | optional glTF/GLB field model (`fieldModel(...)`) |
+| `first/field/model` | optional glTF/GLB field model (`fieldModel(...)`, or the bridge's `--field-model`) |
 | `first/robots/<team>` | `Transform3D` driven by the declared pose topic |
-| `first/robots/<team>/model` | static bounding box (`Boxes3D`, default 0.9 m square) |
+| `first/robots/<team>/model` | static bounding box (`Boxes3D`, default 0.9 m square), or the bridge's `--robot-model` |
 | `first/robots/<team>/swerve` | per-module speed and steering vectors (`Arrows3D`) |
-| `first/robots/<team>/cameras/<name>` | camera transform, pinhole frustum, and video (`Pinhole`, `VideoStream`/`EncodedImage`) |
+| `first/robots/<team>/cameras/<name>` | camera transform and pinhole frustum (`Transform3D`, `Pinhole`) |
+| `first/robots/<team>/cameras/<name>/image` | the camera's H.264 footage (`VideoStream`); a 2D view of the camera is rooted here |
 | `first/paths/<name>` | planned path as a line strip |
 | `first2d/...` | a top-down mirror of the field, tags, paths and robot footprints |
 
 `FieldGeometry.standard()` is the season-neutral carpet, perimeter and center line; pass your own
 `FieldGeometry` with `lines` and `tags` for a season. Nothing about a particular game is baked into
-the SDK, and the field's 16.541 m by 8.069 m size is not configurable. The 2D mirror negates `y`,
-so a default 2D view reads like the game-manual field diagram.
+the SDK, and the field's 16.541 m by 8.069 m size is not configurable. The 2D lane keeps WPILib's
+field frame (`+x` toward red, `+y` toward blue's left, no flip), so it lines up with any other 2D
+WPILib data in the same recording. Rerun 2D views have `+y` pointing down the screen.
 
 ## What is on the wire
 

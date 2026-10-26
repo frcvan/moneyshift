@@ -30,6 +30,7 @@ is generated from the `re_type_definitions` git tag `0.40.0`.
 | `xtask/`                                         | Code generator: `re_type_definitions` → Java sources (`xtask/src/codegen/java.rs`) |
 | `moneyshift/lib/`                                | Java library (`org.teamvan.moneyshift`)                                            |
 | `moneyshift/example/`                            | Runnable Java demo                                                                 |
+| `examples/wpilib-2027/`                           | Runnable WPILib 2027 robot (CommandSV2, AKit, PhotonVision) for integration checks |
 | `test_data/FRC_TBD_d225b5377c70a88d.wpilog`      | Small AdvantageKit log used by tests                                               |
 | `web/`                                           | Static site that loads the wasm importer + Rerun web viewer                        |
 | `examples/decode_rrd.rs`, `examples/dump_rrd.rs` | Decode RRD files with Rerun's own decoder                                          |
@@ -50,6 +51,10 @@ cd moneyshift
 ./gradlew :lib:test :lib:build
 ./gradlew :lib:publishToMavenLocal
 ./gradlew :example:run
+
+# WPILib 2027 example robot (resolves moneyshift from Maven Local)
+cd examples/wpilib-2027
+./gradlew build
 ```
 
 The wasm artifact is built with `wasm-bindgen` **0.2.126** and then `wasm-opt -Oz` (see
@@ -100,10 +105,30 @@ Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUE
   do not reintroduce them.
 - `org.teamvan.moneyshift.frc.FirstMetadata` publishes the `/Firstrun/layout` declaration the
   bridge reads; `src/first.rs` owns the drawing. Robot bodies span `0..2h` above the carpet (a
-  pose is on the floor), swerve vectors are drawn above the body, and a camera's optional
-  `video_topic` is a plain `raw` topic carrying one encoded frame per update:
-  `first::classify_frame` maps Annex-B H.264/H.265 to `VideoStream` samples and JPEG/PNG to
-  `EncodedImage` on the camera entity.
+  pose is on the floor) and swerve vectors are drawn above the body. A camera's optional ninth
+  argument is PhotonVision's MJPEG URL. There is no NT transport for camera frames, and no HTTP or
+  MJPEG code in the bridge: `src/mjpeg.rs` runs one `ffmpeg` per camera on that URL (`-f mpjpeg`).
+- A camera's footage is H.264 `VideoStream` samples on `<camera>/image`, one level below the
+  static `Transform3D` and `Pinhole`. `VideoStreamVisualizer::affinity` is `SpatialView2D` only
+  (`re_view_spatial-0.40.0/src/visualizers/video/video_stream.rs`), as is `VideoFrameReference`,
+  so no pinhole setting can project video onto the frustum in a 3D view. Only an
+  `EncodedImage`/`Image` logs there; do not re-add per-frame JPEGs to the live path as a workaround
+  (it is what made the feed flicker), and do not expect a 3D frame from a live camera.
+- `ffmpeg` reads the MJPEG URL itself; nothing in the crate parses HTTP or multipart. It needs
+  `-probesize 32 -analyzeduration 0`, or it analyzes seconds of input before its first output and
+  the camera looks dead. Samples must carry strictly increasing `robot_time` (`frame_time` clamps
+  them), or the viewer restarts playback and the feed flickers.
+- Rerun only renders a pinhole's 2D content in a 2D view rooted at *that content*: a view rooted at
+  the camera or the field reports "the 2D view's target frame doesn't have a pinhole root". When a
+  declaration names a camera, `first::log_blueprint` sends a viewer layout with a 3D view of the
+  field plus one 2D view per camera at `<camera>/image` (automatic views stay on). It is sent for
+  live sessions only, once per layout arrival.
+- The 2D lane (`first2d/...`) keeps WPILib's field frame (`+x` toward red, `+y` toward blue's
+  left, never negated) so it lines up with every other 2D WPILib topic in the recording; Rerun 2D
+  views themselves put `+y` down the screen.
+- WPILib 2027 renamed `SwerveModuleState` to `SwerveModuleVelocity` and `ChassisSpeeds` to
+  `ChassisVelocities`. The bridge accepts both struct names; the example project publishes the
+  2027 shape.
 - Tests publish to in-process NT instances and assert exact topic paths and values.
 - Published artifacts (jar, sources, javadoc) must each stay under **5 MB**;
   `:lib:checkPublicationSize` enforces it and runs from `:lib:check`. Javadoc uses `-no-fonts`
@@ -160,6 +185,11 @@ Useful when changing the console binary:
   `log_time` is the SDK's wall clock.
 
 ## Gotchas
+
+- Viewer behavior (layouts, 2D/3D view rules, per-view warnings) can be checked without a GUI:
+  `~/.cargo/bin/rerun --screenshot-to /tmp/shot.png some.rrd` writes a PNG of the rendered viewer.
+  Pane contents are only readable after downscaling a very large screenshot. This is how the
+  camera-pinhole layout rules above were verified.
 
 - `nt_client` is client-only and tokio-based; live code must be `#[cfg(not(target_arch = "wasm32"))]`.
   The same applies to `re_sdk` and `tokio` in `Cargo.toml`.

@@ -328,6 +328,11 @@ impl WpiLibStructSchema<UnresolvedWpiLibStructType> {
                 "double speed;struct:Rotation2d angle;",
             ),
             (
+                // WPILib 2027's name for `SwerveModuleState`.
+                "struct:SwerveModuleVelocity",
+                "double velocity;struct:Rotation2d angle;",
+            ),
+            (
                 "struct:SwerveModulePosition",
                 "double distance;struct:Rotation2d angle;",
             ),

@@ -1,0 +1,9 @@
+build/
+.gradle/
+bin/
+logs/
+*.log
+
+# Simulator and NetworkTables state written by `./gradlew run`.
+networktables.json
+simgui*.json

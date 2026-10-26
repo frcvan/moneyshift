@@ -1,16 +1,17 @@
 //! Renders a FIRST field, two robots with swerve states and cameras, and a planned path into an
 //! `.rrd` file.
 //!
-//! Usage: `cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]`
+//! Usage: `cargo run --example first_field -- <model.glb> <out.rrd>`
 //!
 //! The field model is expected to be an AdvantageScope asset: y-up, centered on the field, and
 //! including the driver stations. The example logs a `Transform3D` on the model entity to bring
 //! it into the WPILib corner frame (`+x` toward red, `+y` toward blue's left, `+z` up). Models
 //! exported directly in that frame need no transform.
 //!
-//! Camera footage is logged with `VideoStream` on each camera entity. Pass an Annex-B H.264 clip
-//! as the third argument; when it is omitted the example renders a synthetic clip with `ffmpeg`
-//! (skipping video when `ffmpeg` is not installed).
+//! Camera frames are logged as `EncodedImage`s on each camera's `image` entity, which is what the
+//! 3D view projects onto the pinhole plane (a live camera's `VideoStream` is 2D-only in Rerun).
+//! The frames are a synthetic test pattern rendered with `ffmpeg`, so the example has no assets;
+//! without `ffmpeg` it logs no camera footage.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
@@ -40,8 +41,6 @@ fn main() -> anyhow::Result<()> {
         usage();
         return Ok(());
     };
-    let clip = args.next();
-
     let cameras = vec![
         Camera {
             name: "front".to_owned(),
@@ -52,7 +51,7 @@ fn main() -> anyhow::Result<()> {
             pitch: -10.0,
             yaw: 0.0,
             fov: 70.0,
-            video_topic: None,
+            stream: None,
         },
         Camera {
             name: "rear".to_owned(),
@@ -63,14 +62,15 @@ fn main() -> anyhow::Result<()> {
             pitch: 10.0,
             yaw: 180.0,
             fov: 70.0,
-            video_topic: None,
+            stream: None,
         },
     ];
 
+    // The URLs a robot would declare: each PhotonVision camera is an MJPEG stream.
     let mut cameras_254 = cameras.clone();
-    cameras_254[0].video_topic = Some("/Test/254/Camera/front".to_owned());
+    cameras_254[0].stream = Some("http://10.63.91.11:1181/stream.mjpg".to_owned());
     let mut cameras_1678 = cameras;
-    cameras_1678[0].video_topic = Some("/Test/1678/Camera/front".to_owned());
+    cameras_1678[0].stream = Some("http://10.63.91.11:1182/stream.mjpg".to_owned());
 
     let layout = Layout {
         version: 1,
@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
         None,
     )?;
 
-    let frames = load_camera_clip(clip.as_deref(), FRAMES, FRAME_NANOS);
+    let frames = render_camera_frames(FRAMES, FRAME_NANOS);
     // One camera sample every 50 ms, matching the 10 fps clip.
     let frames_per_sample = 5;
 
@@ -196,7 +196,7 @@ fn main() -> anyhow::Result<()> {
                 .and_then(|index| frames.get(index))
         {
             for robot in &layout.robots {
-                first::log_frame(&stream, robot.team, &robot.cameras[0], sample, time, None)?;
+                first::log_image(&stream, robot.team, &robot.cameras[0], sample, time, None)?;
             }
         }
     }
@@ -250,68 +250,48 @@ fn align_advantagescope_model(stream: &re_sdk::RecordingStream) -> anyhow::Resul
     Ok(())
 }
 
-/// The per-frame samples of an Annex-B H.264 clip, or an empty list when no clip is available.
-fn load_camera_clip(clip: Option<&str>, frames: i64, frame_nanos: i64) -> Vec<Vec<u8>> {
-    let bytes = match clip {
-        Some(path) => match std::fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                eprintln!("could not read the camera clip {path}: {error}");
-                return Vec::new();
-            }
-        },
-        None => match render_synthetic_clip(frames, frame_nanos) {
-            Some(bytes) => bytes,
-            None => return Vec::new(),
-        },
-    };
-
-    let units = first::split_annex_b_units(&bytes);
-    if units.is_empty() {
-        eprintln!("the camera clip has no H.264 access units");
-    }
-    units
-}
-
-/// Renders a short test pattern with `ffmpeg`, so the demo shows camera video without assets.
-fn render_synthetic_clip(frames: i64, frame_nanos: i64) -> Option<Vec<u8>> {
+/// Renders one JPEG per camera frame with `ffmpeg`, so the demo shows camera footage without
+/// assets. Returns an empty list when `ffmpeg` is not available.
+fn render_camera_frames(frames: i64, frame_nanos: i64) -> Vec<Vec<u8>> {
     let seconds = frames as f64 * frame_nanos as f64 / 1e9;
-    let out = std::env::temp_dir().join("firstrun-camera-demo.h264");
-    let args = [
-        "-hide_banner".to_owned(),
-        "-loglevel".to_owned(),
-        "error".to_owned(),
-        "-y".to_owned(),
-        "-f".to_owned(),
-        "lavfi".to_owned(),
-        "-i".to_owned(),
-        format!("testsrc=size=640x360:rate=10:duration={seconds}"),
-        "-c:v".to_owned(),
-        "libx264".to_owned(),
-        "-preset".to_owned(),
-        "ultrafast".to_owned(),
-        "-tune".to_owned(),
-        "zerolatency".to_owned(),
-        "-g".to_owned(),
-        "10".to_owned(),
-        "-pix_fmt".to_owned(),
-        "yuv420p".to_owned(),
-        "-f".to_owned(),
-        "h264".to_owned(),
-    ];
+    let dir = std::env::temp_dir().join("firstrun-camera-frames");
+    let _ = std::fs::remove_dir_all(&dir);
+    if std::fs::create_dir_all(&dir).is_err() {
+        return Vec::new();
+    }
+    let pattern = dir.join("frame_%04d.jpg");
     let status = std::process::Command::new("ffmpeg")
-        .args(args)
-        .arg(&out)
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            &format!("testsrc=size=640x360:rate=10:duration={seconds}"),
+            "-q:v",
+            "4",
+            "-f",
+            "image2",
+        ])
+        .arg(&pattern)
         .status();
-    match status {
-        Ok(status) if status.success() => std::fs::read(&out).ok(),
-        _ => {
-            eprintln!("no camera clip given and ffmpeg is unavailable; skipping camera video");
-            None
+    if !status.is_ok_and(|status| status.success()) {
+        eprintln!("ffmpeg is unavailable; logging the field without camera footage");
+        return Vec::new();
+    }
+
+    let mut frames = Vec::new();
+    for index in 1.. {
+        match std::fs::read(dir.join(format!("frame_{index:04}.jpg"))) {
+            Ok(bytes) => frames.push(bytes),
+            Err(_) => break,
         }
     }
+    frames
 }
 
 fn usage() {
-    eprintln!("usage: cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]");
+    eprintln!("usage: cargo run --example first_field -- <model.glb> <out.rrd>");
 }

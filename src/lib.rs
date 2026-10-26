@@ -16,6 +16,8 @@ pub mod first;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod live;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod mjpeg;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod nt;
 
 use wasm_bindgen::prelude::*;

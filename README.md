@@ -49,13 +49,26 @@ look like; the bridge then adds the carpet, field lines, tags, robot bounding bo
 vectors, camera frustums, paths and a 2D top-down mirror under `first/` and `first2d/` - no
 `/Rerun` topics required on the robot.
 
-A camera can also name a `raw` topic that publishes one encoded frame per update. H.264/H.265
-samples are logged with `VideoStream` and JPEG/PNG frames with `EncodedImage` on the camera's
-entity, so the recording scrubs through camera footage on the frustum next to the 3D field.
+A camera can also name the MJPEG URL PhotonVision serves for it
+(`http://<coprocessor>:1181/stream.mjpg`). An `ffmpeg` subprocess reads that
+`multipart/x-mixed-replace` stream, so the bridge needs `ffmpeg` on `PATH` for camera footage (and
+none of it otherwise), and logs it as H.264 `VideoStream` samples on
+`first/robots/<team>/cameras/<name>/image`. Re-encoding is what makes a live feed play smoothly:
+every frame after the first is a delta, where one JPEG per frame is what flickers.
+
+A camera's 2D view has to be rooted at that `image` entity: Rerun only shows a pinhole's 2D content
+inside that content's own 2D space, and a view rooted at the field reports that its target frame
+has no pinhole root. The bridge sends a viewer layout with a 2D view per camera when the
+declaration has any, so a live session opens with one that works. Rerun 0.40's video visualizer is
+2D-only, so a live camera's footage does not appear on the frustum in the 3D view.
 
 `cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]` renders a field with two
 swerve robots, camera video and a planned path for checking the overlays without a robot. Without
 a clip it renders a synthetic one with `ffmpeg`, and skips video when `ffmpeg` is missing.
+
+[`examples/wpilib-2027`](examples/wpilib-2027/README.md) is a runnable WPILib 2027 robot with
+AdvantageKit, PhotonVision and a simulated swerve drive that publishes the layout, so
+`--nt --save` records a real robot end to end.
 
 ```sh
 rerun-importer-firstrun --nt --team 254 --spawn
@@ -68,6 +81,12 @@ Sinks are mutually exclusive: `--spawn` (default, needs `rerun` on `PATH`), `--c
 `--robot-time-topic` is set (`double` seconds or `int` microseconds); `log_time` is wall clock.
 Ctrl-C flushes and exits 0. The bridge reconnects with backoff and keeps the entity metadata cache
 across reconnects.
+
+`--field-model <path>` and `--robot-model <path>` select your own glTF/GLB/OBJ/STL models
+instead of waiting for the declaration to name a field model or settling for robot boxes. The
+field model is drawn in the field frame; a robot model is drawn in the robot frame (`+x` forward,
+`+y` left, `+z` up) with its origin at the footprint center on the carpet, and replaces the box on
+every declared robot. A robot model that cannot be read only falls back to the boxes.
 
 On the robot side, see [`moneyshift/README.md`](moneyshift/README.md):
 

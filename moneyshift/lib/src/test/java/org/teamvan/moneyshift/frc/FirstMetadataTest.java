@@ -80,7 +80,7 @@ class FirstMetadataTest {
                                 -10.0,
                                 0.0,
                                 70.0,
-                                "/Camera/front/stream")
+                                "http://10.6.32.8:1181/stream.mjpg")
                         .camera(254, "rear", -0.3, 0.0, 0.5, 0.0, 10.0, 180.0, 70.0)
                         .path("auto", "/AdvantageKit/RealOutputs/PathPlanner/ActivePath")
                         .build();
@@ -103,7 +103,7 @@ class FirstMetadataTest {
                                 + "\"cameras\":["
                                 + "{\"name\":\"front\",\"x\":0.3,\"y\":0.0,\"z\":0.5,"
                                 + "\"roll\":0.0,\"pitch\":-10.0,\"yaw\":0.0,\"fov\":70.0,"
-                                + "\"video_topic\":\"/Camera/front/stream\"},"));
+                                + "\"stream\":\"http://10.6.32.8:1181/stream.mjpg\"},"));
         assertTrue(
                 json.contains(
                         "\"module_offsets\":[[0.3,0.25],[0.3,-0.25],[-0.3,0.25],[-0.3,-0.25]]"));
@@ -147,6 +147,21 @@ class FirstMetadataTest {
                         FirstMetadata.builder()
                                 .robot(1, "/x")
                                 .camera(1, "front", 0, 0, 0, 0, 0, 0, 60, "Camera/front"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        FirstMetadata.builder()
+                                .camera(1, "front", 0, 0, 0, 0, 0, 0, 60, "https://10.6.32.8:1181/x"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        FirstMetadata.builder()
+                                .camera(1, "front", 0, 0, 0, 0, 0, 0, 60, "http:///stream.mjpg"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () ->
+                        FirstMetadata.builder()
+                                .camera(1, "front", 0, 0, 0, 0, 0, 0, 60, "http://a b/stream.mjpg"));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> FirstMetadata.builder().path("auto", "Auto/Path"));

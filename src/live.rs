@@ -11,7 +11,7 @@
 //! decoded as one update, and every entity in a flush shares one `robot_time`.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -27,6 +27,7 @@ use crate::cli::{LiveArgs, LiveSink};
 use crate::conv::{self, ConversionOptions};
 use crate::first;
 use crate::log::{EntryLog, Timestamp};
+use crate::mjpeg;
 use crate::nt::{native, protocol};
 
 /// How long to wait for the rest of a batch before decoding an entity.
@@ -305,9 +306,10 @@ struct LiveState {
     /// Path names by the topic their poses arrive on.
     path_names: HashMap<String, String>,
     pending_paths: Vec<(String, Vec<first::Pose>)>,
-    /// Cameras by the `raw` topic their encoded frames arrive on.
-    camera_topics: HashMap<String, (u16, first::Camera)>,
-    pending_frames: Vec<(u16, first::Camera, Vec<u8>)>,
+    /// One MJPEG reader per camera stream in the declaration.
+    streams: HashMap<String, mjpeg::CameraVideo>,
+    /// The robot time camera frames are logged at, shared with the reader threads.
+    robot_ns: Arc<AtomicI64>,
     queue: FlushQueue,
     native: EntryLog,
     native_updates: Vec<PendingUpdate>,
@@ -332,8 +334,8 @@ impl LiveState {
             pending_swerve: Vec::new(),
             path_names: HashMap::new(),
             pending_paths: Vec::new(),
-            camera_topics: HashMap::new(),
-            pending_frames: Vec::new(),
+            streams: HashMap::new(),
+            robot_ns: Arc::new(AtomicI64::new(0)),
             queue: FlushQueue::new(),
             native: EntryLog::new(),
             native_updates: Vec::new(),
@@ -350,6 +352,74 @@ impl LiveState {
             .max(0)
     }
 
+    /// Shares the current robot time with the camera reader threads.
+    fn publish_robot_time(&self) {
+        self.robot_ns.store(self.robot_time_ns(), Ordering::Relaxed);
+    }
+
+    /// Starts one camera per declared stream, replacing any from a previous layout.
+    ///
+    /// Each camera runs an `ffmpeg` that reads the MJPEG URL and writes an H.264 stream on the
+    /// camera's `image` entity. Frames are logged as soon as they arrive, with the robot time the
+    /// bridge last saw. `Drop` stops the cameras when the layout changes or the bridge exits.
+    fn start_streams(&mut self, stream: &RecordingStream, prefix: Option<&EntityPath>) {
+        self.streams.clear();
+        let Some(layout) = self.layout.clone() else {
+            return;
+        };
+        if !mjpeg::ffmpeg_available() {
+            re_log::warn_once!(
+                "ffmpeg was not found on PATH; camera footage is not recorded. Install ffmpeg and \
+                 restart the bridge"
+            );
+            return;
+        }
+        for (url, (team, camera)) in layout.cameras_by_stream() {
+            let robot_ns = Arc::clone(&self.robot_ns);
+            let last_frame_ns = Arc::new(AtomicI64::new(0));
+
+            let video_recording = stream.clone();
+            let video_robot_ns = Arc::clone(&robot_ns);
+            let video_last_ns = Arc::clone(&last_frame_ns);
+            let video_prefix = prefix.cloned();
+            let video_camera = camera.clone();
+
+            let spawned = mjpeg::CameraVideo::spawn(url.clone(), move |sample| {
+                let time = frame_time(&video_robot_ns, &video_last_ns);
+                if let Err(error) = first::log_video_frame(
+                    &video_recording,
+                    team,
+                    &video_camera,
+                    &sample.data,
+                    sample.keyframe,
+                    time,
+                    video_prefix.as_ref(),
+                ) {
+                    re_log::debug_once!(
+                        "could not log a video sample from camera {}: {error}",
+                        video_camera.name
+                    );
+                }
+            });
+            match spawned {
+                Ok(camera_video) => {
+                    if let Err(error) = first::log_video_codec(stream, team, &camera, prefix) {
+                        re_log::warn!(
+                            "could not announce the video codec for camera {}: {error}",
+                            camera.name
+                        );
+                    }
+                    re_log::info!("recording the {} camera stream at {url}", camera.name);
+                    self.streams.insert(url, camera_video);
+                }
+                Err(error) => re_log::warn!(
+                    "could not start the {} camera stream at {url}: {error:#}",
+                    camera.name
+                ),
+            }
+        }
+    }
+
     fn warn_once(&mut self, key: String, message: String) {
         if self.warned.insert(key) {
             re_log::warn!("{message}");
@@ -360,11 +430,13 @@ impl LiveState {
     fn update(&mut self, topic: &AnnouncedTopic, value: &rmpv::Value, now: Instant) {
         if let Some(updated) = topic.last_updated() {
             self.latest_server_ns = duration_nanos(*updated);
+            self.publish_robot_time();
         }
         let name = topic.name();
 
         if self.args.robot_time_topic.as_deref() == Some(name) {
             self.robot_time_override_ns = robot_time_from_value(value);
+            self.publish_robot_time();
         }
 
         if let Some(rest) = name.strip_prefix("/Rerun/") {
@@ -413,7 +485,6 @@ impl LiveState {
                         self.pose_robots = layout.robots_by_pose_topic();
                         self.swerve_robots = layout.robots_by_swerve_topic();
                         self.path_names = layout.paths_by_topic();
-                        self.camera_topics = layout.cameras_by_video_topic();
                         self.layout = Some(layout);
                         self.layout_pending = true;
                         self.queue.schedule(now);
@@ -465,20 +536,6 @@ impl LiveState {
                 None => self.warn_once(
                     format!("{name}:path"),
                     format!("ignoring path poses on {name} that are not Pose2d[]/Translation2d[]"),
-                ),
-            }
-            return;
-        }
-
-        if let Some((team, camera)) = self.camera_topics.get(name).cloned() {
-            match first::frame_from_nt(topic.r#type(), value) {
-                Some(bytes) => {
-                    self.pending_frames.push((team, camera, bytes));
-                    self.queue.schedule(now);
-                }
-                None => self.warn_once(
-                    format!("{name}:camera"),
-                    format!("ignoring a camera frame on {name} that is not a raw topic"),
                 ),
             }
             return;
@@ -584,7 +641,6 @@ impl LiveState {
             && self.pending_poses.is_empty()
             && self.pending_swerve.is_empty()
             && self.pending_paths.is_empty()
-            && self.pending_frames.is_empty()
             && !layout_pending
         {
             return;
@@ -596,19 +652,30 @@ impl LiveState {
             .as_deref()
             .map(EntityPath::from);
         if layout_pending {
-            let error = self
-                .layout
-                .as_ref()
-                .and_then(|layout| layout.log_static(stream, prefix.as_ref()).err());
+            let models = first::Models {
+                field: self.args.field_model.as_deref(),
+                robot: self.args.robot_model.as_deref(),
+            };
+            let error = self.layout.as_ref().and_then(|layout| {
+                let error = layout
+                    .log_static_with_models(stream, prefix.as_ref(), models)
+                    .err();
+                if let Err(error) = first::log_blueprint(stream, layout, prefix.as_ref()) {
+                    re_log::debug!("could not send the camera layout: {error:#}");
+                }
+                error
+            });
             if let Some(error) = error {
                 self.warn_once(
                     "first:static".to_owned(),
                     format!("could not draw the FIRST field: {error:#}"),
                 );
             }
+            self.start_streams(stream, prefix.as_ref());
         }
 
         let robot_ns = self.robot_time_ns();
+        self.robot_ns.store(robot_ns, Ordering::Relaxed);
         let robot_cell =
             TimeCell::from_duration_nanos(NonMinI64::new(robot_ns).unwrap_or_default());
 
@@ -715,29 +782,6 @@ impl LiveState {
             }
         }
 
-        if !self.pending_frames.is_empty() {
-            for (team, camera, bytes) in std::mem::take(&mut self.pending_frames) {
-                match first::log_frame(stream, team, &camera, &bytes, robot_cell, prefix.as_ref()) {
-                    Ok(true) => {}
-                    Ok(false) => self.warn_once(
-                        format!("first:video:{team}:{}", camera.name),
-                        format!(
-                            "ignoring an unrecognized camera frame from team {team}'s {} camera: \
-                             expected H.264/H.265, JPEG or PNG",
-                            camera.name
-                        ),
-                    ),
-                    Err(error) => self.warn_once(
-                        format!("first:video:{team}:{}:log", camera.name),
-                        format!(
-                            "could not log a frame from team {team}'s {} camera: {error:#}",
-                            camera.name
-                        ),
-                    ),
-                }
-            }
-        }
-
         if !self.pending_poses.is_empty() {
             for (robot, pose) in std::mem::take(&mut self.pending_poses) {
                 if let Err(error) =
@@ -822,6 +866,29 @@ fn duration_nanos(duration: Duration) -> i64 {
 }
 
 /// `double` means seconds and `int` means microseconds, matching WPILib's common conventions.
+/// A strictly increasing presentation time for camera frames.
+///
+/// The bridge's robot time comes from NetworkTables and can repeat or step back between frames;
+/// Rerun resets video playback when samples arrive out of order, so each frame is clamped past
+/// the previous one.
+fn frame_time(robot_ns: &AtomicI64, last_frame_ns: &AtomicI64) -> TimeCell {
+    let target = robot_ns.load(Ordering::Relaxed).max(0);
+    let mut previous = last_frame_ns.load(Ordering::Relaxed);
+    let nanos = loop {
+        let next = target.max(previous.saturating_add(1));
+        match last_frame_ns.compare_exchange_weak(
+            previous,
+            next,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break next,
+            Err(actual) => previous = actual,
+        }
+    };
+    TimeCell::from_duration_nanos(NonMinI64::new(nanos).unwrap_or_default())
+}
+
 fn robot_time_from_value(value: &rmpv::Value) -> Option<i64> {
     match value {
         rmpv::Value::F64(seconds) => Some((seconds * 1e9) as i64),
@@ -833,9 +900,72 @@ fn robot_time_from_value(value: &rmpv::Value) -> Option<i64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEBOUNCE, FlushQueue, MAX_DEBOUNCE, robot_time_from_value};
+    use super::{DEBOUNCE, FlushQueue, LiveState, MAX_DEBOUNCE, robot_time_from_value};
+    use crate::cli::{LiveArgs, LiveSink};
+    use crate::first::Layout;
     use re_log_types::EntityPath;
     use std::time::{Duration, Instant};
+
+    /// The models a `--field-model`/`--robot-model` pair names replace the declaration's.
+    #[test]
+    fn custom_models_are_drawn_on_the_first_lane() {
+        let dir = std::env::temp_dir().join(format!("firstrun-live-models-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let field = dir.join("field.glb");
+        let robot = dir.join("robot.glb");
+        std::fs::write(&field, b"glTF field").unwrap();
+        std::fs::write(&robot, b"glTF robot").unwrap();
+
+        let args = LiveArgs {
+            team: None,
+            nt_addr: None,
+            robot_time_topic: None,
+            sink: LiveSink::Stdout,
+            quiet: true,
+            entity_path_prefix: None,
+            field_model: Some(field.clone()),
+            robot_model: Some(robot.clone()),
+        };
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("live_models_test")
+            .memory()
+            .unwrap();
+        let mut state = LiveState::new(args);
+        state.layout = Some(
+            Layout::parse(
+                r#"{"version":1,"field":{"carpet":false,"lines":[]},
+                "robots":[{"team":254,"pose_topic":"/Pose"}]}"#,
+            )
+            .unwrap(),
+        );
+        state.layout_pending = true;
+        state.flush(&stream, Instant::now(), true);
+        let chunks = storage
+            .take()
+            .into_iter()
+            .filter_map(|message| match message {
+                re_log_msg::LogMsg::ArrowMsg(_, arrow) => {
+                    re_chunk::Chunk::from_arrow_msg(&arrow).ok()
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        for entity in ["/first/field/model", "/first/robots/254/model"] {
+            assert!(
+                chunks.iter().any(|chunk| {
+                    chunk.entity_path().to_string() == entity
+                        && chunk.component_descriptors().any(|descriptor| {
+                            descriptor
+                                .archetype
+                                .as_ref()
+                                .is_some_and(|name| name == "rerun.archetypes.Asset3D")
+                        })
+                }),
+                "{entity} should carry the custom model"
+            );
+        }
+    }
 
     #[test]
     fn debounces_until_the_batch_is_quiet() {
@@ -928,6 +1058,28 @@ mod tests {
             Some(super::protocol::NtValue::Doubles(Vec::new()))
         );
         assert!(super::column_from_topic(&nt_client::data::DataType::String, &empty).is_none());
+    }
+
+    #[test]
+    fn frame_times_never_go_backwards() {
+        use std::sync::atomic::{AtomicI64, Ordering};
+
+        let robot_ns = AtomicI64::new(100);
+        let last_frame_ns = AtomicI64::new(0);
+        let at = |nanos: i64| {
+            re_log_types::TimeCell::from_duration_nanos(
+                re_log_types::NonMinI64::new(nanos).unwrap(),
+            )
+        };
+
+        assert_eq!(super::frame_time(&robot_ns, &last_frame_ns), at(100));
+        // Two frames can share a robot time; the second still has to move forward.
+        assert_eq!(super::frame_time(&robot_ns, &last_frame_ns), at(101));
+        // A reconnect can make the robot clock step back; frames may not.
+        robot_ns.store(50, Ordering::Relaxed);
+        assert_eq!(super::frame_time(&robot_ns, &last_frame_ns), at(102));
+        robot_ns.store(1_000, Ordering::Relaxed);
+        assert_eq!(super::frame_time(&robot_ns, &last_frame_ns), at(1_000));
     }
 
     #[test]

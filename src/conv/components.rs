@@ -66,9 +66,14 @@ impl StructuredKind {
             "twist2d" => Self::Twist2d,
             "twist3d" => Self::Twist3d,
             "chassisspeeds" => Self::ChassisSpeeds,
-            "swerve/modulestate" | "swerve_module_state" | "swervemodulestate" => {
-                Self::SwerveModuleState
-            }
+            // 2027 renamed `SwerveModuleState` to `SwerveModuleVelocity` (`velocity` instead of
+            // `speed_meters_per_second`); both carry a speed and a steering angle.
+            "swerve/modulestate"
+            | "swerve_module_state"
+            | "swervemodulestate"
+            | "swerve/modulevelocity"
+            | "swerve_module_velocity"
+            | "swervemodulevelocity" => Self::SwerveModuleState,
             "swerve/moduleposition" | "swerve_module_position" | "swervemoduleposition" => {
                 Self::SwerveModulePosition
             }

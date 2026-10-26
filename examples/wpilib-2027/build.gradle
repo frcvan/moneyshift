@@ -1,0 +1,94 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.wpilib.WPILibRepositoriesPlugin'
+    id 'org.wpilib.GradleRIO'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+def ROBOT_MAIN_CLASS = 'org.teamvan.firstrun.example.Main'
+
+repositories {
+    mavenCentral()
+    // `org.teamvan.moneyshift:lib` comes from `./gradlew :lib:publishToMavenLocal` in moneyshift/.
+    mavenLocal()
+}
+wpilibRepositories.addAllReleaseRepositories(project)
+
+// Define my targets (SystemCore) and artifacts (deployable files).
+deploy {
+    targets {
+        systemcore(getTargetTypeClass('SystemCore')) {
+            // Team number comes from .wpilib/wpilib_preferences.json or `-PteamNumber=...`.
+            team = project.wpilib.getTeamNumber()
+            useDefaultSystemcoreHostName()
+            debug = project.wpilib.getDebugOrDefault(false)
+
+            artifacts {
+                wpilibJava(getArtifactTypeClass('WPILibJavaArtifact')) {
+                    debugJni = false
+                }
+            }
+        }
+    }
+}
+
+def deployArtifact = deploy.targets.systemcore.artifacts.wpilibJava
+
+// Simulation runs against the release JNI libraries unless `-PdebugMode` is passed.
+wpi.java.runSimWithDebugJni = false
+
+dependencies {
+    // FIRSTrun: publishes the /Firstrun/layout declaration the rerun importer reads.
+    implementation 'org.teamvan.moneyshift:lib:0.1.0'
+    // WPILib 2027 ships the command-based framework v2 as its own artifact (org.wpilib.command2).
+    implementation 'org.wpilib.commandsv2:commandsv2-java:2027.0.0-alpha-7'
+
+    annotationProcessor wpi.java.deps.wpilibAnnotations()
+    implementation wpi.java.deps.wpilib()
+    implementation wpi.java.vendor.java()
+
+    // AdvantageKit's annotation processor turns @AutoLog inputs into AutoLogged classes.
+    def advantageKit = new groovy.json.JsonSlurper().parse(file('vendordeps/AdvantageKit.json'))
+    annotationProcessor "org.littletonrobotics.akit:akit-autolog:${advantageKit.version}"
+
+    nativeDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.desktop)
+    nativeDebug wpi.java.vendor.jniDebug(wpi.platforms.desktop)
+    simulationDebug wpi.sim.enableDebug()
+
+    nativeRelease wpi.java.deps.wpilibJniRelease(wpi.platforms.desktop)
+    nativeRelease wpi.java.vendor.jniRelease(wpi.platforms.desktop)
+    simulationRelease wpi.sim.enableRelease()
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+    wpi.java.configureTestTasks(test)
+}
+
+// Simulation configuration (e.g. environment variables).
+wpi.sim.addGui().defaultEnabled = true
+wpi.sim.addDriverstation()
+
+application.mainClass = ROBOT_MAIN_CLASS
+
+deployArtifact.configureApplication(application)
+wpi.java.configureApplication(application)
+
+jar {
+    from('src') { into 'backup/src' }
+    from('vendordeps') { into 'backup/vendordeps' }
+    from('build.gradle') { into 'backup' }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.addAll(['-XDstringConcat=inline', '-parameters'])
+}

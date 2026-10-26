@@ -9,19 +9,23 @@
 //! model that cannot be read only loses that asset.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path as FsPath;
 
 use anyhow::{Context as _, bail};
 use nt_client::data::DataType;
 use re_log_types::{EntityPath, TimeCell};
 use re_sdk::RecordingStream;
+use re_sdk::blueprint::{
+    Blueprint, BlueprintActivation, BlueprintOpts, Grid, Spatial2DView, Spatial3DView,
+};
 use re_sdk_types::{
     Rotation3D,
     archetypes::{
         Arrows3D, Asset3D, Boxes2D, Boxes3D, EncodedImage, LineStrips2D, LineStrips3D, Pinhole,
-        Transform3D, ViewCoordinates,
+        Transform3D, VideoStream, ViewCoordinates,
     },
     components::{
-        FillMode, RotationAxisAngle, RotationQuat, Translation3D,
+        FillMode, RotationAxisAngle, RotationQuat, Translation3D, VideoCodec,
         ViewCoordinates as ViewCoordinatesComponent,
     },
     encodings::{Angle, Quaternion},
@@ -34,7 +38,7 @@ pub const TOPIC: &str = "/Firstrun/layout";
 /// Root entity of the 3D field.
 pub const ROOT_3D: &str = "first";
 
-/// Root entity of the 2D field, mirrored across the field's x axis.
+/// Root entity of the 2D field, in WPILib's field frame.
 pub const ROOT_2D: &str = "first2d";
 
 /// Length of an FRC carpet, in meters. The field size is fixed; only its contents are declared.
@@ -61,6 +65,9 @@ const SWERVE_ARROW_RADIUS: f32 = 0.04;
 const SWERVE_ARROW_SECONDS: f32 = 0.25;
 const CAMERA_WIDTH: f32 = 1280.0;
 const CAMERA_HEIGHT: f32 = 720.0;
+/// How far from the camera the image plane, and with it the frustum, is drawn in 3D. A meter or
+/// two keeps the frustum readable next to a 0.9 m robot on a 16 m field.
+const CAMERA_IMAGE_PLANE_DISTANCE: f32 = 2.0;
 
 /// A parsed `/Firstrun/layout` declaration.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -206,7 +213,7 @@ impl Layout {
             .collect()
     }
 
-    /// Logs the field and robot models as static data.
+    /// Logs the field and robot models as static data, as the declaration describes them.
     ///
     /// The whole field is timeless, so it survives scrubbing and costs one chunk per entity
     /// regardless of how long the bridge runs.
@@ -215,27 +222,63 @@ impl Layout {
         stream: &RecordingStream,
         prefix: Option<&EntityPath>,
     ) -> anyhow::Result<()> {
+        self.log_static_with_models(stream, prefix, Models::default())
+    }
+
+    /// Logs the field and robot models, letting the caller replace the model files.
+    pub fn log_static_with_models(
+        &self,
+        stream: &RecordingStream,
+        prefix: Option<&EntityPath>,
+        models: Models<'_>,
+    ) -> anyhow::Result<()> {
         // FRC's frame is +z up; a 3D view needs to be told, or the field is rolled on its side.
         stream.log_static(
             at(prefix, ROOT_3D.to_owned()),
             &ViewCoordinates::RIGHT_HAND_Z_UP(),
         )?;
-        self.field.log_static(stream, prefix)?;
+        self.field.log_static(stream, prefix, models.field)?;
+        // One read for every robot; a broken file falls back to boxes so the robots stay visible.
+        let robot_asset = match models.robot {
+            Some(path) => match load_asset3d(path) {
+                Ok(asset) => Some(asset),
+                Err(error) => {
+                    re_log::warn!("{error:#}; drawing bounding boxes instead");
+                    None
+                }
+            },
+            None => None,
+        };
         for robot in &self.robots {
             log_cameras(stream, robot, prefix)?;
-            let (center, half_size) = robot_model(robot.half_extents);
-            stream.log_static(
-                prefixed(
-                    prefix,
-                    robot_entity(robot.team, ROOT_3D).join(&EntityPath::from("model")),
-                ),
-                &Boxes3D::from_centers_and_half_sizes([center], [half_size])
-                    .with_colors([team_color(robot.team)])
-                    .with_fill_mode(FillMode::Solid),
-            )?;
+            let model_entity = prefixed(
+                prefix,
+                robot_entity(robot.team, ROOT_3D).join(&EntityPath::from("model")),
+            );
+            match &robot_asset {
+                Some(asset) => stream.log_static(model_entity, &asset.clone())?,
+                None => {
+                    let (center, half_size) = robot_model(robot.half_extents);
+                    stream.log_static(
+                        model_entity,
+                        &Boxes3D::from_centers_and_half_sizes([center], [half_size])
+                            .with_colors([team_color(robot.team)])
+                            .with_fill_mode(FillMode::Solid),
+                    )?;
+                }
+            }
         }
         Ok(())
     }
+}
+
+/// Model files that replace the ones the declaration names.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Models<'a> {
+    /// Replaces the declaration's field model.
+    pub field: Option<&'a FsPath>,
+    /// Replaces every robot's bounding box.
+    pub robot: Option<&'a FsPath>,
 }
 
 /// The field part of a declaration.
@@ -259,7 +302,7 @@ impl Field {
             }
         }
         for tag in &self.tags {
-            if !(tag.size > 0.0) {
+            if tag.size.is_nan() || tag.size <= 0.0 {
                 bail!("tag {} has a non-positive size", tag.id);
             }
         }
@@ -270,6 +313,7 @@ impl Field {
         &self,
         stream: &RecordingStream,
         prefix: Option<&EntityPath>,
+        model_override: Option<&FsPath>,
     ) -> anyhow::Result<()> {
         let length = FIELD_LENGTH_METERS as f32;
         let width = FIELD_WIDTH_METERS as f32;
@@ -316,7 +360,8 @@ impl Field {
             self.log_tags(stream, prefix)?;
         }
 
-        if let Some(model) = &self.model {
+        let model = model_override.or(self.model.as_deref().map(FsPath::new));
+        if let Some(model) = model {
             stream.log_static(
                 at(prefix, format!("{ROOT_3D}/field/model")),
                 &load_asset3d(model)?,
@@ -345,7 +390,7 @@ impl Field {
                 [0.0, 0.0, 1.0],
                 Angle::from_radians(tag.yaw as f32),
             ));
-            centers_2d.push((tag.x as f32, -(tag.y as f32)));
+            centers_2d.push((tag.x as f32, tag.y as f32));
             half_sizes_2d.push((half, half));
             labels.push(format!("tag {}", tag.id));
         }
@@ -393,7 +438,7 @@ impl Line {
         let mut points = self
             .points
             .iter()
-            .map(|[x, y]| [*x as f32, -(*y as f32)])
+            .map(|[x, y]| [*x as f32, *y as f32])
             .collect::<Vec<_>>();
         if self.closed && points.len() > 2 {
             points.push(points[0]);
@@ -453,10 +498,10 @@ pub struct Camera {
     /// An MJPEG stream the bridge records, e.g. PhotonVision's
     /// `http://10.63.91.11:1181/stream.mjpg`.
     ///
-    /// PhotonVision cameras are just links to a `multipart/x-mixed-replace` stream, so the bridge
-    /// reads the stream itself and logs each JPEG frame as an [`EncodedImage`] on the camera
-    /// entity, next to the frustum. Streams must be plain `http://`; the bridge keeps no TLS
-    /// client.
+    /// PhotonVision cameras are just links to a `multipart/x-mixed-replace` stream. The bridge
+    /// hands the URL to an `ffmpeg` subprocess, which turns it into the H.264 [`VideoStream`]
+    /// logged below the camera's pinhole. Streams must be plain `http://`: `ffmpeg` would follow
+    /// `https://`, but PhotonVision never serves it.
     #[serde(default)]
     pub stream: Option<String>,
 }
@@ -638,10 +683,13 @@ pub struct SwerveModuleState {
 }
 
 /// Decodes a `SwerveModuleState[]` value published as a WPILib struct array.
+///
+/// WPILib 2027 renamed the struct to `SwerveModuleVelocity`; both are the same pair of doubles
+/// (speed in m/s, steering angle in radians), so both decode the same way.
 #[must_use]
 pub fn swerve_states_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<SwerveModuleState>> {
     let name = struct_array_name(ty)?;
-    if name != "SwerveModuleState" {
+    if name != "SwerveModuleState" && name != "SwerveModuleVelocity" {
         return None;
     }
     let bytes = binary(value)?;
@@ -649,7 +697,9 @@ pub fn swerve_states_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<S
         return None;
     }
     bytes
-        .chunks_exact(16)
+        .as_chunks::<16>()
+        .0
+        .iter()
         .map(|chunk| {
             Some(SwerveModuleState {
                 speed_mps: read_f64(chunk, 0)? as f32,
@@ -669,14 +719,21 @@ pub fn poses_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<Pose>> {
             if bytes.len() % 24 != 0 {
                 return None;
             }
-            bytes.chunks_exact(24).map(Pose::from_struct_2d).collect()
+            bytes
+                .as_chunks::<24>()
+                .0
+                .iter()
+                .map(|chunk| Pose::from_struct_2d(chunk))
+                .collect()
         }
         "Translation2d" => {
             if bytes.len() % 16 != 0 {
                 return None;
             }
             bytes
-                .chunks_exact(16)
+                .as_chunks::<16>()
+                .0
+                .iter()
                 .map(|chunk| Some(Pose::from_2d(read_f64(chunk, 0)?, read_f64(chunk, 8)?, 0.0)))
                 .collect()
         }
@@ -772,11 +829,11 @@ pub fn image_media_type(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// Logs one camera frame as an `EncodedImage` on the camera's entity.
+/// Logs one camera image as an `EncodedImage` on the camera's `image` entity.
 ///
-/// The camera entity already carries a static `Transform3D` and `Pinhole`, so the viewer draws the
-/// frame on the frustum in the 3D view and in any 2D view of that entity. Returns `false` when the
-/// bytes are not a JPEG or PNG image.
+/// This is for callers that already have pictures (the `first_field` example renders a synthetic
+/// clip); a live camera's footage is a `VideoStream`, which Rerun cannot project onto a pinhole in
+/// a 3D view at all. Returns `false` when the bytes are not a JPEG or PNG image.
 pub fn log_image(
     stream: &RecordingStream,
     team: u16,
@@ -790,12 +847,98 @@ pub fn log_image(
     };
     stream.set_time("robot_time", time);
     stream.log(
-        at(
-            prefix,
-            format!("{ROOT_3D}/robots/{team}/cameras/{}", camera.name),
-        ),
+        at(prefix, camera_image_entity(team, &camera.name)),
         &EncodedImage::new(bytes.to_vec()).with_media_type(media_type),
     )?;
+    Ok(true)
+}
+
+/// Logs the static codec of a camera whose footage arrives as an H.264 video stream.
+///
+/// `ffmpeg` re-encodes PhotonVision's MJPEG, because Rerun's `VideoStream` has no MJPEG codec and
+/// reloading a JPEG per frame is what makes a live feed flicker. Call this once per camera before
+/// logging samples.
+pub fn log_video_codec(
+    stream: &RecordingStream,
+    team: u16,
+    camera: &Camera,
+    prefix: Option<&EntityPath>,
+) -> anyhow::Result<()> {
+    stream.log_static(
+        at(prefix, camera_image_entity(team, &camera.name)),
+        &VideoStream::new(VideoCodec::H264),
+    )?;
+    Ok(())
+}
+
+/// Logs one H.264 access unit (exactly one frame) on the camera's video stream.
+///
+/// Samples must be logged in presentation order: Rerun resets a video stream's playback when a
+/// sample arrives out of order, which is the other way a live feed can flicker.
+pub fn log_video_frame(
+    stream: &RecordingStream,
+    team: u16,
+    camera: &Camera,
+    sample: &[u8],
+    keyframe: bool,
+    time: TimeCell,
+    prefix: Option<&EntityPath>,
+) -> anyhow::Result<()> {
+    if sample.is_empty() {
+        return Ok(());
+    }
+    stream.set_time("robot_time", time);
+    stream.log(
+        at(prefix, camera_image_entity(team, &camera.name)),
+        &VideoStream::update_fields()
+            .with_sample(sample)
+            .with_is_keyframe(keyframe),
+    )?;
+    Ok(())
+}
+
+/// Sends a viewer layout that puts every camera stream in a 2D view that can show it.
+///
+/// Rerun only shows a pinhole's 2D content in a 2D view rooted at that content, and its
+/// automatic layout roots a camera's 2D view at the pinhole, which leaves the pane empty and
+/// reports that the view's target frame has no pinhole root. This blueprint gives each camera a
+/// 2D view at its image entity, next to a 3D view of the field; automatic views stay enabled so
+/// every other topic is still graphed.
+///
+/// Returns `false` when the declaration has no cameras: a recording without camera footage keeps
+/// the viewer's automatic layout untouched.
+pub fn log_blueprint(
+    stream: &RecordingStream,
+    layout: &Layout,
+    prefix: Option<&EntityPath>,
+) -> anyhow::Result<bool> {
+    let cameras = layout
+        .robots
+        .iter()
+        .flat_map(|robot| {
+            robot.cameras.iter().map(move |camera| {
+                Spatial2DView::new(format!("camera {}", camera.name))
+                    .with_origin(at(prefix, camera_image_entity(robot.team, &camera.name)))
+            })
+        })
+        .collect::<Vec<_>>();
+    if cameras.is_empty() {
+        return Ok(false);
+    }
+
+    let three_d = Spatial3DView::new("3D").with_origin(at(prefix, ROOT_3D.to_owned()));
+    let views = std::iter::once(three_d.into())
+        .chain(cameras.into_iter().map(Into::into))
+        .collect::<Vec<_>>();
+    let blueprint = Blueprint::new(Grid::new(views))
+        .with_auto_views(true)
+        .with_auto_layout(true);
+    stream.send_blueprint_opts(&BlueprintOpts {
+        blueprint,
+        // Rerun activates a blueprint only when it is also made the app's default, which is
+        // what a bridge reconnect needs: the viewer switches to the layout it just received.
+        activation: BlueprintActivation::default(),
+    })?;
     Ok(true)
 }
 
@@ -806,10 +949,7 @@ fn log_cameras(
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<()> {
     for camera in &robot.cameras {
-        let entity = at(
-            prefix,
-            format!("{ROOT_3D}/robots/{}/cameras/{}", robot.team, camera.name),
-        );
+        let entity = at(prefix, camera_entity(robot.team, &camera.name));
         stream.log_static(
             entity.clone(),
             &Transform3D::from_translation_rotation(
@@ -827,10 +967,24 @@ fn log_cameras(
                 [CAMERA_WIDTH, CAMERA_HEIGHT],
             )
             .with_camera_xyz(ViewCoordinatesComponent::FLU)
-            .with_image_plane_distance(0.5),
+            .with_image_plane_distance(CAMERA_IMAGE_PLANE_DISTANCE),
         )?;
     }
     Ok(())
+}
+
+/// The entity a camera's static `Transform3D` and `Pinhole` are logged on.
+fn camera_entity(team: u16, name: &str) -> String {
+    format!("{ROOT_3D}/robots/{team}/cameras/{name}")
+}
+
+/// The entity a camera's footage is logged on, one level below the pinhole.
+///
+/// Rerun 0.40 only shows a pinhole's 2D content in a 2D view rooted at that content entity itself,
+/// so this is also the origin a camera's 2D view needs. Its video visualizer has 2D affinity only,
+/// which is why the footage never appears on the frustum in a 3D view.
+fn camera_image_entity(team: u16, name: &str) -> String {
+    format!("{}/image", camera_entity(team, name))
 }
 
 fn module_offsets(robot: &Robot) -> Vec<[f64; 2]> {
@@ -890,11 +1044,11 @@ fn prefixed(prefix: Option<&EntityPath>, entity: EntityPath) -> EntityPath {
     }
 }
 
-/// A closed rectangle in the mirrored 2D frame.
+/// A closed rectangle in the 2D field frame.
 #[must_use]
 pub fn footprint_2d([x, y]: [f64; 2], [half_x, half_y]: [f32; 2], yaw: f32) -> Vec<[f32; 2]> {
-    let (sin, cos) = (-yaw).sin_cos();
-    let center = [x as f32, -(y as f32)];
+    let (sin, cos) = yaw.sin_cos();
+    let center = [x as f32, y as f32];
     let mut points = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
         .into_iter()
         .map(|(sx, sy): (f32, f32)| {
@@ -949,15 +1103,15 @@ fn hsv_to_rgb(hue: f32, saturation: f32, value: f32) -> (u8, u8, u8) {
     )
 }
 
-fn load_asset3d(path: &str) -> anyhow::Result<Asset3D> {
+fn load_asset3d(path: &FsPath) -> anyhow::Result<Asset3D> {
     let bytes =
-        std::fs::read(path).with_context(|| format!("could not read field model {path}"))?;
-    let media_type = match path.rsplit('.').next().unwrap_or_default() {
-        "glb" => Some("model/gltf-binary"),
-        "gltf" => Some("model/gltf+json"),
-        "obj" => Some("model/obj"),
-        "stl" => Some("model/stl"),
-        "ply" => Some("application/x-ply"),
+        std::fs::read(path).with_context(|| format!("could not read model {}", path.display()))?;
+    let media_type = match path.extension().and_then(|extension| extension.to_str()) {
+        Some("glb") => Some("model/gltf-binary"),
+        Some("gltf") => Some("model/gltf+json"),
+        Some("obj") => Some("model/obj"),
+        Some("stl") => Some("model/stl"),
+        Some("ply") => Some("application/x-ply"),
         _ => None,
     };
     let asset = Asset3D::new(bytes);
@@ -984,12 +1138,11 @@ const fn default_half_extents() -> [f64; 3] {
 #[cfg(test)]
 mod tests {
     use super::{
-        FrameKind, Layout, Pose, ROOT_2D, ROOT_3D, classify_frame, footprint_2d, log_frame,
-        log_path, log_pose, log_swerve, poses_from_nt, robot_entity, robot_model,
-        split_annex_b_units, swerve_arrow_height, swerve_color, swerve_states_from_nt, team_color,
+        Layout, Pose, ROOT_2D, ROOT_3D, footprint_2d, image_media_type, log_image, log_path,
+        log_pose, log_swerve, poses_from_nt, robot_entity, robot_model, swerve_arrow_height,
+        swerve_color, swerve_states_from_nt, team_color,
     };
     use nt_client::data::DataType;
-    use re_sdk_types::components::VideoCodec;
 
     /// Byte-for-byte what `FirstMetadataTest` asserts on the Java side, so the two languages
     /// cannot drift apart silently.
@@ -1011,7 +1164,7 @@ mod tests {
         "robots":[{"team":254,"pose_topic":"/Pose","half_extents":[0.45,0.45,0.3],
         "swerve":{"states_topic":"/Swerve","module_offsets":[[0.3,0.25],[0.3,-0.25],[-0.3,0.25],[-0.3,-0.25]]},
         "cameras":[{"name":"front","x":0.3,"y":0.0,"z":0.5,"roll":0.0,"pitch":-10.0,"yaw":0.0,"fov":70.0,
-        "video_topic":"/Camera/front/stream"}]}],
+        "stream":"http://10.63.91.11:1181/stream.mjpg"}]}],
         "paths":[{"name":"auto","topic":"/Path"}]}"#;
 
     #[test]
@@ -1052,12 +1205,15 @@ mod tests {
         assert_eq!(layout.robots[0].cameras[0].name, "front");
         assert_eq!(layout.robots[0].cameras[0].fov, 70.0);
         assert_eq!(
-            layout.robots[0].cameras[0].video_topic.as_deref(),
-            Some("/Camera/front/stream")
+            layout.robots[0].cameras[0].stream.as_deref(),
+            Some("http://10.63.91.11:1181/stream.mjpg")
         );
-        let video = layout.cameras_by_video_topic();
-        assert_eq!(video["/Camera/front/stream"].0, 254);
-        assert_eq!(video["/Camera/front/stream"].1.name, "front");
+        let streams = layout.cameras_by_stream();
+        assert_eq!(streams["http://10.63.91.11:1181/stream.mjpg"].0, 254);
+        assert_eq!(
+            streams["http://10.63.91.11:1181/stream.mjpg"].1.name,
+            "front"
+        );
     }
 
     #[test]
@@ -1084,10 +1240,10 @@ mod tests {
             1.0f64,
             2.0,
             0.0,
-            0.7071067811865476,
+            std::f64::consts::FRAC_1_SQRT_2,
             0.0,
             0.0,
-            0.7071067811865476,
+            std::f64::consts::FRAC_1_SQRT_2,
         ] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
@@ -1122,6 +1278,20 @@ mod tests {
         assert_eq!(states[1].speed_mps, 2.0);
         assert_eq!(states[1].angle, 0.5);
 
+        // WPILib 2027's renamed struct carries the same two doubles.
+        let mut bytes = Vec::new();
+        for (speed, angle) in [(1.0f64, 0.0f64), (2.0, 0.5)] {
+            bytes.extend_from_slice(&speed.to_le_bytes());
+            bytes.extend_from_slice(&angle.to_le_bytes());
+        }
+        let states = swerve_states_from_nt(
+            &DataType::Unknown("struct:SwerveModuleVelocity[]".to_owned()),
+            &rmpv::Value::Binary(bytes),
+        )
+        .unwrap();
+        assert_eq!(states[0].speed_mps, 1.0);
+        assert_eq!(states[1].angle, 0.5);
+
         let mut bytes = Vec::new();
         for (x, y, yaw) in [(1.0f64, 2.0f64, 0.0f64), (3.0, 4.0, 0.25)] {
             for value in [x, y, yaw] {
@@ -1138,58 +1308,143 @@ mod tests {
         assert!((poses[1].yaw - 0.25).abs() < 1e-6);
     }
 
-    /// H.264 SPS, PPS, an IDR and a plain P frame, each with an Annex-B start code.
-    const H264_CLIP: &[u8] = &[
-        0, 0, 0, 1, 0x67, 1, 2, 3, 0, 0, 1, 0x68, 4, 5, 0, 0, 1, 0x65, 6, 7, 8, 0, 0, 1, 0x41, 9,
-        10,
+    /// A minimal JPEG: the SOI marker plus opaque bytes. The bridge never decodes frames, it only
+    /// sniffs the container before handing the bytes to Rerun.
+    const JPEG: &[u8] = &[
+        0xFF, 0xD8, 0xFF, 0xE0, 0, 0x10, b'J', b'F', b'I', b'F', 0xFF, 0xD9,
     ];
 
     #[test]
-    fn classifies_camera_frames() {
+    fn recognizes_camera_images() {
+        assert_eq!(image_media_type(JPEG), Some("image/jpeg"));
         assert_eq!(
-            classify_frame(&[0xFF, 0xD8, 0xFF, 0xE0, 0, 0]),
-            Some(FrameKind::Image("image/jpeg"))
+            image_media_type(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A]),
+            Some("image/png")
         );
-        assert_eq!(
-            classify_frame(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A]),
-            Some(FrameKind::Image("image/png"))
-        );
-        assert_eq!(
-            classify_frame(H264_CLIP),
-            Some(FrameKind::Video {
-                codec: VideoCodec::H264,
-                keyframe: true,
-            })
-        );
+        assert_eq!(image_media_type(&[0x00, 0x00, 0x01]), None);
+        assert_eq!(image_media_type(&[]), None);
+    }
 
-        // H.265 VPS + IRAP picture: the same start codes, different NAL header layout.
-        let h265: &[u8] = &[0, 0, 0, 1, 0x40, 1, 2, 0, 0, 1, 0x26, 3, 4];
-        assert_eq!(
-            classify_frame(h265),
-            Some(FrameKind::Video {
-                codec: VideoCodec::H265,
-                keyframe: true,
+    fn chunks(messages: Vec<re_log_msg::LogMsg>) -> Vec<re_chunk::Chunk> {
+        messages
+            .into_iter()
+            .filter_map(|message| match message {
+                re_log_msg::LogMsg::ArrowMsg(_, arrow) => {
+                    re_chunk::Chunk::from_arrow_msg(&arrow).ok()
+                }
+                _ => None,
             })
-        );
+            .collect()
+    }
 
-        assert_eq!(
-            classify_frame(&[1.0f64.to_le_bytes(), 2.0f64.to_le_bytes()].concat()),
-            None
-        );
-        assert_eq!(classify_frame(&[]), None);
+    fn has(chunks: &[re_chunk::Chunk], entity: &str, archetype: &str) -> bool {
+        chunks.iter().any(|chunk| {
+            chunk.entity_path().to_string() == entity
+                && chunk.component_descriptors().any(|descriptor| {
+                    descriptor
+                        .archetype
+                        .as_ref()
+                        .is_some_and(|name| name == archetype)
+                })
+        })
     }
 
     #[test]
-    fn splits_annex_b_streams_at_picture_boundaries() {
-        let units = split_annex_b_units(H264_CLIP);
+    fn custom_models_replace_the_declared_assets() {
+        let dir = std::env::temp_dir().join(format!("firstrun-models-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let field = dir.join("field.glb");
+        let robot = dir.join("robot.glb");
+        std::fs::write(&field, b"glTF field").unwrap();
+        std::fs::write(&robot, b"glTF robot").unwrap();
 
-        assert_eq!(units.len(), 2);
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_models_test")
+            .memory()
+            .unwrap();
+        let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        assert!(layout.field.model.is_none());
+        layout
+            .log_static_with_models(
+                &stream,
+                None,
+                super::Models {
+                    field: Some(field.as_path()),
+                    robot: Some(robot.as_path()),
+                },
+            )
+            .unwrap();
+        let chunks = chunks(storage.take());
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(has(
+            &chunks,
+            "/first/field/model",
+            "rerun.archetypes.Asset3D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first/robots/254/model",
+            "rerun.archetypes.Asset3D"
+        ));
         assert!(
-            units[0].starts_with(&[0, 0, 0, 1, 0x67]) && units[0].ends_with(&[8]),
-            "the keyframe sample carries its parameter sets"
+            !has(
+                &chunks,
+                "/first/robots/254/model",
+                "rerun.archetypes.Boxes3D"
+            ),
+            "a custom robot model replaces the bounding box"
         );
-        assert!(units[1].starts_with(&[0, 0, 1, 0x41]));
-        assert_eq!(units.concat(), H264_CLIP.to_vec());
+    }
+
+    #[test]
+    fn logs_camera_frames_as_a_video_stream() {
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_video_test")
+            .memory()
+            .unwrap();
+        let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        let camera = &layout.robots[0].cameras[0];
+        let time =
+            re_log_types::TimeCell::from_duration_nanos(re_log_types::NonMinI64::new(1).unwrap());
+
+        super::log_video_codec(&stream, 254, camera, None).unwrap();
+        super::log_video_frame(
+            &stream,
+            254,
+            camera,
+            &[0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x65, 0x88],
+            true,
+            time,
+            None,
+        )
+        .unwrap();
+
+        let video = chunks(storage.take());
+        assert!(
+            has(
+                &video,
+                "/first/robots/254/cameras/front/image",
+                "rerun.archetypes.VideoStream"
+            ),
+            "camera footage is a video stream on the camera's image entity"
+        );
+    }
+
+    #[test]
+    fn sends_a_camera_layout_only_when_a_camera_is_declared() {
+        let (stream, _storage) = re_sdk::RecordingStreamBuilder::new("first_blueprint_test")
+            .memory()
+            .unwrap();
+        let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        assert!(super::log_blueprint(&stream, &layout, None).unwrap());
+
+        let mut no_cameras = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        for robot in &mut no_cameras.robots {
+            robot.cameras.clear();
+        }
+        assert!(
+            !super::log_blueprint(&stream, &no_cameras, None).unwrap(),
+            "a recording without camera footage keeps the automatic layout"
+        );
     }
 
     #[test]
@@ -1231,69 +1486,76 @@ mod tests {
         log_path(&stream, "auto", &[pose, pose], time, None).unwrap();
         let camera = &robot.cameras[0];
         assert!(
-            log_frame(&stream, robot.team, camera, H264_CLIP, time, None).unwrap(),
-            "H.264 frames are recognized"
+            log_image(&stream, robot.team, camera, JPEG, time, None).unwrap(),
+            "MJPEG frames are recognized"
         );
         assert!(
-            log_frame(
-                &stream,
-                robot.team,
-                camera,
-                &[0xFF, 0xD8, 0xFF, 0],
-                time,
-                None
-            )
-            .unwrap(),
-            "JPEG frames are recognized"
+            !log_image(&stream, robot.team, camera, &[0x00, 0x01], time, None).unwrap(),
+            "anything that is not an image is skipped"
         );
 
-        let chunks = storage
-            .take()
-            .into_iter()
-            .filter_map(|message| match message {
-                re_log_msg::LogMsg::ArrowMsg(_, arrow) => {
-                    re_chunk::Chunk::from_arrow_msg(&arrow).ok()
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let has = |entity: &str, archetype: &str| {
-            chunks.iter().any(|chunk| {
-                chunk.entity_path().to_string() == entity
-                    && chunk.component_descriptors().any(|descriptor| {
-                        descriptor
-                            .archetype
-                            .as_ref()
-                            .is_some_and(|name| name == archetype)
-                    })
-            })
-        };
+        let chunks = chunks(storage.take());
 
-        assert!(has("/first/field", "rerun.archetypes.LineStrips3D"));
-        assert!(has("/first/field/carpet", "rerun.archetypes.Boxes3D"));
-        assert!(has("/first2d/field", "rerun.archetypes.LineStrips2D"));
-        assert!(has("/first/robots/254/model", "rerun.archetypes.Boxes3D"));
-        assert!(has("/first/robots/254", "rerun.archetypes.Transform3D"));
         assert!(has(
+            &chunks,
+            "/first/field",
+            "rerun.archetypes.LineStrips3D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first/field/carpet",
+            "rerun.archetypes.Boxes3D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first2d/field",
+            "rerun.archetypes.LineStrips2D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first/robots/254/model",
+            "rerun.archetypes.Boxes3D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first/robots/254",
+            "rerun.archetypes.Transform3D"
+        ));
+        assert!(has(
+            &chunks,
             "/first/robots/254/cameras/front",
             "rerun.archetypes.Transform3D"
         ));
         assert!(has(
+            &chunks,
             "/first/robots/254/cameras/front",
             "rerun.archetypes.Pinhole"
         ));
-        assert!(has("/first/robots/254/swerve", "rerun.archetypes.Arrows3D"));
         assert!(has(
-            "/first/robots/254/cameras/front",
-            "rerun.archetypes.VideoStream"
+            &chunks,
+            "/first/robots/254/swerve",
+            "rerun.archetypes.Arrows3D"
         ));
         assert!(has(
-            "/first/robots/254/cameras/front",
+            &chunks,
+            "/first/robots/254/cameras/front/image",
             "rerun.archetypes.EncodedImage"
         ));
-        assert!(has("/first/paths/auto", "rerun.archetypes.LineStrips3D"));
-        assert!(has("/first2d/paths/auto", "rerun.archetypes.LineStrips2D"));
-        assert!(has("/first2d/robots/254", "rerun.archetypes.LineStrips2D"));
+        assert!(has(
+            &chunks,
+            "/first/paths/auto",
+            "rerun.archetypes.LineStrips3D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first2d/paths/auto",
+            "rerun.archetypes.LineStrips2D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first2d/robots/254",
+            "rerun.archetypes.LineStrips2D"
+        ));
     }
 
     #[test]
@@ -1332,34 +1594,42 @@ mod tests {
         let relative_path = DECLARATION_WITH_DEVICES.replacen("\"/Path\"", "\"Path\"", 1);
         assert!(Layout::parse(&relative_path).is_err());
 
-        let relative_video = DECLARATION_WITH_DEVICES.replacen(
-            "\"video_topic\":\"/Camera/front/stream\"",
-            "\"video_topic\":\"Camera/front/stream\"",
+        // The bridge has no TLS client, so an https stream is rejected up front.
+        let https_stream = DECLARATION_WITH_DEVICES.replacen(
+            "\"stream\":\"http://10.63.91.11:1181/stream.mjpg\"",
+            "\"stream\":\"https://10.63.91.11:1181/stream.mjpg\"",
             1,
         );
-        assert!(Layout::parse(&relative_video).is_err());
+        assert!(Layout::parse(&https_stream).is_err());
 
-        // Two cameras cannot share one frame topic: the frames would be logged twice.
-        let duplicate_video = DECLARATION_WITH_DEVICES.replacen(
-            "\"video_topic\":\"/Camera/front/stream\"}",
-            "\"video_topic\":\"/Camera/front/stream\"},{\"name\":\"side\",\"x\":0.3,\"y\":0.0,\
-            \"z\":0.5,\"roll\":0.0,\"pitch\":0.0,\"yaw\":90.0,\"fov\":70.0,\
-            \"video_topic\":\"/Camera/front/stream\"}",
+        let hostless_stream = DECLARATION_WITH_DEVICES.replacen(
+            "\"stream\":\"http://10.63.91.11:1181/stream.mjpg\"",
+            "\"stream\":\"http:///stream.mjpg\"",
             1,
         );
-        assert!(Layout::parse(&duplicate_video).is_err());
+        assert!(Layout::parse(&hostless_stream).is_err());
+
+        // Two cameras cannot share one stream: the frames would be recorded twice.
+        let duplicate_stream = DECLARATION_WITH_DEVICES.replacen(
+            "\"stream\":\"http://10.63.91.11:1181/stream.mjpg\"}",
+            "\"stream\":\"http://10.63.91.11:1181/stream.mjpg\"},{\"name\":\"side\",\"x\":0.3,\
+            \"y\":0.0,\"z\":0.5,\"roll\":0.0,\"pitch\":0.0,\"yaw\":90.0,\"fov\":70.0,\
+            \"stream\":\"http://10.63.91.11:1181/stream.mjpg\"}",
+            1,
+        );
+        assert!(Layout::parse(&duplicate_stream).is_err());
 
         assert!(Layout::parse("not json").is_err());
     }
 
     #[test]
-    fn two_dimensional_footprints_are_mirrored_and_closed() {
+    fn two_dimensional_footprints_follow_the_field_frame() {
         let outline = footprint_2d([1.0, 2.0], [0.5, 0.25], 0.0);
 
         assert_eq!(outline.len(), 5);
         assert_eq!(outline[0], outline[4]);
-        // y is negated so a default 2D view matches the game-manual field diagram.
-        assert_eq!(outline[0], [0.5, -2.25]);
+        // The 2D lane keeps WPILib's y, so it lines up with every other 2D WPILib topic.
+        assert_eq!(outline[0], [0.5, 1.75]);
     }
 
     #[test]
