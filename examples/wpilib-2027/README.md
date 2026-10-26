@@ -42,10 +42,15 @@ rerun /tmp/demo.rrd
 Every value under `/Demo/...` and the AdvantageKit `RealOutputs` are graphed on their own; the
 layout adds `first/field`, `first/robots/6391` (the pose), `first/robots/6391/model`,
 `first/robots/6391/swerve` (module vectors), `first/robots/6391/cameras/front` (frustum, with the
-video on `.../front/image`) and the `first2d/` top-down mirror. The camera has no footage in
-simulation: nothing serves
-`http://127.0.0.1:1181/stream.mjpg`, so the bridge logs the `ffmpeg` read failure and moves on.
-Point `Constants.CAMERA_STREAM` at a real PhotonVision coprocessor to record frames.
+video on `.../front/image`) and the `first2d/` top-down mirror. Camera footage in simulation comes from
+PhotonVision's own camera server: `VisionSystemSim.addCamera` serves what the
+simulated camera sees at `http://127.0.0.1:1181/stream.mjpg`, which is the URL
+`Constants.CAMERA_STREAM` names, so frames appear without a coprocessor.
+
+The demo declares its own viewer layout through `FirstMetadata`: a 3D field view, a 2D field
+view, and a dataframe of the recorded `Drive/HeadingDegrees` and `Vision/TagCount` topics, with the
+cameras arriving as a grid. Change those `.view(...)` calls in `RerunViz` to change what the window
+opens with; drop them and the bridge's default layout applies.
 
 ## What to look at when something breaks
 

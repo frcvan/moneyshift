@@ -119,6 +119,7 @@ fn main() -> anyhow::Result<()> {
                 cameras: cameras_1678,
             },
         ],
+        blueprint: None,
         paths: vec![Path {
             name: "auto".to_owned(),
             topic: "/Test/PathPlanner/ActivePath".to_owned(),

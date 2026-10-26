@@ -16,7 +16,8 @@ use nt_client::data::DataType;
 use re_log_types::{EntityPath, TimeCell};
 use re_sdk::RecordingStream;
 use re_sdk::blueprint::{
-    Blueprint, BlueprintActivation, BlueprintOpts, Grid, Spatial2DView, Spatial3DView,
+    Blueprint, BlueprintActivation, BlueprintOpts, ContainerLike, DataframeView, Grid, Horizontal,
+    Spatial2DView, Spatial3DView, Tabs, Vertical,
 };
 use re_sdk_types::{
     Rotation3D,
@@ -78,6 +79,55 @@ pub struct Layout {
     pub robots: Vec<Robot>,
     #[serde(default)]
     pub paths: Vec<Path>,
+    /// The viewer layout robot code asked for; absent means the bridge's default.
+    #[serde(default)]
+    pub blueprint: Option<ViewerBlueprint>,
+}
+
+/// A viewer layout published by robot code.
+///
+/// Robot code owns the decision of what to show: the bridge only turns this into a Rerun
+/// blueprint. `entities` is meaningful for dataframe views, which list exactly the columns robot
+/// code named and otherwise show the timeline alone.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+pub struct ViewerBlueprint {
+    #[serde(default)]
+    pub views: Vec<ViewDecl>,
+    #[serde(default)]
+    pub container: Container,
+}
+
+/// How a blueprint's views are stacked in the viewer.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Container {
+    #[default]
+    Grid,
+    Tabs,
+    Horizontal,
+    Vertical,
+}
+
+/// One view in a [`ViewerBlueprint`].
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct ViewDecl {
+    pub kind: ViewKind,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub origin: Option<String>,
+    /// Entity paths a dataframe view lists; empty leaves the timeline alone.
+    #[serde(default)]
+    pub entities: Vec<String>,
+}
+
+/// The view classes a [`ViewerBlueprint`] can name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewKind {
+    ThreeD,
+    TwoD,
+    Dataframe,
 }
 
 impl Layout {
@@ -913,25 +963,28 @@ pub fn log_blueprint(
     layout: &Layout,
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<bool> {
-    let cameras = layout
-        .robots
-        .iter()
-        .flat_map(|robot| {
-            robot.cameras.iter().map(move |camera| {
-                Spatial2DView::new(format!("camera {}", camera.name))
-                    .with_origin(at(prefix, camera_image_entity(robot.team, &camera.name)))
-            })
-        })
-        .collect::<Vec<_>>();
-    if cameras.is_empty() {
+    let declared = layout.blueprint.as_ref().filter(|it| !it.views.is_empty());
+    let (views, kind) = match declared {
+        Some(declared) => (
+            declared
+                .views
+                .iter()
+                .map(|view| view.to_view(prefix))
+                .collect::<Vec<_>>(),
+            declared.container,
+        ),
+        None => (default_views(layout, prefix), Container::Grid),
+    };
+    if views.is_empty() {
         return Ok(false);
     }
-
-    let three_d = Spatial3DView::new("3D").with_origin(at(prefix, ROOT_3D.to_owned()));
-    let views = std::iter::once(three_d.into())
-        .chain(cameras.into_iter().map(Into::into))
-        .collect::<Vec<_>>();
-    let blueprint = Blueprint::new(Grid::new(views))
+    let container: ContainerLike = match kind {
+        Container::Grid => Grid::new(views).into(),
+        Container::Tabs => Tabs::new(views).into(),
+        Container::Horizontal => Horizontal::new(views).into(),
+        Container::Vertical => Vertical::new(views).into(),
+    };
+    let blueprint = Blueprint::new(container)
         .with_auto_views(true)
         .with_auto_layout(true);
     stream.send_blueprint_opts(&BlueprintOpts {
@@ -941,6 +994,76 @@ pub fn log_blueprint(
         activation: BlueprintActivation::default(),
     })?;
     Ok(true)
+}
+
+/// The 2D views a blueprint gives a robot's cameras, one per camera.
+fn camera_views(layout: &Layout, prefix: Option<&EntityPath>) -> Vec<ContainerLike> {
+    layout
+        .robots
+        .iter()
+        .flat_map(|robot| {
+            robot.cameras.iter().map(move |camera| {
+                Spatial2DView::new(format!("camera {}", camera.name))
+                    .with_origin(at(prefix, camera_image_entity(robot.team, &camera.name)))
+                    .into()
+            })
+        })
+        .collect()
+}
+
+/// The layout a session opens with when robot code declares none.
+///
+/// A 3D view of the field, a 2D view of it, a dataframe of the recording's timeline alone (robot
+/// code names the extra columns it wants), and the cameras as a grid of their own.
+fn default_views(layout: &Layout, prefix: Option<&EntityPath>) -> Vec<ContainerLike> {
+    let cameras = camera_views(layout, prefix);
+    let mut views: Vec<ContainerLike> = vec![
+        Spatial3DView::new("3D")
+            .with_origin(at(prefix, ROOT_3D.to_owned()))
+            .into(),
+        Spatial2DView::new("2D")
+            .with_origin(at(prefix, ROOT_2D.to_owned()))
+            .into(),
+        DataframeView::new("State").into(),
+    ];
+    if !cameras.is_empty() {
+        views.push(Grid::new(cameras).into());
+    }
+    views
+}
+
+impl ViewDecl {
+    /// Turns a declared view into the SDK's blueprint view.
+    fn to_view(&self, prefix: Option<&EntityPath>) -> ContainerLike {
+        let name = self.name.clone().unwrap_or_else(|| match self.kind {
+            ViewKind::ThreeD => "3D".to_owned(),
+            ViewKind::TwoD => "2D".to_owned(),
+            ViewKind::Dataframe => "State".to_owned(),
+        });
+        // A dataframe view spans the whole recording unless robot code names an origin.
+        let origin = self.origin.clone().unwrap_or_else(|| match self.kind {
+            ViewKind::ThreeD => ROOT_3D.to_owned(),
+            ViewKind::TwoD => ROOT_2D.to_owned(),
+            ViewKind::Dataframe => String::new(),
+        });
+        let with_origin = |origin: &str| at(prefix, origin.to_owned());
+        match self.kind {
+            ViewKind::ThreeD => Spatial3DView::new(name)
+                .with_origin(with_origin(&origin))
+                .into(),
+            ViewKind::TwoD => Spatial2DView::new(name)
+                .with_origin(with_origin(&origin))
+                .into(),
+            ViewKind::Dataframe => {
+                let view = DataframeView::new(name).with_contents(self.entities.clone());
+                if origin.is_empty() {
+                    view.into()
+                } else {
+                    view.with_origin(with_origin(&origin)).into()
+                }
+            }
+        }
+    }
 }
 
 /// Logs every camera on a robot as a static frustum and transform.
@@ -1432,21 +1555,49 @@ mod tests {
     }
 
     #[test]
-    fn sends_a_camera_layout_only_when_a_camera_is_declared() {
+    fn sends_the_default_layout_even_without_cameras() {
         let (stream, _storage) = re_sdk::RecordingStreamBuilder::new("first_blueprint_test")
             .memory()
             .unwrap();
-        let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
-        assert!(super::log_blueprint(&stream, &layout, None).unwrap());
-
-        let mut no_cameras = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        let with_cameras = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        let mut no_cameras = with_cameras.clone();
         for robot in &mut no_cameras.robots {
             robot.cameras.clear();
         }
+
         assert!(
-            !super::log_blueprint(&stream, &no_cameras, None).unwrap(),
-            "a recording without camera footage keeps the automatic layout"
+            super::log_blueprint(&stream, &no_cameras, None).unwrap(),
+            "the default layout is sent even when no camera is declared"
         );
+        assert_eq!(
+            super::default_views(&no_cameras, None).len(),
+            3,
+            "the default is a 3D view, a 2D view and a dataframe"
+        );
+        assert_eq!(
+            super::default_views(&with_cameras, None).len(),
+            4,
+            "declared cameras add a grid of their own to the default layout"
+        );
+    }
+
+    #[test]
+    fn robot_code_can_replace_the_layout() {
+        let (stream, _storage) = re_sdk::RecordingStreamBuilder::new("first_blueprint_test")
+            .memory()
+            .unwrap();
+        let declared = format!(
+            "{},\"blueprint\":{{\"container\":\"tabs\",\"views\":[\
+             {{\"kind\":\"dataframe\",\"name\":\"OpMode\",\"entities\":[\"/Demo/OpMode\"]}}]}}}}",
+            DECLARATION_WITH_DEVICES.trim_end_matches('}')
+        );
+        let layout = Layout::parse(&declared).unwrap();
+        let blueprint = layout.blueprint.as_ref().unwrap();
+
+        assert_eq!(blueprint.views.len(), 1, "one declared view, nothing added");
+        assert_eq!(blueprint.container, super::Container::Tabs);
+        assert_eq!(blueprint.views[0].entities, ["/Demo/OpMode"]);
+        assert!(super::log_blueprint(&stream, &layout, None).unwrap());
     }
 
     #[test]

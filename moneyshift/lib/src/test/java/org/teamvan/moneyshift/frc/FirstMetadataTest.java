@@ -26,6 +26,45 @@ class FirstMetadataTest {
         recorder = NtRecorder.getInstance();
     }
 
+    @Test
+    void declaresTheViewerLayout() {
+        String json =
+                FirstMetadata.builder()
+                        .robot(254, "/Demo/Drive/Pose2d")
+                        .container(FirstMetadata.Container.TABS)
+                        .view(FirstMetadata.ViewKind.THREE_D, "Field", "first")
+                        .view(FirstMetadata.ViewKind.DATAFRAME, "State", "", "/Demo/OpMode")
+                        .build()
+                        .json();
+
+        assertTrue(json.contains("\"blueprint\":{\"container\":\"tabs\""), json);
+        assertTrue(json.contains("\"kind\":\"three_d\",\"name\":\"Field\",\"origin\":\"first\""), json);
+        assertTrue(
+                json.contains("\"kind\":\"dataframe\",\"name\":\"State\",\"entities\":[\"/Demo/OpMode\"]"),
+                json);
+    }
+
+    @Test
+    void aViewKindCanBeOverriddenByString() {
+        String json =
+                FirstMetadata.builder()
+                        .robot(254, "/Demo/Drive/Pose2d")
+                        .container("pinned")
+                        .view("opmode_table", "OpMode", "", "/Demo/OpMode")
+                        .build()
+                        .json();
+
+        assertTrue(json.contains("\"container\":\"pinned\""), json);
+        assertTrue(json.contains("\"kind\":\"opmode_table\""), "the string is published verbatim");
+    }
+
+    @Test
+    void omitsTheLayoutWhenNoViewIsDeclared() {
+        String json = FirstMetadata.builder().robot(254, "/Demo/Drive/Pose2d").build().json();
+
+        assertFalse(json.contains("blueprint"), "the bridge sends its own default layout");
+    }
+
     @AfterEach
     void tearDown() {
         NtRecorder.setInstance(null);

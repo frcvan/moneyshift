@@ -47,6 +47,22 @@ public final class RerunViz {
                 0.0,
                 70.0,
                 Constants.CAMERA_STREAM)
+            // The viewer layout is robot code's call. Omit it and the bridge sends its default:
+            // a 3D field view, a 2D field view, a dataframe of the timeline, and a grid of the
+            // declared cameras. This declares that layout explicitly and names the two recorded
+            // topics worth tabulating; the camera grid is added by the bridge.
+            .container(FirstMetadata.Container.GRID)
+            .view(FirstMetadata.ViewKind.THREE_D, "Field", "first")
+            .view(FirstMetadata.ViewKind.TWO_D, "Field 2D", "first2d")
+            .view(
+                FirstMetadata.ViewKind.DATAFRAME,
+                "Robot state",
+                "",
+                // An opmode string belongs here too once the robot publishes one, e.g.
+                // "/AdvantageKit/RealOutputs/OpMode"; a path that never appears just leaves an
+                // empty column.
+                "/AdvantageKit/RealOutputs/Drive/HeadingDegrees",
+                "/AdvantageKit/RealOutputs/Vision/TagCount")
             .build();
   }
 

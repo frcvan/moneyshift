@@ -51,6 +51,8 @@ public final class FirstMetadata {
     private final Map<Integer, Swerve> swerve;
     private final Map<Integer, List<Camera>> cameras;
     private final List<Path> paths;
+    private final List<View> views;
+    private final String container;
 
     private FirstMetadata(Builder builder) {
         this.field = builder.field;
@@ -63,6 +65,8 @@ public final class FirstMetadata {
         }
         this.cameras = Map.copyOf(mounted);
         this.paths = List.copyOf(builder.paths);
+        this.views = List.copyOf(builder.views);
+        this.container = builder.container;
     }
 
     /** A declaration with the standard field and no robots, cameras or paths. */
@@ -195,6 +199,33 @@ public final class FirstMetadata {
             }
             json.append(']');
         }
+        if (!views.isEmpty()) {
+            json.append(",\"blueprint\":{\"container\":").append(quoted(container));
+            json.append(",\"views\":[");
+            for (int i = 0; i < views.size(); i++) {
+                if (i > 0) {
+                    json.append(',');
+                }
+                View view = views.get(i);
+                json.append("{\"kind\":").append(quoted(view.kind()));
+                json.append(",\"name\":").append(quoted(view.name()));
+                if (view.origin() != null && !view.origin().isEmpty()) {
+                    json.append(",\"origin\":").append(quoted(view.origin()));
+                }
+                if (!view.entities().isEmpty()) {
+                    json.append(",\"entities\":[");
+                    for (int j = 0; j < view.entities().size(); j++) {
+                        if (j > 0) {
+                            json.append(',');
+                        }
+                        json.append(quoted(view.entities().get(j)));
+                    }
+                    json.append(']');
+                }
+                json.append('}');
+            }
+            json.append("]}");
+        }
         json.append('}');
         return json.toString();
     }
@@ -325,6 +356,63 @@ public final class FirstMetadata {
         }
     }
 
+    /**
+     * One viewer view robot code asks the bridge for.
+     *
+     * <p>{@code kind} is {@code three_d}, {@code two_d} or {@code dataframe}; {@code origin} is the
+     * entity path the view is rooted at (defaulted per kind when empty), and {@code entities} are
+     * the entity paths a dataframe view lists. An empty {@code entities} leaves a dataframe showing
+     * the recording's timeline alone, which is what robot code gets when it declares nothing.
+     */
+    /**
+     * One viewer view robot code asks the bridge for.
+     *
+     * <p>{@code kind} is the wire name the declaration carries; {@link ViewKind} supplies the ones
+     * the bridge knows, and a plain string overrides it when robot code needs a name of its own.
+     */
+    public record View(String kind, String name, String origin, List<String> entities) {}
+
+    /** The view classes a blueprint can name. */
+    public enum ViewKind {
+        /** A 3D view of the field, usually rooted at {@code first}. */
+        THREE_D("three_d"),
+        /** A 2D view, usually the top-down {@code first2d} mirror or a camera's image entity. */
+        TWO_D("two_d"),
+        /** A table of the recording's timeline plus the entities robot code names. */
+        DATAFRAME("dataframe");
+
+        private final String wire;
+
+        ViewKind(String wire) {
+            this.wire = wire;
+        }
+
+        /** The name this kind uses in the declaration. */
+        public String wireName() {
+            return wire;
+        }
+    }
+
+    /** How a blueprint's views are stacked in the viewer. */
+    public enum Container {
+        /** Side by side in a grid; the default. */
+        GRID("grid"),
+        TABS("tabs"),
+        HORIZONTAL("horizontal"),
+        VERTICAL("vertical");
+
+        private final String wire;
+
+        Container(String wire) {
+            this.wire = wire;
+        }
+
+        /** The name this container uses in the declaration. */
+        public String wireName() {
+            return wire;
+        }
+    }
+
     /** Fluent construction of a {@link FirstMetadata}. */
     public static final class Builder {
         private FieldGeometry field = FieldGeometry.standard();
@@ -333,12 +421,48 @@ public final class FirstMetadata {
         private final Map<Integer, Swerve> swerve = new LinkedHashMap<>();
         private final Map<Integer, List<Camera>> cameras = new LinkedHashMap<>();
         private final List<Path> paths = new ArrayList<>();
+        private final List<View> views = new ArrayList<>();
+        private String container = Container.GRID.wireName();
 
         private Builder() {}
 
         /** Replaces the standard field with caller geometry; the size is fixed. */
         public Builder field(FieldGeometry field) {
             this.field = Objects.requireNonNull(field, "field");
+            return this;
+        }
+
+        /**
+         * Adds a viewer view, replacing the bridge's default layout.
+         *
+         * <p>Declaring none keeps the default: a 3D field view, a 2D field view, a dataframe of the
+         * timeline, and a grid of the declared cameras. {@code entities} only matters for a
+         * {@link ViewKind#DATAFRAME} view; pass the topics worth tabulating, such as an opmode
+         * string when the robot has one.
+         */
+        public Builder view(ViewKind kind, String name, String origin, String... entities) {
+            return view(kind.wireName(), name, origin, entities);
+        }
+
+        /**
+         * Adds a view by wire name, overriding {@link ViewKind}.
+         *
+         * <p>Use it when the bridge grows a view kind this library does not know yet: the string is
+         * published verbatim.
+         */
+        public Builder view(String kind, String name, String origin, String... entities) {
+            views.add(new View(Objects.requireNonNull(kind, "kind"), name, origin, List.of(entities)));
+            return this;
+        }
+
+        /** Stacks declared views as {@link Container#GRID} by default. */
+        public Builder container(Container container) {
+            return container(Objects.requireNonNull(container, "container").wireName());
+        }
+
+        /** Stacks declared views as a container named by string, overriding {@link Container}. */
+        public Builder container(String container) {
+            this.container = Objects.requireNonNull(container, "container");
             return this;
         }
 

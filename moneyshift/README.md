@@ -86,6 +86,25 @@ no pinhole root. When the declaration names a camera the bridge also sends a vie
 2D view for it. The 3D view shows the same stream on the pinhole plane, a couple of meters in
 front of the lens, so zoom in on the robot to see it there.
 
+The viewer layout is part of the same declaration:
+
+```java
+FirstMetadata.builder()
+        .robot(254, Constants.POSE_TOPIC)
+        .container(FirstMetadata.Container.GRID)
+        .view(FirstMetadata.ViewKind.THREE_D, "Field", "first")
+        .view(FirstMetadata.ViewKind.TWO_D, "Field 2D", "first2d")
+        .view(FirstMetadata.ViewKind.DATAFRAME, "Robot state", "", "/AdvantageKit/RealOutputs/OpMode")
+        .build();
+```
+
+`kind` is a `FirstMetadata.ViewKind` (`THREE_D`, `TWO_D`, `DATAFRAME`) and `container` a
+`FirstMetadata.Container` (`GRID`, `TABS`, `HORIZONTAL`, `VERTICAL`), so neither can be misspelled;
+`origin` is the entity path the view is rooted at, and `entities` are the columns a dataframe view
+lists (omit them for the timeline alone). Declare
+no views and the bridge keeps its default: 3D field, 2D field, a timeline dataframe, and a grid of
+the declared cameras.
+
 From that declaration the bridge draws:
 
 | Entity | Contents |

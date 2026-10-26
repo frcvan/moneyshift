@@ -65,6 +65,20 @@ The same stream also lands on the pinhole plane in the 3D view, `image_plane_dis
 the lens. That plane is only a couple of meters across, so on a field-wide view the picture is a
 small patch next to the robot rather than a full-size pane; zoom in on the robot to read it.
 
+### The viewer layout
+
+Robot code decides what the Rerun window opens with. `FirstMetadata` takes an optional `blueprint`
+section: `container(Container.GRID | TABS | HORIZONTAL | VERTICAL)` and any number of
+`view(kind, name, origin, entities…)` calls, where `kind` is a `ViewKind` of `THREE_D`, `TWO_D` or
+`DATAFRAME`.
+A dataframe view lists exactly the entity paths you name, so tabulating an opmode string is a
+decision on the robot, not a guess in the bridge; with none named it shows the recording's
+timeline alone.
+
+Declare nothing and the bridge sends its default: a 3D view of the field, a 2D view of it, a
+dataframe of the timeline, and — when the declaration has cameras — a grid of their 2D views.
+Auto views stay on either way, so topics you did not mention still get panes.
+
 `cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]` renders a field with two
 swerve robots, camera video and a planned path for checking the overlays without a robot. Without
 a clip it renders a synthetic one with `ffmpeg`, and skips video when `ffmpeg` is missing.

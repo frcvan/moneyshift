@@ -24,6 +24,12 @@ final class RerunVizTest {
     assertTrue(json.contains("\"/Demo/Drive/Pose2d\""), "the pose topic is declared");
     assertTrue(json.contains("\"/Demo/Drive/SwerveModuleVelocities\""), "the swerve topic is declared");
     assertEquals(32, count(json, "{\"id\":"), "the 2026 field's AprilTags are declared");
+    assertTrue(
+        json.contains("\"blueprint\":{\"container\":\"grid\""),
+        "the demo declares the viewer layout itself");
+    assertTrue(
+        json.contains("\"kind\":\"dataframe\",\"name\":\"Robot state\""),
+        "the layout has a dataframe view for the recorded state topics");
   }
 
   private static int count(String haystack, String needle) {
