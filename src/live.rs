@@ -38,6 +38,11 @@ const MAX_DEBOUNCE: Duration = Duration::from_millis(10);
 const NATIVE_HISTORY: Duration = Duration::from_secs(600);
 /// Upper bound on value topics buffered before their entity's metadata arrives.
 const MAX_ORPHANS: usize = 10_000;
+/// How often to check that the Rerun viewer behind the stream is still there.
+const RERUN_HEALTH_INTERVAL: Duration = Duration::from_secs(1);
+/// A NetworkTables connection that lived this long counts as healthy, so the next reconnect does
+/// not start from a long backoff.
+const HEALTHY_CONNECTION: Duration = Duration::from_secs(5);
 
 /// Runs the live bridge on a dedicated Tokio runtime.
 pub fn run(args: &LiveArgs) -> anyhow::Result<()> {
@@ -72,13 +77,22 @@ async fn run_async(args: &LiveArgs) -> anyhow::Result<()> {
 
     let state = Arc::new(Mutex::new(LiveState::new(args.clone())));
     let stop = Arc::new(AtomicBool::new(false));
+    // Set while a Rerun reconnection is in flight, so a slow viewer is only tried once at a time.
+    let reconnecting = Arc::new(AtomicBool::new(false));
     let mut backoff = Duration::from_millis(250);
 
     while !stop.load(Ordering::Relaxed) {
+        // The viewer can go away while NetworkTables is down too, so the Rerun side is checked
+        // every time round, not only while the subscription runs.
+        ensure_rerun(&stream, &state, args, &reconnecting);
+
+        let connected = Instant::now();
         let client = Client::new(options.clone());
         let (disconnected_tx, disconnected_rx) = tokio::sync::oneshot::channel();
         let task_state = Arc::clone(&state);
         let task_stream = stream.clone();
+        let task_args = args.clone();
+        let task_reconnecting = Arc::clone(&reconnecting);
         let task_stop = Arc::clone(&stop);
         let connection = tokio::spawn(async move {
             let result = client
@@ -88,6 +102,8 @@ async fn run_async(args: &LiveArgs) -> anyhow::Result<()> {
                         handle,
                         task_state,
                         task_stream,
+                        task_args,
+                        task_reconnecting,
                         task_stop,
                     ));
                 })
@@ -108,11 +124,21 @@ async fn run_async(args: &LiveArgs) -> anyhow::Result<()> {
         if stop.load(Ordering::Relaxed) {
             break;
         }
+        if connected.elapsed() >= HEALTHY_CONNECTION {
+            backoff = Duration::from_millis(250);
+        }
         re_log::warn!(
             "NetworkTables disconnected ({}); retrying in {backoff:?}",
             reason.as_deref().unwrap_or("connection closed")
         );
-        tokio::time::sleep(backoff).await;
+        // Wait out the backoff in health-check slices, so a viewer that is reopened while the
+        // robot is off is not left waiting for NetworkTables to come back.
+        let until = Instant::now() + backoff;
+        while Instant::now() < until && !stop.load(Ordering::Relaxed) {
+            ensure_rerun(&stream, &state, args, &reconnecting);
+            let slice = RERUN_HEALTH_INTERVAL.min(until.saturating_duration_since(Instant::now()));
+            tokio::time::sleep(slice).await;
+        }
         backoff = (backoff * 2).min(Duration::from_secs(5));
     }
 
@@ -144,11 +170,133 @@ fn build_stream(args: &LiveArgs) -> anyhow::Result<RecordingStream> {
     Ok(stream)
 }
 
+/// Reconnects the Rerun stream when the viewer behind it went away.
+///
+/// NetworkTables reconnects by dialing its server again, but a Rerun stream has nothing to dial:
+/// once the viewer closes, the gRPC sink reports itself as disconnected and every later chunk is
+/// dropped. So the `--spawn` viewer is started again (or `--connect` retried), and the session's
+/// static data is marked pending because the new viewer has none of it. File and stdout sinks
+/// have no connection to lose, so they are never touched.
+///
+/// Returns whether a reconnection was started.
+fn ensure_rerun(
+    stream: &RecordingStream,
+    state: &Arc<Mutex<LiveState>>,
+    args: &LiveArgs,
+    reconnecting: &Arc<AtomicBool>,
+) -> bool {
+    if !rerun_disconnected(stream) {
+        return false;
+    }
+    let Some(url) = rerun_endpoint(args) else {
+        return false;
+    };
+    // Swapping to a viewer that is not listening yet blocks for the sink's connect timeout and
+    // leaves a flush behind that severs the connection once it comes up, so wait until the
+    // endpoint answers. The check runs again on the next tick.
+    if !rerun_reachable(&url) {
+        return false;
+    }
+    // Swapping the sink waits for the new viewer's first flush, so it runs on its own thread
+    // instead of holding up the loop that reads NetworkTables.
+    if reconnecting.swap(true, Ordering::SeqCst) {
+        return false;
+    }
+
+    let sink = stream.clone();
+    let endpoint = url.clone();
+    let reconnect_state = Arc::clone(state);
+    let in_flight = Arc::clone(reconnecting);
+    std::thread::spawn(move || {
+        let result = sink
+            .connect_grpc_opts(endpoint.clone())
+            .map_err(|error| error.to_string());
+        in_flight.store(false, Ordering::SeqCst);
+        match result {
+            Ok(()) => re_log::info!("reconnected to Rerun at {endpoint}"),
+            Err(error) => {
+                re_log::warn!("could not reconnect to Rerun at {endpoint}: {error}");
+                return;
+            }
+        }
+
+        // Redraw the field, the robots and the cameras for the viewer that just opened, exactly
+        // as if the declaration had arrived now.
+        let mut state = reconnect_state.lock().expect("live state poisoned");
+        if state.layout.is_some() {
+            state.layout_pending = true;
+            state.queue.schedule(Instant::now());
+        }
+    });
+    true
+}
+
+/// The Rerun endpoint to reconnect to, starting the viewer for a `--spawn` sink.
+///
+/// `None` for sinks that are not a connection.
+fn rerun_endpoint(args: &LiveArgs) -> Option<String> {
+    match &args.sink {
+        LiveSink::Spawn => {
+            // A viewer that is still listening is reused, so this only starts a process when the
+            // previous one was closed. Waiting for its port keeps the reconnect from blocking on
+            // a viewer that has not bound yet.
+            match re_sdk::spawn(&re_sdk::SpawnOptions {
+                wait_for_bind: true,
+                ..re_sdk::SpawnOptions::default()
+            }) {
+                Ok(info) => Some(format!("rerun+http://127.0.0.1:{}/proxy", info.port)),
+                Err(error) => {
+                    re_log::warn_once!("could not start the Rerun viewer: {error}");
+                    None
+                }
+            }
+        }
+        LiveSink::Connect(url) => Some(url.clone()),
+        LiveSink::Save(_) | LiveSink::Stdout => None,
+    }
+}
+
+/// Whether a Rerun endpoint accepts connections yet.
+///
+/// A host name is not resolved here; the sink knows how to do that, and answering `true` only
+/// means the reconnect is attempted now rather than on a later tick.
+fn rerun_reachable(url: &str) -> bool {
+    let authority = url
+        .strip_prefix("rerun+http://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url);
+    let authority = authority.split('/').next().unwrap_or(authority);
+    match authority.parse::<std::net::SocketAddr>() {
+        Ok(addr) => std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(250)).is_ok(),
+        Err(_) => true,
+    }
+}
+
+/// Whether the stream's gRPC connection has given up for good.
+///
+/// A sink that is not a connection (a file, a pipe) is never disconnected; neither is a check
+/// that does not answer in time, which would otherwise reconnect a busy but healthy viewer.
+fn rerun_disconnected(stream: &RecordingStream) -> bool {
+    let (tx, rx) = std::sync::mpsc::channel();
+    stream.inspect_sink(move |sink| {
+        let status = (sink as &dyn std::any::Any)
+            .downcast_ref::<re_sdk::sink::GrpcSink>()
+            .map(re_sdk::sink::GrpcSink::status);
+        let _ = tx.send(status);
+    });
+    matches!(
+        rx.recv_timeout(Duration::from_millis(100)),
+        Ok(Some(re_sdk::sink::GrpcSinkConnectionState::Disconnected(_)))
+    )
+}
+
 /// Receives updates for one connection until it closes, the user stops us, or the socket dies.
 async fn subscription_loop(
     client: ClientHandle,
     state: Arc<Mutex<LiveState>>,
     stream: RecordingStream,
+    args: LiveArgs,
+    reconnecting: Arc<AtomicBool>,
     stop: Arc<AtomicBool>,
 ) {
     let mut subscriber = match client
@@ -165,6 +313,11 @@ async fn subscription_loop(
             return;
         }
     };
+
+    // A viewer that is closed mid-session is reopened without restarting the bridge.
+    let mut health = tokio::time::interval(RERUN_HEALTH_INTERVAL);
+    health.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    health.tick().await; // The first tick is immediate; `build_stream` just connected.
 
     loop {
         let deadline = {
@@ -198,6 +351,9 @@ async fn subscription_loop(
                     .lock()
                     .expect("live state poisoned")
                     .flush(&stream, now, false);
+            }
+            _ = health.tick() => {
+                ensure_rerun(&stream, &state, &args, &reconnecting);
             }
             _ = tokio::signal::ctrl_c() => {
                 re_log::info!("stopping the live bridge");
@@ -361,13 +517,18 @@ impl LiveState {
     ///
     /// Each camera reads the MJPEG URL over its own socket and logs every JPEG it parses on the
     /// camera's `image` entity. Frames are logged as soon as they arrive, with the robot time the
-    /// bridge last saw. `Drop` stops the cameras when the layout changes or the bridge exits.
+    /// bridge last saw. They start in declaration order, the same order as their 2D views, so a
+    /// session's camera log lines read the same on every run. `Drop` stops the cameras when the
+    /// layout changes or the bridge exits.
     fn start_streams(&mut self, stream: &RecordingStream, prefix: Option<&EntityPath>) {
         self.streams.clear();
         let Some(layout) = self.layout.clone() else {
             return;
         };
-        for (url, (team, camera)) in layout.cameras_by_stream() {
+        for (team, camera) in layout.cameras() {
+            let Some(url) = camera.stream.clone() else {
+                continue;
+            };
             let robot_ns = Arc::clone(&self.robot_ns);
             let last_frame_ns = Arc::new(AtomicI64::new(0));
 
@@ -395,11 +556,11 @@ impl LiveState {
             });
             match spawned {
                 Ok(camera_video) => {
-                    re_log::info!("recording the {} camera stream at {url}", camera.name);
+                    re_log::info!("recording team {team}'s {} camera at {url}", camera.name);
                     self.streams.insert(url, camera_video);
                 }
                 Err(error) => re_log::warn!(
-                    "could not start the {} camera stream at {url}: {error:#}",
+                    "could not start team {team}'s {} camera at {url}: {error:#}",
                     camera.name
                 ),
             }
@@ -1079,5 +1240,57 @@ mod tests {
             Some(2_000_000_000)
         );
         assert_eq!(robot_time_from_value(&rmpv::Value::Boolean(true)), None);
+    }
+
+    /// A URL only counts as ready once something accepts connections on it, which is what keeps
+    /// a reconnect from swapping to a viewer that has not bound yet.
+    #[test]
+    fn a_rerun_endpoint_is_reachable_when_its_port_answers() {
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = closed.local_addr().unwrap().port();
+        drop(closed);
+        assert!(!super::rerun_reachable(&format!(
+            "rerun+http://127.0.0.1:{port}/proxy"
+        )));
+
+        let listening = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listening.local_addr().unwrap().port();
+        assert!(super::rerun_reachable(&format!(
+            "rerun+http://127.0.0.1:{port}/proxy"
+        )));
+        assert!(super::rerun_reachable(&format!("http://127.0.0.1:{port}")));
+        // A host name is the sink's to resolve, so the reconnect is attempted right away.
+        assert!(super::rerun_reachable(
+            "rerun+http://viewer.invalid:9876/proxy"
+        ));
+    }
+
+    /// Local sinks have no connection to lose, so the bridge must leave them alone.
+    #[test]
+    fn file_and_pipe_sinks_are_never_reconnected() {
+        for sink in [
+            LiveSink::Save(std::path::PathBuf::from("/tmp/firstrun-reconnect.rrd")),
+            LiveSink::Stdout,
+        ] {
+            let args = LiveArgs {
+                team: None,
+                nt_addr: None,
+                robot_time_topic: None,
+                sink,
+                quiet: true,
+                entity_path_prefix: None,
+                field_model: None,
+                robot_model: None,
+            };
+            assert!(super::rerun_endpoint(&args).is_none());
+
+            let (stream, _storage) = re_sdk::RecordingStreamBuilder::new("live_sink_test")
+                .memory()
+                .unwrap();
+            assert!(!super::rerun_disconnected(&stream));
+            let state = std::sync::Arc::new(std::sync::Mutex::new(LiveState::new(args.clone())));
+            let reconnecting = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            assert!(!super::ensure_rerun(&stream, &state, &args, &reconnecting));
+        }
     }
 }

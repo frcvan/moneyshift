@@ -58,8 +58,8 @@ proxy is reported and retried rather than followed.
 
 A camera's 2D view has to be rooted at that `image` entity: Rerun only shows a pinhole's 2D content
 inside that content's own 2D space, and a view rooted at the field reports that its target frame
-has no pinhole root. The bridge sends a viewer layout with a 2D view per camera when the
-declaration has any, so a live session opens with one that works.
+has no pinhole root. The bridge sends a viewer layout with a 2D view per camera, whether or not
+robot code declared a layout of its own, so a live session always opens with a pane that works.
 
 The same frames also land on the pinhole plane in the 3D view, `image_plane_distance` in front of
 the lens. That plane is only a couple of meters across, so on a field-wide view the picture is a
@@ -77,7 +77,15 @@ timeline alone.
 
 Declare nothing and the bridge sends its default: a 3D view of the field, a 2D view of it, a
 dataframe of the timeline, and — when the declaration has cameras — a grid of their 2D views.
-Auto views stay on either way, so topics you did not mention still get panes.
+Declared views replace that default, but the cameras keep a 2D view either way. The camera panes
+follow the order you declared them in, so a layout never shuffles between runs; when two robots
+mount a camera with the same name, the title carries the team (`camera front (6391)`).
+
+The bridge also turns the viewer's automatic views off, because its data spans several independent
+trees (`first/`, `first2d/` and every NetworkTables path). Rerun's automatic layout answers that
+with a view rooted at `/`, which sweeps in the cameras and reports that a pinhole cannot be drawn
+in it. Topics no view names are still recorded and browsable in the entity tree; name the ones you
+want in a view to get a pane for them.
 
 `cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]` renders a field with two
 swerve robots, camera video and a planned path for checking the overlays without a robot. Without
@@ -96,8 +104,10 @@ rerun-importer-firstrun --nt --robot-time-topic /FMSInfo/MatchTime --connect rer
 Sinks are mutually exclusive: `--spawn` (default, needs `rerun` on `PATH`), `--connect <url>`,
 `--save <path.rrd>`, `--stdout`. `robot_time` comes from the NT server timestamp unless
 `--robot-time-topic` is set (`double` seconds or `int` microseconds); `log_time` is wall clock.
-Ctrl-C flushes and exits 0. The bridge reconnects with backoff and keeps the entity metadata cache
-across reconnects.
+Ctrl-C flushes and exits 0. The bridge reconnects both sides and keeps the entity metadata cache
+across reconnects: NetworkTables is dialed again with backoff, and a Rerun viewer that was closed
+is reopened (`--spawn`) or retried (`--connect`) and gets the field, robots, cameras and layout
+again. `--save` and `--stdout` have no connection to lose and are never restarted.
 
 `--field-model <path>` and `--robot-model <path>` select your own glTF/GLB/OBJ/STL models
 instead of waiting for the declaration to name a field model or settling for robot boxes. The

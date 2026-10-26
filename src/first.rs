@@ -247,20 +247,16 @@ impl Layout {
             .collect()
     }
 
-    /// Cameras that stream MJPEG, keyed by their stream URL.
-    #[must_use]
-    pub fn cameras_by_stream(&self) -> HashMap<String, (u16, Camera)> {
+    /// The declared cameras, with the team each is mounted on.
+    ///
+    /// The order is the declaration's own: robots in the order they were declared, and each
+    /// robot's cameras in the order they were mounted. Camera `image` entities, the live streams
+    /// and the 2D views of the viewer layout all follow it, so a session's cameras look the same
+    /// from one run to the next.
+    pub fn cameras(&self) -> impl Iterator<Item = (u16, &Camera)> {
         self.robots
             .iter()
-            .flat_map(|robot| {
-                robot.cameras.iter().filter_map(|camera| {
-                    camera
-                        .stream
-                        .as_ref()
-                        .map(|url| (url.clone(), (robot.team, camera.clone())))
-                })
-            })
-            .collect()
+            .flat_map(|robot| robot.cameras.iter().map(move |camera| (robot.team, camera)))
     }
 
     /// Logs the field and robot models as static data, as the declaration describes them.
@@ -925,24 +921,30 @@ pub fn log_camera_frame(
     Ok(())
 }
 
-/// Sends a viewer layout that puts every camera stream in a 2D view that can show it.
+/// Sends the viewer layout the bridge's data needs, one 2D view per camera included.
 ///
-/// Rerun only shows a pinhole's 2D content in a 2D view rooted at that content, and its
-/// automatic layout roots a camera's 2D view at the pinhole, which leaves the pane empty and
-/// reports that the view's target frame has no pinhole root. This blueprint gives each camera a
-/// 2D view at its image entity, next to a 3D view of the field; automatic views stay enabled so
-/// every other topic is still graphed. The 3D view draws the same footage on the pinhole plane,
-/// so the pane and the frustum show one stream rather than two.
+/// Rerun only shows a pinhole's 2D content in a 2D view rooted at that content: any other 2D
+/// view that sees the frames reports that its target frame has no pinhole root. This blueprint
+/// therefore gives each camera a 2D view at its image entity, next to a 3D view of the field
+/// (which draws the same footage on the pinhole plane, so the pane and the frustum show one
+/// stream rather than two). Those camera views are added to a layout robot code declared too.
 ///
-/// Returns `false` when the declaration has no cameras: a recording without camera footage keeps
-/// the viewer's automatic layout untouched.
+/// The viewer's automatic views are turned off: the bridge draws its own field, robots and
+/// cameras under `first/` and `first2d/` while every other topic keeps its NetworkTables path,
+/// so the content spans several top-level trees. Rerun's automatic layout answers that with a
+/// view rooted at `/`, which covers the cameras as well and is exactly the view a pinhole cannot
+/// be drawn in; a session would open with a broken pane reporting the pinhole error next to
+/// working ones. The bridge's layout is authoritative instead.
+///
+/// Returns `false` when there is nothing to show: a declaration without views or cameras leaves
+/// the viewer alone.
 pub fn log_blueprint(
     stream: &RecordingStream,
     layout: &Layout,
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<bool> {
     let declared = layout.blueprint.as_ref().filter(|it| !it.views.is_empty());
-    let (views, kind) = match declared {
+    let (mut views, kind) = match declared {
         Some(declared) => (
             declared
                 .views
@@ -953,6 +955,19 @@ pub fn log_blueprint(
         ),
         None => (default_views(layout, prefix), Container::Grid),
     };
+    if let Some(declared) = declared {
+        // A declared layout replaces the default one, but never the cameras: without a view of
+        // its own a camera is missing from every 2D pane.
+        let declared_origins = declared
+            .views
+            .iter()
+            .map(|view| at(prefix, view.origin()).to_string())
+            .collect();
+        let cameras = camera_views(layout, prefix, &declared_origins);
+        if !cameras.is_empty() {
+            views.push(Grid::new(cameras).into());
+        }
+    }
     if views.is_empty() {
         return Ok(false);
     }
@@ -963,7 +978,7 @@ pub fn log_blueprint(
         Container::Vertical => Vertical::new(views).into(),
     };
     let blueprint = Blueprint::new(container)
-        .with_auto_views(true)
+        .with_auto_views(false)
         .with_auto_layout(true);
     stream.send_blueprint_opts(&BlueprintOpts {
         blueprint,
@@ -974,17 +989,52 @@ pub fn log_blueprint(
     Ok(true)
 }
 
-/// The 2D views a blueprint gives a robot's cameras, one per camera.
-fn camera_views(layout: &Layout, prefix: Option<&EntityPath>) -> Vec<ContainerLike> {
+/// The 2D views a blueprint gives a robot's cameras, one per camera in declaration order.
+///
+/// `already_viewed` holds the entity paths a blueprint's own views are rooted at, so a camera
+/// robot code already asked for does not get a second pane. Two robots may name a camera alike
+/// ("front" is the usual choice), so a repeated name carries the team number and the panes stay
+/// distinguishable.
+fn camera_views(
+    layout: &Layout,
+    prefix: Option<&EntityPath>,
+    already_viewed: &HashSet<String>,
+) -> Vec<ContainerLike> {
+    camera_view_origins(layout, prefix, already_viewed)
+        .into_iter()
+        .map(|(label, origin)| {
+            Spatial2DView::new(label)
+                .with_origin(EntityPath::from(origin))
+                .into()
+        })
+        .collect()
+}
+
+/// The title of each camera view and the `image` entity it is rooted at, in declaration order.
+fn camera_view_origins(
+    layout: &Layout,
+    prefix: Option<&EntityPath>,
+    already_viewed: &HashSet<String>,
+) -> Vec<(String, String)> {
+    let mut name_counts = HashMap::new();
+    for (_, camera) in layout.cameras() {
+        *name_counts.entry(camera.name.as_str()).or_insert(0_usize) += 1;
+    }
     layout
-        .robots
-        .iter()
-        .flat_map(|robot| {
-            robot.cameras.iter().map(move |camera| {
-                Spatial2DView::new(format!("camera {}", camera.name))
-                    .with_origin(at(prefix, camera_image_entity(robot.team, &camera.name)))
-                    .into()
-            })
+        .cameras()
+        .filter_map(move |(team, camera)| {
+            let camera_path = at(prefix, camera_entity(team, &camera.name)).to_string();
+            let image_path = at(prefix, camera_image_entity(team, &camera.name)).to_string();
+            // A view at the camera entity shows its frames as well: the pinhole is its root.
+            if already_viewed.contains(&camera_path) || already_viewed.contains(&image_path) {
+                return None;
+            }
+            let label = if name_counts.get(camera.name.as_str()) == Some(&1) {
+                format!("camera {}", camera.name)
+            } else {
+                format!("camera {} ({team})", camera.name)
+            };
+            Some((label, image_path))
         })
         .collect()
 }
@@ -994,7 +1044,7 @@ fn camera_views(layout: &Layout, prefix: Option<&EntityPath>) -> Vec<ContainerLi
 /// A 3D view of the field, a 2D view of it, a dataframe of the recording's timeline alone (robot
 /// code names the extra columns it wants), and the cameras as a grid of their own.
 fn default_views(layout: &Layout, prefix: Option<&EntityPath>) -> Vec<ContainerLike> {
-    let cameras = camera_views(layout, prefix);
+    let cameras = camera_views(layout, prefix, &HashSet::new());
     let mut views: Vec<ContainerLike> = vec![
         Spatial3DView::new("3D")
             .with_origin(at(prefix, ROOT_3D.to_owned()))
@@ -1011,6 +1061,16 @@ fn default_views(layout: &Layout, prefix: Option<&EntityPath>) -> Vec<ContainerL
 }
 
 impl ViewDecl {
+    /// The entity path this view is rooted at, before any `--entity-path-prefix`.
+    fn origin(&self) -> String {
+        // A dataframe view spans the whole recording unless robot code names an origin.
+        self.origin.clone().unwrap_or_else(|| match self.kind {
+            ViewKind::ThreeD => ROOT_3D.to_owned(),
+            ViewKind::TwoD => ROOT_2D.to_owned(),
+            ViewKind::Dataframe => String::new(),
+        })
+    }
+
     /// Turns a declared view into the SDK's blueprint view.
     fn to_view(&self, prefix: Option<&EntityPath>) -> ContainerLike {
         let name = self.name.clone().unwrap_or_else(|| match self.kind {
@@ -1018,12 +1078,7 @@ impl ViewDecl {
             ViewKind::TwoD => "2D".to_owned(),
             ViewKind::Dataframe => "State".to_owned(),
         });
-        // A dataframe view spans the whole recording unless robot code names an origin.
-        let origin = self.origin.clone().unwrap_or_else(|| match self.kind {
-            ViewKind::ThreeD => ROOT_3D.to_owned(),
-            ViewKind::TwoD => ROOT_2D.to_owned(),
-            ViewKind::Dataframe => String::new(),
-        });
+        let origin = self.origin();
         let with_origin = |origin: &str| at(prefix, origin.to_owned());
         match self.kind {
             ViewKind::ThreeD => Spatial3DView::new(name)
@@ -1270,6 +1325,18 @@ mod tests {
         "stream":"http://10.63.91.11:1181/stream.mjpg"}]}],
         "paths":[{"name":"auto","topic":"/Path"}]}"#;
 
+    /// Two robots that both mount a `front` camera, plus one camera named only once.
+    const DECLARATION_WITH_TWO_ROBOT_CAMERAS: &str = r#"{"version":1,"field":{"carpet":true,
+        "lines":[],"tags":[]},"robots":[
+        {"team":6391,"pose_topic":"/A/Pose","half_extents":[0.45,0.45,0.3],"cameras":[
+        {"name":"rear","x":-0.3,"y":0.0,"z":0.5,"roll":0.0,"pitch":10.0,"yaw":0.0,"fov":70.0,
+        "stream":"http://team6391:1182/stream.mjpg"},
+        {"name":"front","x":0.3,"y":0.0,"z":0.5,"roll":0.0,"pitch":-10.0,"yaw":0.0,"fov":70.0,
+        "stream":"http://team6391:1181/stream.mjpg"}]},
+        {"team":1234,"pose_topic":"/B/Pose","half_extents":[0.45,0.45,0.3],"cameras":[
+        {"name":"front","x":0.3,"y":0.0,"z":0.5,"roll":0.0,"pitch":-10.0,"yaw":0.0,"fov":70.0,
+        "stream":"http://team1234:1181/stream.mjpg"}]}]}"#;
+
     #[test]
     fn parses_the_declaration_java_publishes() {
         let layout = Layout::parse(DECLARATION).unwrap();
@@ -1311,11 +1378,47 @@ mod tests {
             layout.robots[0].cameras[0].stream.as_deref(),
             Some("http://10.63.91.11:1181/stream.mjpg")
         );
-        let streams = layout.cameras_by_stream();
-        assert_eq!(streams["http://10.63.91.11:1181/stream.mjpg"].0, 254);
+        let cameras = layout.cameras().collect::<Vec<_>>();
+        assert_eq!(cameras.len(), 1);
+        assert_eq!(cameras[0].0, 254);
+        assert_eq!(cameras[0].1.name, "front");
+    }
+
+    #[test]
+    fn cameras_follow_the_declaration_order() {
+        let layout = Layout::parse(DECLARATION_WITH_TWO_ROBOT_CAMERAS).unwrap();
+
         assert_eq!(
-            streams["http://10.63.91.11:1181/stream.mjpg"].1.name,
-            "front"
+            layout
+                .cameras()
+                .map(|(team, camera)| (team, camera.name.as_str()))
+                .collect::<Vec<_>>(),
+            [(6391, "rear"), (6391, "front"), (1234, "front")],
+            "robots in declaration order, then each robot's cameras in mount order"
+        );
+    }
+
+    #[test]
+    fn repeated_camera_names_carry_their_team_in_the_view_title() {
+        use std::collections::HashSet;
+
+        let layout = Layout::parse(DECLARATION_WITH_TWO_ROBOT_CAMERAS).unwrap();
+        let names = super::camera_view_origins(&layout, None, &HashSet::new())
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            names,
+            ["camera rear", "camera front (6391)", "camera front (1234)",],
+            "only a name two robots share carries the team number"
+        );
+
+        let single = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        assert_eq!(
+            super::camera_view_origins(&single, None, &HashSet::new())[0].0,
+            "camera front",
+            "a name only one robot uses is left alone"
         );
     }
 
@@ -1566,6 +1669,34 @@ mod tests {
         assert_eq!(blueprint.container, super::Container::Tabs);
         assert_eq!(blueprint.views[0].entities, ["/Demo/OpMode"]);
         assert!(super::log_blueprint(&stream, &layout, None).unwrap());
+    }
+
+    #[test]
+    fn cameras_keep_a_2d_view_next_to_a_declared_layout() {
+        use std::collections::HashSet;
+
+        let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        let team = layout.robots[0].team;
+        let camera = format!("/first/robots/{team}/cameras/front");
+        let image = format!("{camera}/image");
+
+        assert_eq!(
+            super::camera_views(&layout, None, &HashSet::new()).len(),
+            1,
+            "every declared camera gets a 2D view of its own"
+        );
+
+        for viewed in [camera, image] {
+            let already_viewed = HashSet::from([viewed.clone()]);
+            assert!(
+                super::camera_views(&layout, None, &already_viewed).is_empty(),
+                "a view robot code rooted at {viewed} already shows the frames"
+            );
+        }
+
+        // A view at an ancestor, such as the robot, cannot show a pinhole's content.
+        let robot = HashSet::from([format!("/first/robots/{team}")]);
+        assert_eq!(super::camera_views(&layout, None, &robot).len(), 1);
     }
 
     #[test]

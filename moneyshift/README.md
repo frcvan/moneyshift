@@ -82,9 +82,9 @@ no external process to install and every frame the camera sends is recorded.
 
 A 2D view of a camera must be rooted at its `image` entity: Rerun only shows a pinhole's 2D content
 inside that content's own 2D space, so a view rooted at the field reports that its target frame has
-no pinhole root. When the declaration names a camera the bridge also sends a viewer layout with a
-2D view for it. The 3D view shows the same frames on the pinhole plane, a couple of meters in
-front of the lens, so zoom in on the robot to see it there.
+no pinhole root. When the declaration names a camera the bridge always sends a viewer layout with a
+2D view for it, whether or not you declared views of your own. The 3D view shows the same frames on
+the pinhole plane, a couple of meters in front of the lens, so zoom in on the robot to see it there.
 
 The viewer layout is part of the same declaration:
 

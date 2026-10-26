@@ -121,11 +121,16 @@ Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUE
   field and its AprilTags as a 3D scene), which is the URL `Constants.CAMERA_STREAM` names.
   Simulation is therefore a real end-to-end camera source: the bridge reads that HTTP stream
   exactly as it reads a robot's.
-- Rerun only renders a pinhole's 2D content in a 2D view rooted at *that content*: a view rooted at
-  the camera or the field reports "the 2D view's target frame doesn't have a pinhole root". When a
-  declaration names a camera, `first::log_blueprint` sends a viewer layout with a 3D view of the
-  field plus one 2D view per camera at `<camera>/image` (automatic views stay on). It is sent for
-  live sessions only, once per layout arrival.
+- Rerun only renders a pinhole's 2D content in a 2D view rooted at *that content*: a view rooted
+  at the robot, the field or `/` reports "the 2D view's target frame doesn't have a pinhole root".
+  `first::log_blueprint` sends one 2D view per camera at `<camera>/image` (robot code's own views
+  do not remove those) and turns automatic views **off**: an automatic view rooted at `/` covers
+  the cameras and cannot draw them. It is sent for live sessions only, once per layout arrival.
+- Cameras have exactly one order: the declaration's (`Layout::cameras` — robots as declared, then
+  each robot's mount order). Camera views, `start_streams` and the startup log all follow it, so a
+  session's panes never shuffle between runs. Do not iterate cameras through a `HashMap`. A camera
+  name two robots share ("front" usually is) gets its team in the view title, e.g.
+  `camera front (6391)`; a unique name stays `camera front`.
 - The 2D lane (`first2d/...`) keeps WPILib's field frame (`+x` toward red, `+y` toward blue's
   left, never negated) so it lines up with every other 2D WPILib topic in the recording; Rerun 2D
   views themselves put `+y` down the screen.
@@ -186,6 +191,14 @@ Useful when changing the console binary:
 - Live mode maps `/Rerun/...` with the protocol decoder and everything else through the existing
   `EntryLog` + `conv` heuristics. `robot_time` comes from the NT server timestamp by default;
   `log_time` is the SDK's wall clock.
+- The live loop reconnects both sides. NetworkTables is dialed again with backoff, which resets
+  after a connection that lasted `HEALTHY_CONNECTION`. A Rerun stream has nothing to dial: once the
+  viewer closes its `GrpcSink` reports `Disconnected` (read it with `GrpcSink::status` through
+  `RecordingStream::inspect_sink`) and every later chunk is dropped. `ensure_rerun` swaps the sink
+  with `connect_grpc_opts` — only once something answers on the endpoint, because the swap itself
+  blocks on the new viewer's first flush — off the read loop, and sets `layout_pending` so the new
+  viewer gets the static field, robots, cameras and blueprint again. Do not reconnect
+  `--save`/`--stdout` sinks; there is no connection to lose.
 
 ## Gotchas
 
@@ -193,6 +206,27 @@ Useful when changing the console binary:
   `~/.cargo/bin/rerun --screenshot-to /tmp/shot.png some.rrd` writes a PNG of the rendered viewer.
   Pane contents are only readable after downscaling a very large screenshot. This is how the
   camera-pinhole layout rules above were verified.
+- Rerun 0.40 also ships a viewer MCP (`rerun viewer-mcp`), which reads a **running** viewer and is
+  the fastest way to see what a viewer really reports:
+  - It speaks MCP over stdio: start it with `--endpoint http://127.0.0.1:9876` (the viewer's gRPC
+    port), or call its `rerun_connect` tool first. The handshake is newline-delimited JSON-RPC:
+    `initialize`, `notifications/initialized`, then `tools/call` with
+    `{"name":"rerun_get_viewer_state","arguments":{}}`; results arrive as
+    `result.content[0].text` holding a JSON string.
+  - `rerun_get_viewer_state` lists every view of the active blueprint with its class, origin and
+    the warnings/errors it reports. That is how the pinhole rules above are reproduced and checked
+    — per-view reports never reach the viewer's log, so a screenshot alone cannot show them.
+  - `rerun_get_transform_graph` (pass the `store_id`, `include_transforms: true`) shows frames,
+    their 2D/3D subspace and every edge including `pinhole` intrinsics;
+    `rerun_get_recording_schema` lists entities and components;
+    `rerun_set_location` switches recordings with `about:recording?app_id=…&recording_id=…`;
+    `rerun_close_recordings` drops recordings again.
+  - A `--headless` viewer serves SDK connections but does not answer `rerun_connect` ("transport
+    error"), so queries need a windowed viewer on a spare port (`rerun --port 9881 file.rrd`);
+    kill it when done.
+  - Read-only tools are safe on a user's live viewer. Anything that writes — `rerun_set_location`,
+    `rerun_close_recordings`, `rerun_set_blueprint`, input events — changes their session; put it
+    back and tell them.
 
 - `nt_client` is client-only and tokio-based; live code must be `#[cfg(not(target_arch = "wasm32"))]`.
   The same applies to `re_sdk` and `tokio` in `Cargo.toml`.
