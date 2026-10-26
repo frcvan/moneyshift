@@ -50,18 +50,18 @@ vectors, camera frustums, paths and a 2D top-down mirror under `first/` and `fir
 `/Rerun` topics required on the robot.
 
 A camera can also name the MJPEG URL PhotonVision serves for it
-(`http://<coprocessor>:1181/stream.mjpg`). An `ffmpeg` subprocess reads that
-`multipart/x-mixed-replace` stream, so the bridge needs `ffmpeg` on `PATH` for camera footage (and
-none of it otherwise), and logs it as H.264 `VideoStream` samples on
-`first/robots/<team>/cameras/<name>/image`. Re-encoding is what makes a live feed play smoothly:
-every frame after the first is a delta, where one JPEG per frame is what flickers.
+(`http://<coprocessor>:1181/stream.mjpg`). The bridge opens that `multipart/x-mixed-replace` stream
+itself over a plain socket and logs one `EncodedImage` per JPEG frame on
+`first/robots/<team>/cameras/<name>/image`, so everything the camera sends is recorded and there is
+nothing extra to install. Only plain `http://` is supported: a URL that needs TLS, redirects or a
+proxy is reported and retried rather than followed.
 
 A camera's 2D view has to be rooted at that `image` entity: Rerun only shows a pinhole's 2D content
 inside that content's own 2D space, and a view rooted at the field reports that its target frame
 has no pinhole root. The bridge sends a viewer layout with a 2D view per camera when the
 declaration has any, so a live session opens with one that works.
 
-The same stream also lands on the pinhole plane in the 3D view, `image_plane_distance` in front of
+The same frames also land on the pinhole plane in the 3D view, `image_plane_distance` in front of
 the lens. That plane is only a couple of meters across, so on a field-wide view the picture is a
 small patch next to the robot rather than a full-size pane; zoom in on the robot to read it.
 

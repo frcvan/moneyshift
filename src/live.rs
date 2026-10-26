@@ -359,7 +359,7 @@ impl LiveState {
 
     /// Starts one camera per declared stream, replacing any from a previous layout.
     ///
-    /// Each camera runs an `ffmpeg` that reads the MJPEG URL and writes an H.264 stream on the
+    /// Each camera reads the MJPEG URL over its own socket and logs every JPEG it parses on the
     /// camera's `image` entity. Frames are logged as soon as they arrive, with the robot time the
     /// bridge last saw. `Drop` stops the cameras when the layout changes or the bridge exits.
     fn start_streams(&mut self, stream: &RecordingStream, prefix: Option<&EntityPath>) {
@@ -367,13 +367,6 @@ impl LiveState {
         let Some(layout) = self.layout.clone() else {
             return;
         };
-        if !mjpeg::ffmpeg_available() {
-            re_log::warn_once!(
-                "ffmpeg was not found on PATH; camera footage is not recorded. Install ffmpeg and \
-                 restart the bridge"
-            );
-            return;
-        }
         for (url, (team, camera)) in layout.cameras_by_stream() {
             let robot_ns = Arc::clone(&self.robot_ns);
             let last_frame_ns = Arc::new(AtomicI64::new(0));
@@ -384,31 +377,24 @@ impl LiveState {
             let video_prefix = prefix.cloned();
             let video_camera = camera.clone();
 
-            let spawned = mjpeg::CameraVideo::spawn(url.clone(), move |sample| {
+            let spawned = mjpeg::CameraVideo::spawn(url.clone(), move |frame| {
                 let time = frame_time(&video_robot_ns, &video_last_ns);
-                if let Err(error) = first::log_video_frame(
+                if let Err(error) = first::log_camera_frame(
                     &video_recording,
                     team,
                     &video_camera,
-                    &sample.data,
-                    sample.keyframe,
+                    &frame.data,
                     time,
                     video_prefix.as_ref(),
                 ) {
                     re_log::debug_once!(
-                        "could not log a video sample from camera {}: {error}",
+                        "could not log a frame from camera {}: {error}",
                         video_camera.name
                     );
                 }
             });
             match spawned {
                 Ok(camera_video) => {
-                    if let Err(error) = first::log_video_codec(stream, team, &camera, prefix) {
-                        re_log::warn!(
-                            "could not announce the video codec for camera {}: {error}",
-                            camera.name
-                        );
-                    }
                     re_log::info!("recording the {} camera stream at {url}", camera.name);
                     self.streams.insert(url, camera_video);
                 }
@@ -865,12 +851,11 @@ fn duration_nanos(duration: Duration) -> i64 {
     i64::try_from(duration.as_nanos()).unwrap_or(i64::MAX)
 }
 
-/// `double` means seconds and `int` means microseconds, matching WPILib's common conventions.
 /// A strictly increasing presentation time for camera frames.
 ///
 /// The bridge's robot time comes from NetworkTables and can repeat or step back between frames;
-/// Rerun resets video playback when samples arrive out of order, so each frame is clamped past
-/// the previous one.
+/// Rerun discards a sample that belongs on a time it has already passed, so each frame is clamped
+/// past the previous one.
 fn frame_time(robot_ns: &AtomicI64, last_frame_ns: &AtomicI64) -> TimeCell {
     let target = robot_ns.load(Ordering::Relaxed).max(0);
     let mut previous = last_frame_ns.load(Ordering::Relaxed);
@@ -889,6 +874,7 @@ fn frame_time(robot_ns: &AtomicI64, last_frame_ns: &AtomicI64) -> TimeCell {
     TimeCell::from_duration_nanos(NonMinI64::new(nanos).unwrap_or_default())
 }
 
+/// `double` means seconds and `int` means microseconds, matching WPILib's common conventions.
 fn robot_time_from_value(value: &rmpv::Value) -> Option<i64> {
     match value {
         rmpv::Value::F64(seconds) => Some((seconds * 1e9) as i64),

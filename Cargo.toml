@@ -38,8 +38,8 @@ wasm-bindgen = "0.2.126"
 re_build_tools = "0.40.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# Camera MJPEG streams are read and transcoded by an `ffmpeg` subprocess (see `src/mjpeg.rs`);
-# there is no HTTP client or MJPEG parser in the bridge.
+# Camera MJPEG streams are opened over a plain socket and split into JPEGs by the bridge itself
+# (see `src/mjpeg.rs`); there is no HTTP client crate and no external process involved.
 nt_client = { version = "0.5.1", features = ["struct"] }
 re_sdk = "0.40.0"
 rmpv = "1.3.0"

@@ -106,27 +106,21 @@ Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUE
 - `org.teamvan.moneyshift.frc.FirstMetadata` publishes the `/Firstrun/layout` declaration the
   bridge reads; `src/first.rs` owns the drawing. Robot bodies span `0..2h` above the carpet (a
   pose is on the floor) and swerve vectors are drawn above the body. A camera's optional ninth
-  argument is PhotonVision's MJPEG URL. There is no NT transport for camera frames, and no HTTP or
-  MJPEG code in the bridge: `src/mjpeg.rs` runs one `ffmpeg` per camera on that URL (`-f mpjpeg`).
-- A camera's footage is H.264 `VideoStream` samples on `<camera>/image`, one level below the
-  static `Transform3D` and `Pinhole`. Do not re-add per-frame JPEGs to the live path as a workaround
-  for 3D (it is what made the feed flicker). `VideoStream` *is* projected onto the pinhole plane in a
-  3D view — Rerun's docs list `Spatial3DView` for it "if logged under a projection", and a bare
-  `Pinhole` carrying a stream renders there. In this bridge's layout it does not: the camera hangs
-  under the field and robot transforms, and Rerun rejects the content when the stream's transform
-  tree root is not the pinhole itself (the 2D view rooted at the stream still plays it). That is the
-  open bug; verify any fix by screenshotting a 3D view of a recording with footage.
-- In simulation the camera URL is live: `VisionSystemSim.addCamera` starts PhotonVision's camera
-  server, so `http://127.0.0.1:1181/stream.mjpg` serves the simulated camera rendering the field and
-  its AprilTags as a 3D scene. Simulation is therefore a real end-to-end camera source — the bridge
-  runs `ffmpeg` against it exactly as it does on a robot.
+  argument is PhotonVision's MJPEG URL. There is no NT transport for camera frames: `src/mjpeg.rs`
+  opens that URL over a plain socket, splits the `multipart/x-mixed-replace` response into JPEGs
+  itself, and the bridge needs no external process for footage. Only plain `http://` is supported —
+  no TLS, redirects or proxies — and a URL that is not reachable fails with a logged message
+  instead of a stall.
+- A camera's footage is one `EncodedImage` per frame on `<camera>/image`, one level below the
+  static `Transform3D` and `Pinhole`. That single entity feeds both the camera's 2D pane and the
+  pinhole plane of a 3D view, so there is no second copy of the frames to keep in sync. Frames
+  must carry strictly increasing `robot_time` (`frame_time` clamps them), or Rerun drops the ones
+  that land on a time it has already passed.
 - In simulation PhotonVision serves the camera itself: `VisionSystemSim.addCamera` starts a camera
-  server that streams what the simulated camera sees at `http://127.0.0.1:1181/stream.mjpg`, so the
-  demo's `Constants.CAMERA_STREAM` URL carries real frames in sim and the bridge records them.
-- `ffmpeg` reads the MJPEG URL itself; nothing in the crate parses HTTP or multipart. It needs
-  `-probesize 32 -analyzeduration 0`, or it analyzes seconds of input before its first output and
-  the camera looks dead. Samples must carry strictly increasing `robot_time` (`frame_time` clamps
-  them), or the viewer restarts playback and the feed flickers.
+  server that streams what the simulated camera sees at `http://127.0.0.1:1181/stream.mjpg` (the
+  field and its AprilTags as a 3D scene), which is the URL `Constants.CAMERA_STREAM` names.
+  Simulation is therefore a real end-to-end camera source: the bridge reads that HTTP stream
+  exactly as it reads a robot's.
 - Rerun only renders a pinhole's 2D content in a 2D view rooted at *that content*: a view rooted at
   the camera or the field reports "the 2D view's target frame doesn't have a pinhole root". When a
   declaration names a camera, `first::log_blueprint` sends a viewer layout with a 3D view of the

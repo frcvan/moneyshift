@@ -23,10 +23,10 @@ use re_sdk_types::{
     Rotation3D,
     archetypes::{
         Arrows3D, Asset3D, Boxes2D, Boxes3D, EncodedImage, LineStrips2D, LineStrips3D, Pinhole,
-        Transform3D, VideoStream, ViewCoordinates,
+        Transform3D, ViewCoordinates,
     },
     components::{
-        FillMode, RotationAxisAngle, RotationQuat, Translation3D, VideoCodec,
+        FillMode, MediaType, RotationAxisAngle, RotationQuat, Translation3D,
         ViewCoordinates as ViewCoordinatesComponent,
     },
     encodings::{Angle, Quaternion},
@@ -549,9 +549,8 @@ pub struct Camera {
     /// `http://10.63.91.11:1181/stream.mjpg`.
     ///
     /// PhotonVision cameras are just links to a `multipart/x-mixed-replace` stream. The bridge
-    /// hands the URL to an `ffmpeg` subprocess, which turns it into the H.264 [`VideoStream`]
-    /// logged below the camera's pinhole. Streams must be plain `http://`: `ffmpeg` would follow
-    /// `https://`, but PhotonVision never serves it.
+    /// reads the parts itself and logs each JPEG below the camera's pinhole, so no external
+    /// process is needed. Streams must be plain `http://`: TLS and redirects are not supported.
     #[serde(default)]
     pub stream: Option<String>,
 }
@@ -881,9 +880,9 @@ pub fn image_media_type(bytes: &[u8]) -> Option<&'static str> {
 
 /// Logs one camera image as an `EncodedImage` on the camera's `image` entity.
 ///
-/// This is for callers that already have pictures (the `first_field` example renders a synthetic
-/// clip); a live camera's footage is a `VideoStream`, which Rerun cannot project onto a pinhole in
-/// a 3D view at all. Returns `false` when the bytes are not a JPEG or PNG image.
+/// This is for callers that already have encoded pictures of unknown type (the `first_field`
+/// example renders a synthetic clip); a live camera's frames go through
+/// [`log_camera_frame`]. Returns `false` when the bytes are not a JPEG or PNG image.
 pub fn log_image(
     stream: &RecordingStream,
     team: u16,
@@ -903,46 +902,25 @@ pub fn log_image(
     Ok(true)
 }
 
-/// Logs the static codec of a camera whose footage arrives as an H.264 video stream.
+/// Logs one camera frame as a JPEG `EncodedImage` on the camera's `image` entity.
 ///
-/// `ffmpeg` re-encodes PhotonVision's MJPEG, because Rerun's `VideoStream` has no MJPEG codec and
-/// reloading a JPEG per frame is what makes a live feed flicker. Call this once per camera before
-/// logging samples.
-pub fn log_video_codec(
+/// That entity sits below the camera's static `Transform3D` and `Pinhole`, so the same frame is
+/// shown both by a 2D view rooted at it and on the pinhole plane of a 3D view.
+pub fn log_camera_frame(
     stream: &RecordingStream,
     team: u16,
     camera: &Camera,
-    prefix: Option<&EntityPath>,
-) -> anyhow::Result<()> {
-    stream.log_static(
-        at(prefix, camera_image_entity(team, &camera.name)),
-        &VideoStream::new(VideoCodec::H264),
-    )?;
-    Ok(())
-}
-
-/// Logs one H.264 access unit (exactly one frame) on the camera's video stream.
-///
-/// Samples must be logged in presentation order: Rerun resets a video stream's playback when a
-/// sample arrives out of order, which is the other way a live feed can flicker.
-pub fn log_video_frame(
-    stream: &RecordingStream,
-    team: u16,
-    camera: &Camera,
-    sample: &[u8],
-    keyframe: bool,
+    jpeg: &[u8],
     time: TimeCell,
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<()> {
-    if sample.is_empty() {
+    if jpeg.is_empty() {
         return Ok(());
     }
     stream.set_time("robot_time", time);
     stream.log(
         at(prefix, camera_image_entity(team, &camera.name)),
-        &VideoStream::update_fields()
-            .with_sample(sample)
-            .with_is_keyframe(keyframe),
+        &EncodedImage::new(jpeg.to_vec()).with_media_type(MediaType::JPEG),
     )?;
     Ok(())
 }
@@ -1104,10 +1082,10 @@ fn camera_entity(team: u16, name: &str) -> String {
 
 /// The entity a camera's footage is logged on, one level below the pinhole.
 ///
-/// Rerun only shows a pinhole's 2D content in a 2D view rooted at that content entity itself, so
-/// this is also the origin a camera's 2D view needs. The same footage also lands on the pinhole
-/// plane in a 3D view, drawn `CAMERA_IMAGE_PLANE_DISTANCE` in front of the lens, which on a field
-/// this size is a couple of meters across and therefore small.
+/// A 2D view must be rooted at the content entity itself, so this is the origin a camera's 2D
+/// view needs; the same footage is drawn on the pinhole plane in a 3D view,
+/// `CAMERA_IMAGE_PLANE_DISTANCE` in front of the lens, which on a field this size is a couple of
+/// meters across and therefore small.
 fn camera_image_entity(team: u16, name: &str) -> String {
     format!("{}/image", camera_entity(team, name))
 }
@@ -1522,8 +1500,8 @@ mod tests {
     }
 
     #[test]
-    fn logs_camera_frames_as_a_video_stream() {
-        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_video_test")
+    fn logs_camera_frames_as_encoded_images() {
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_image_test")
             .memory()
             .unwrap();
         let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
@@ -1531,26 +1509,16 @@ mod tests {
         let time =
             re_log_types::TimeCell::from_duration_nanos(re_log_types::NonMinI64::new(1).unwrap());
 
-        super::log_video_codec(&stream, 254, camera, None).unwrap();
-        super::log_video_frame(
-            &stream,
-            254,
-            camera,
-            &[0, 0, 0, 1, 0x09, 0xF0, 0, 0, 0, 1, 0x65, 0x88],
-            true,
-            time,
-            None,
-        )
-        .unwrap();
+        super::log_camera_frame(&stream, 254, camera, JPEG, time, None).unwrap();
 
-        let video = chunks(storage.take());
+        let images = chunks(storage.take());
         assert!(
             has(
-                &video,
+                &images,
                 "/first/robots/254/cameras/front/image",
-                "rerun.archetypes.VideoStream"
+                "rerun.archetypes.EncodedImage"
             ),
-            "camera footage is a video stream on the camera's image entity"
+            "camera footage is an encoded image on the camera's image entity"
         );
     }
 

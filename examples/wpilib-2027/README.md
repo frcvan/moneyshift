@@ -42,7 +42,7 @@ rerun /tmp/demo.rrd
 Every value under `/Demo/...` and the AdvantageKit `RealOutputs` are graphed on their own; the
 layout adds `first/field`, `first/robots/6391` (the pose), `first/robots/6391/model`,
 `first/robots/6391/swerve` (module vectors), `first/robots/6391/cameras/front` (frustum, with the
-video on `.../front/image`) and the `first2d/` top-down mirror. Camera footage in simulation comes from
+footage on `.../front/image`) and the `first2d/` top-down mirror. Camera footage in simulation comes from
 PhotonVision's own camera server: `VisionSystemSim.addCamera` serves what the
 simulated camera sees at `http://127.0.0.1:1181/stream.mjpg`, which is the URL
 `Constants.CAMERA_STREAM` names, so frames appear without a coprocessor.
@@ -59,7 +59,7 @@ opens with; drop them and the bridge's default layout applies.
 | field and robots missing | `/Firstrun/layout` — the bridge logs the declaration it parses |
 | robots missing, field drawn | the pose topic name; it must match `Constants.POSE_TOPIC` |
 | no swerve arrows | the swerve topic must be a struct array, and the robot must be enabled |
-| no camera frames | the MJPEG URL (`curl -sI http://<coprocessor>:1181/stream.mjpg`) and `ffmpeg` on `PATH`: camera footage is recorded by `ffmpeg`, so without it there is none |
+| no camera frames | the MJPEG URL and port: `curl -sI http://<coprocessor>:1181/stream.mjpg` must answer `200` from a host the bridge can reach. The bridge parses plain HTTP itself, so an `https://` URL or a redirect is refused instead of followed |
 | `2D content has a pinhole transform frame ancestor` in a 2D view | that view is rooted outside the camera. Rerun only shows a pinhole's 2D content in a view rooted at the camera's `image` entity, which is why the bridge sends a `camera front` 2D view with the layout; a view at `first` or `first2d` cannot show camera pixels. |
 | 3D frustum looks empty | the footage is drawn on the pinhole plane, `image_plane_distance` (2 m) in front of the lens, so it is only a couple of meters wide in a field-sized 3D view. Zoom in on the robot |
 | values missing from `first/...` but graphed elsewhere | the topic type string the bridge saw |

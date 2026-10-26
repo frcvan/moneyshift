@@ -61,8 +61,9 @@ public final class Constants {
    * PhotonVision's MJPEG stream for {@link #CAMERA_NAME}.
    *
    * <p>A camera is just a link: `http://<coprocessor>:1181/stream.mjpg` for camera 0 and
-   * `:1182` for camera 1. In simulation nothing serves it, so the bridge logs a warning and the
-   * recording simply has no camera frames.
+   * `:1182` for camera 1. The bridge reads that stream itself, so no external process is needed
+   * for footage; in simulation `VisionSystemSim` serves this URL with what the simulated camera
+   * sees.
    */
   public static final String CAMERA_STREAM = "http://127.0.0.1:1181/stream.mjpg";
 }

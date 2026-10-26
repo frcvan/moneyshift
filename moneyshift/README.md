@@ -76,14 +76,14 @@ swerve topic publishes `struct:SwerveModuleState[]` (WPILib 2027 calls it
 
 A camera optionally takes a ninth argument, PhotonVision's MJPEG URL for it
 (`http://<coprocessor>:1181/stream.mjpg` for camera 0, `:1182` for camera 1). A camera is only a
-link to that `multipart/x-mixed-replace` stream: the bridge hands the URL to `ffmpeg`, which needs
-to be on `PATH`, and logs an H.264 `VideoStream` on the camera's `image` entity at the recording's
-`robot_time`, so a live session plays the footage smoothly.
+link to that `multipart/x-mixed-replace` stream: the bridge reads it itself and logs one
+`EncodedImage` per JPEG on the camera's `image` entity at the recording's `robot_time`, so there is
+no external process to install and every frame the camera sends is recorded.
 
 A 2D view of a camera must be rooted at its `image` entity: Rerun only shows a pinhole's 2D content
 inside that content's own 2D space, so a view rooted at the field reports that its target frame has
 no pinhole root. When the declaration names a camera the bridge also sends a viewer layout with a
-2D view for it. The 3D view shows the same stream on the pinhole plane, a couple of meters in
+2D view for it. The 3D view shows the same frames on the pinhole plane, a couple of meters in
 front of the lens, so zoom in on the robot to see it there.
 
 The viewer layout is part of the same declaration:
@@ -117,7 +117,7 @@ From that declaration the bridge draws:
 | `first/robots/<team>/model` | static bounding box (`Boxes3D`, default 0.9 m square), or the bridge's `--robot-model` |
 | `first/robots/<team>/swerve` | per-module speed and steering vectors (`Arrows3D`) |
 | `first/robots/<team>/cameras/<name>` | camera transform and pinhole frustum (`Transform3D`, `Pinhole`) |
-| `first/robots/<team>/cameras/<name>/image` | the camera's H.264 footage (`VideoStream`); a 2D view of the camera is rooted here |
+| `first/robots/<team>/cameras/<name>/image` | the camera's footage, one `EncodedImage` per frame; a 2D view of the camera is rooted here |
 | `first/paths/<name>` | planned path as a line strip |
 | `first2d/...` | a top-down mirror of the field, tags, paths and robot footprints |
 
