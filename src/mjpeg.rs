@@ -28,6 +28,10 @@ const MAX_RETRY_DELAY: Duration = Duration::from_secs(10);
 /// Slice of the retry delay, so a stop is honored quickly.
 const STOP_POLL: Duration = Duration::from_millis(100);
 /// How many frames between keyframes in the H.264 stream, so a viewer can join late.
+///
+/// This was tried at 10 frames to cut the viewer's catch-up work at the live edge, and the
+/// buffering overlay only became more frequent: more IDRs give its player more places to re-anchor,
+/// so the lever is a shorter keyframe interval. Keep 30.
 const KEYFRAME_INTERVAL: &str = "30";
 
 /// A running camera: one `ffmpeg` per connection, restarted for as long as the camera is declared.

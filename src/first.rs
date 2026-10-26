@@ -903,7 +903,8 @@ pub fn log_video_frame(
 /// automatic layout roots a camera's 2D view at the pinhole, which leaves the pane empty and
 /// reports that the view's target frame has no pinhole root. This blueprint gives each camera a
 /// 2D view at its image entity, next to a 3D view of the field; automatic views stay enabled so
-/// every other topic is still graphed.
+/// every other topic is still graphed. The 3D view draws the same footage on the pinhole plane,
+/// so the pane and the frustum show one stream rather than two.
 ///
 /// Returns `false` when the declaration has no cameras: a recording without camera footage keeps
 /// the viewer's automatic layout untouched.
@@ -980,9 +981,10 @@ fn camera_entity(team: u16, name: &str) -> String {
 
 /// The entity a camera's footage is logged on, one level below the pinhole.
 ///
-/// Rerun 0.40 only shows a pinhole's 2D content in a 2D view rooted at that content entity itself,
-/// so this is also the origin a camera's 2D view needs. Its video visualizer has 2D affinity only,
-/// which is why the footage never appears on the frustum in a 3D view.
+/// Rerun only shows a pinhole's 2D content in a 2D view rooted at that content entity itself, so
+/// this is also the origin a camera's 2D view needs. The same footage also lands on the pinhole
+/// plane in a 3D view, drawn `CAMERA_IMAGE_PLANE_DISTANCE` in front of the lens, which on a field
+/// this size is a couple of meters across and therefore small.
 fn camera_image_entity(team: u16, name: &str) -> String {
     format!("{}/image", camera_entity(team, name))
 }

@@ -83,8 +83,8 @@ to be on `PATH`, and logs an H.264 `VideoStream` on the camera's `image` entity 
 A 2D view of a camera must be rooted at its `image` entity: Rerun only shows a pinhole's 2D content
 inside that content's own 2D space, so a view rooted at the field reports that its target frame has
 no pinhole root. When the declaration names a camera the bridge also sends a viewer layout with a
-2D view for it. Rerun 0.40 renders videos in 2D views only, so the footage does not show on the
-frustum in the 3D view.
+2D view for it. The 3D view shows the same stream on the pinhole plane, a couple of meters in
+front of the lens, so zoom in on the robot to see it there.
 
 From that declaration the bridge draws:
 

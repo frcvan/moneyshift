@@ -109,11 +109,20 @@ Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUE
   argument is PhotonVision's MJPEG URL. There is no NT transport for camera frames, and no HTTP or
   MJPEG code in the bridge: `src/mjpeg.rs` runs one `ffmpeg` per camera on that URL (`-f mpjpeg`).
 - A camera's footage is H.264 `VideoStream` samples on `<camera>/image`, one level below the
-  static `Transform3D` and `Pinhole`. `VideoStreamVisualizer::affinity` is `SpatialView2D` only
-  (`re_view_spatial-0.40.0/src/visualizers/video/video_stream.rs`), as is `VideoFrameReference`,
-  so no pinhole setting can project video onto the frustum in a 3D view. Only an
-  `EncodedImage`/`Image` logs there; do not re-add per-frame JPEGs to the live path as a workaround
-  (it is what made the feed flicker), and do not expect a 3D frame from a live camera.
+  static `Transform3D` and `Pinhole`. Do not re-add per-frame JPEGs to the live path as a workaround
+  for 3D (it is what made the feed flicker). `VideoStream` *is* projected onto the pinhole plane in a
+  3D view — Rerun's docs list `Spatial3DView` for it "if logged under a projection", and a bare
+  `Pinhole` carrying a stream renders there. In this bridge's layout it does not: the camera hangs
+  under the field and robot transforms, and Rerun rejects the content when the stream's transform
+  tree root is not the pinhole itself (the 2D view rooted at the stream still plays it). That is the
+  open bug; verify any fix by screenshotting a 3D view of a recording with footage.
+- In simulation the camera URL is live: `VisionSystemSim.addCamera` starts PhotonVision's camera
+  server, so `http://127.0.0.1:1181/stream.mjpg` serves the simulated camera rendering the field and
+  its AprilTags as a 3D scene. Simulation is therefore a real end-to-end camera source — the bridge
+  runs `ffmpeg` against it exactly as it does on a robot.
+- In simulation PhotonVision serves the camera itself: `VisionSystemSim.addCamera` starts a camera
+  server that streams what the simulated camera sees at `http://127.0.0.1:1181/stream.mjpg`, so the
+  demo's `Constants.CAMERA_STREAM` URL carries real frames in sim and the bridge records them.
 - `ffmpeg` reads the MJPEG URL itself; nothing in the crate parses HTTP or multipart. It needs
   `-probesize 32 -analyzeduration 0`, or it analyzes seconds of input before its first output and
   the camera looks dead. Samples must carry strictly increasing `robot_time` (`frame_time` clamps

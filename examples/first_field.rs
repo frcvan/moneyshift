@@ -8,10 +8,9 @@
 //! it into the WPILib corner frame (`+x` toward red, `+y` toward blue's left, `+z` up). Models
 //! exported directly in that frame need no transform.
 //!
-//! Camera frames are logged as `EncodedImage`s on each camera's `image` entity, which is what the
-//! 3D view projects onto the pinhole plane (a live camera's `VideoStream` is 2D-only in Rerun).
-//! The frames are a synthetic test pattern rendered with `ffmpeg`, so the example has no assets;
-//! without `ffmpeg` it logs no camera footage.
+//! Camera frames are logged as `EncodedImage`s on each camera's `image` entity, which the 3D view
+//! projects onto the pinhole plane. The frames are a synthetic test pattern rendered with `ffmpeg`,
+//! so the example has no assets; without `ffmpeg` it logs no camera footage.
 
 use std::f64::consts::{FRAC_PI_2, PI};
 

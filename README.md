@@ -59,8 +59,11 @@ every frame after the first is a delta, where one JPEG per frame is what flicker
 A camera's 2D view has to be rooted at that `image` entity: Rerun only shows a pinhole's 2D content
 inside that content's own 2D space, and a view rooted at the field reports that its target frame
 has no pinhole root. The bridge sends a viewer layout with a 2D view per camera when the
-declaration has any, so a live session opens with one that works. Rerun 0.40's video visualizer is
-2D-only, so a live camera's footage does not appear on the frustum in the 3D view.
+declaration has any, so a live session opens with one that works.
+
+The same stream also lands on the pinhole plane in the 3D view, `image_plane_distance` in front of
+the lens. That plane is only a couple of meters across, so on a field-wide view the picture is a
+small patch next to the robot rather than a full-size pane; zoom in on the robot to read it.
 
 `cargo run --example first_field -- <model.glb> <out.rrd> [clip.h264]` renders a field with two
 swerve robots, camera video and a planned path for checking the overlays without a robot. Without

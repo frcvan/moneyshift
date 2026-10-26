@@ -56,5 +56,5 @@ Point `Constants.CAMERA_STREAM` at a real PhotonVision coprocessor to record fra
 | no swerve arrows | the swerve topic must be a struct array, and the robot must be enabled |
 | no camera frames | the MJPEG URL (`curl -sI http://<coprocessor>:1181/stream.mjpg`) and `ffmpeg` on `PATH`: camera footage is recorded by `ffmpeg`, so without it there is none |
 | `2D content has a pinhole transform frame ancestor` in a 2D view | that view is rooted outside the camera. Rerun only shows a pinhole's 2D content in a view rooted at the camera's `image` entity, which is why the bridge sends a `camera front` 2D view with the layout; a view at `first` or `first2d` cannot show camera pixels. |
-| no frame on the 3D frustum | expected: Rerun 0.40 renders `VideoStream` in 2D views only, so camera footage never appears on the frustum |
+| 3D frustum looks empty | the footage is drawn on the pinhole plane, `image_plane_distance` (2 m) in front of the lens, so it is only a couple of meters wide in a field-sized 3D view. Zoom in on the robot |
 | values missing from `first/...` but graphed elsewhere | the topic type string the bridge saw |
