@@ -4,8 +4,9 @@ pub mod codegen;
 
 use camino::Utf8PathBuf;
 
-#[allow(unused_imports)]
-use re_type_definitions;
+// `re_type_definitions` is only ever reached through `cargo metadata` (the generator reads its
+// checkout from disk), so it is imported as `_` to keep it linked without an unused-import allow.
+use re_type_definitions as _;
 
 fn main() {
     let mut args = std::env::args().skip(1);

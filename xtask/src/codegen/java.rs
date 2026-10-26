@@ -4,8 +4,7 @@ use std::fs;
 use anyhow::{Context as _, Result};
 use camino::{Utf8Path, Utf8PathBuf};
 use re_types_builder::{
-    AtomicDataType, Docs, EnumIntegerType, Object, ObjectClass, Objects, RerunAttr, Type,
-    TypeRegistry,
+    AtomicDataType, Docs, Object, ObjectClass, Objects, RerunAttr, Type,
 };
 
 const JAVA_PACKAGE_PREFIX: &str = "org.teamvan.moneyshift";
@@ -38,15 +37,8 @@ const PRIMITIVE_JAVA_TYPES: [&str; 8] = [
     "java.lang.String",
 ];
 
-pub fn generate(
-    output_dir: &Utf8Path,
-    objects: &Objects,
-    type_registry: &TypeRegistry,
-) -> Result<()> {
-    let generator = JavaGenerator {
-        objects,
-        registry: type_registry,
-    };
+pub fn generate(output_dir: &Utf8Path, objects: &Objects) -> Result<()> {
+    let generator = JavaGenerator { objects };
 
     // Remove previous generated trees so that a renamed, deleted, or newly skipped definition
     // cannot leave a stale Java class behind. This includes the trees of skipped namespaces, so
@@ -77,7 +69,7 @@ pub fn generate(
         let path = output_path(output_dir, object);
         println!(
             "[+] Generating Java code for {} to {}",
-            &object.fqname, &path
+            object.fqname, path
         );
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
@@ -89,7 +81,7 @@ pub fn generate(
     Ok(())
 }
 
-/// Every datatype in the tree must have a NetworkTables column layout.
+/// Every datatype in the tree must have a `NetworkTables` column layout.
 ///
 /// The layout covers everything Rerun defines today; if a future Rerun version adds a new atomic
 /// type, fail loudly at generation time instead of silently dropping data at runtime.
@@ -120,10 +112,7 @@ fn validate_type(owner: &str, typ: &Type, objects: &Objects, inside_union: bool)
             }
         }
         Type::Atomic(_) | Type::Binary | Type::Utf8 => {}
-        Type::FixedSizeList { elem_type, .. } => {
-            validate_type(owner, elem_type, objects, false)?;
-        }
-        Type::List { elem_type } => {
+        Type::FixedSizeList { elem_type, .. } | Type::List { elem_type } => {
             validate_type(owner, elem_type, objects, false)?;
         }
         Type::Object { fqname } => {
@@ -174,7 +163,6 @@ fn java_class(fqname: &str) -> String {
 
 struct JavaGenerator<'a> {
     objects: &'a Objects,
-    registry: &'a TypeRegistry,
 }
 
 impl<'a> JavaGenerator<'a> {
@@ -182,7 +170,7 @@ impl<'a> JavaGenerator<'a> {
         match object.kind {
             re_types_builder::ObjectKind::Encoding => self.render_encoding(object),
             re_types_builder::ObjectKind::Component => self.render_component(object),
-            re_types_builder::ObjectKind::Archetype => self.render_archetype(object),
+            re_types_builder::ObjectKind::Archetype => Ok(self.render_archetype(object)),
             re_types_builder::ObjectKind::View => {
                 anyhow::bail!("views are not generated for the NetworkTables SDK")
             }
@@ -194,20 +182,10 @@ impl<'a> JavaGenerator<'a> {
     fn java_type(&self, typ: &Type, nullable: bool) -> String {
         match typ {
             Type::Atomic(atomic) => {
-                let primitive = match atomic {
-                    AtomicDataType::Null => return "java.lang.Void".to_owned(),
-                    AtomicDataType::Boolean => "boolean",
-                    AtomicDataType::Int8 => "byte",
-                    AtomicDataType::Int16 => "short",
-                    AtomicDataType::Int32 => "int",
-                    AtomicDataType::Int64 => "long",
-                    AtomicDataType::UInt8 => "short",
-                    AtomicDataType::UInt16 => "int",
-                    AtomicDataType::UInt32 => "long",
-                    AtomicDataType::UInt64 => "long",
-                    AtomicDataType::Float16 | AtomicDataType::Float32 => "float",
-                    AtomicDataType::Float64 => "double",
-                };
+                if matches!(atomic, AtomicDataType::Null) {
+                    return "java.lang.Void".to_owned();
+                }
+                let primitive = java_primitive(*atomic);
                 if nullable {
                     boxed_primitive(primitive).to_owned()
                 } else {
@@ -228,23 +206,7 @@ impl<'a> JavaGenerator<'a> {
 
     fn java_type_boxed(&self, typ: &Type) -> String {
         match typ {
-            Type::Atomic(atomic) => {
-                let primitive = match atomic {
-                    AtomicDataType::Null => "java.lang.Void",
-                    AtomicDataType::Boolean => "boolean",
-                    AtomicDataType::Int8 => "byte",
-                    AtomicDataType::Int16 => "short",
-                    AtomicDataType::Int32 => "int",
-                    AtomicDataType::Int64 => "long",
-                    AtomicDataType::UInt8 => "short",
-                    AtomicDataType::UInt16 => "int",
-                    AtomicDataType::UInt32 => "long",
-                    AtomicDataType::UInt64 => "long",
-                    AtomicDataType::Float16 | AtomicDataType::Float32 => "float",
-                    AtomicDataType::Float64 => "double",
-                };
-                boxed_primitive(primitive).to_owned()
-            }
+            Type::Atomic(atomic) => boxed_primitive(java_primitive(*atomic)).to_owned(),
             _ => self.java_type(typ, false),
         }
     }
@@ -262,7 +224,7 @@ impl<'a> JavaGenerator<'a> {
         write_docs(&mut code, &object.docs, "", self.objects);
         match object.class {
             ObjectClass::Struct => self.render_encoding_struct(&mut code, object)?,
-            ObjectClass::Enum(repr) => self.render_enum(&mut code, object, repr, false)?,
+            ObjectClass::Enum(_) => self.render_enum(&mut code, object, false),
             ObjectClass::Union => self.render_union(&mut code, object)?,
         }
         Ok(code)
@@ -271,7 +233,7 @@ impl<'a> JavaGenerator<'a> {
     fn render_encoding_struct(&self, code: &mut String, object: &'a Object) -> Result<()> {
         let name = java_class_name(&object.name);
 
-        self.render_record_declaration(code, object, &name, false, None)?;
+        self.render_record_declaration(code, object, &name, false, None);
         writeln!(
             code,
             "    public static final java.lang.String NAME = \"{}\";",
@@ -283,7 +245,7 @@ impl<'a> JavaGenerator<'a> {
         self.render_static_columns(
             code,
             &name,
-            Type::Object {
+            &Type::Object {
                 fqname: object.fqname.clone(),
             },
         )?;
@@ -319,7 +281,7 @@ impl<'a> JavaGenerator<'a> {
         name: &str,
         is_component: bool,
         component_type: Option<&str>,
-    ) -> Result<()> {
+    ) {
         let supertypes = if is_component {
             format!(" implements {CORE_PACKAGE}.NtComponent<{name}>")
         } else {
@@ -384,50 +346,7 @@ impl<'a> JavaGenerator<'a> {
             .iter()
             .any(|field| matches!(field.typ, Type::FixedSizeList { .. }))
         {
-            let comparisons = object
-                .fields
-                .iter()
-                .map(|field| {
-                    let field_name = Self::java_field_name(field);
-                    if matches!(field.typ, Type::FixedSizeList { .. }) {
-                        format!("java.util.Arrays.equals({field_name}, that.{field_name})")
-                    } else {
-                        format!("java.util.Objects.equals({field_name}, that.{field_name})")
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n                && ");
-            let hashes = object
-                .fields
-                .iter()
-                .map(|field| {
-                    let field_name = Self::java_field_name(field);
-                    if matches!(field.typ, Type::FixedSizeList { .. }) {
-                        format!("java.util.Arrays.hashCode({field_name})")
-                    } else {
-                        format!("java.util.Objects.hashCode({field_name})")
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            if !added_unwrapped {
-                writeln!(code).unwrap();
-            }
-            writeln!(code, "    @Override").unwrap();
-            writeln!(code, "    public boolean equals(java.lang.Object other) {{").unwrap();
-            writeln!(code, "        if (this == other) return true;").unwrap();
-            writeln!(
-                code,
-                "        if (!(other instanceof {name} that)) return false;"
-            )
-            .unwrap();
-            writeln!(code, "        return {comparisons};").unwrap();
-            writeln!(code, "    }}").unwrap();
-            writeln!(code).unwrap();
-            writeln!(code, "    @Override").unwrap();
-            writeln!(code, "    public int hashCode() {{").unwrap();
-            writeln!(code, "        return java.util.Objects.hash({hashes});").unwrap();
-            writeln!(code, "    }}").unwrap();
+            render_array_equality(code, object, name, added_unwrapped);
         }
 
         if let Some(component_type) = component_type {
@@ -444,16 +363,10 @@ impl<'a> JavaGenerator<'a> {
             )
             .unwrap();
         }
-        Ok(())
     }
 
-    fn render_enum(
-        &self,
-        code: &mut String,
-        object: &'a Object,
-        repr: EnumIntegerType,
-        component: bool,
-    ) -> Result<()> {
+    /// Emits a Java `enum` for a Rerun enum; its constants are the variants' integer values.
+    fn render_enum(&self, code: &mut String, object: &'a Object, component: bool) {
         let name = java_class_name(&object.name);
         let suffix = if component {
             format!(" implements {CORE_PACKAGE}.NtComponent<{name}>")
@@ -512,7 +425,7 @@ impl<'a> JavaGenerator<'a> {
         .unwrap();
         writeln!(code).unwrap();
 
-        self.render_enum_columns(code, &name)?;
+        Self::render_enum_columns(code, &name);
         writeln!(code).unwrap();
         writeln!(
             code,
@@ -536,12 +449,10 @@ impl<'a> JavaGenerator<'a> {
             )
             .unwrap();
         }
-        let _ = repr;
         writeln!(code, "}}").unwrap();
-        Ok(())
     }
 
-    fn render_enum_columns(&self, code: &mut String, name: &str) -> Result<()> {
+    fn render_enum_columns(code: &mut String, name: &str) {
         writeln!(
             code,
             "    public static void writeColumnsStatic(\
@@ -581,7 +492,6 @@ impl<'a> JavaGenerator<'a> {
         writeln!(code, "        w.present(path, present, anyNull, n);").unwrap();
         writeln!(code, "        w.longs(path, column);").unwrap();
         writeln!(code, "    }}").unwrap();
-        Ok(())
     }
 
     fn render_union(&self, code: &mut String, object: &'a Object) -> Result<()> {
@@ -642,7 +552,7 @@ impl<'a> JavaGenerator<'a> {
         self.render_static_columns(
             code,
             &name,
-            Type::Object {
+            &Type::Object {
                 fqname: object.fqname.clone(),
             },
         )?;
@@ -653,7 +563,7 @@ impl<'a> JavaGenerator<'a> {
 
     // ------------------------------------------------------------- writers
 
-    fn render_static_columns(&self, code: &mut String, name: &str, self_typ: Type) -> Result<()> {
+    fn render_static_columns(&self, code: &mut String, name: &str, self_typ: &Type) -> Result<()> {
         writeln!(
             code,
             "    /** Writes this type's NetworkTables columns; one entry per value. */"
@@ -673,7 +583,7 @@ impl<'a> JavaGenerator<'a> {
             count: "n".to_owned(),
             suffix: String::new(),
         };
-        emitter.emit(&self_typ, &chain, true, true, &ctx)?;
+        emitter.emit(self_typ, &chain, true, true, &ctx)?;
         code.push_str(&emitter.code);
         writeln!(code, "    }}").unwrap();
         Ok(())
@@ -688,8 +598,8 @@ impl<'a> JavaGenerator<'a> {
         write_header(&mut code, &package);
         write_docs(&mut code, &object.docs, "", self.objects);
 
-        if let ObjectClass::Enum(repr) = object.class {
-            self.render_enum(&mut code, object, repr, true)?;
+        if let ObjectClass::Enum(_) = object.class {
+            self.render_enum(&mut code, object, true);
             return Ok(code);
         }
 
@@ -699,7 +609,7 @@ impl<'a> JavaGenerator<'a> {
             return Ok(code);
         }
 
-        self.render_record_declaration(&mut code, object, &name, true, Some(&object.fqname))?;
+        self.render_record_declaration(&mut code, object, &name, true, Some(&object.fqname));
         // Components are transparent wrappers: the column layout is the wrapped encoding's.
         let field = &object.fields[0];
         let field_name = Self::java_field_name(field);
@@ -815,10 +725,9 @@ impl<'a> JavaGenerator<'a> {
         name: &str,
     ) -> bool {
         let encoding = self.wrapped_encoding(object);
-        let source = match encoding {
-            Some(encoding) => encoding.fields.as_slice(),
-            None => object.fields.as_slice(),
-        };
+        let source = encoding.map_or(object.fields.as_slice(), |encoding| {
+            encoding.fields.as_slice()
+        });
 
         let mut params = Vec::with_capacity(source.len());
         let mut arguments = Vec::with_capacity(source.len());
@@ -939,7 +848,6 @@ impl<'a> JavaGenerator<'a> {
                 .unwrap();
                 writeln!(code, "            }}").unwrap();
                 writeln!(code, "            return {method}(values);").unwrap();
-                writeln!(code, "        }}").unwrap();
             } else {
                 writeln!(
                     code,
@@ -951,8 +859,8 @@ impl<'a> JavaGenerator<'a> {
                     "            return {method}(new {component_class}(value));"
                 )
                 .unwrap();
-                writeln!(code, "        }}").unwrap();
             }
+            writeln!(code, "        }}").unwrap();
         }
         if let Some(element) = self.component_list_element(component) {
             writeln!(code).unwrap();
@@ -986,13 +894,23 @@ impl<'a> JavaGenerator<'a> {
 
     // ------------------------------------------------------------ archetypes
 
-    fn render_archetype(&self, object: &'a Object) -> Result<String> {
+    fn render_archetype(&self, object: &'a Object) -> String {
         let package = java_package(&object.fqname);
         let name = java_class_name(&object.name);
         let mut code = String::new();
         write_header(&mut code, &package);
         write_docs(&mut code, &object.docs, "", self.objects);
 
+        self.render_archetype_record(&mut code, object, &name);
+        self.render_archetype_columns(&mut code, object);
+        self.render_archetype_builder(&mut code, object, &name);
+
+        writeln!(code, "}}").unwrap();
+        code
+    }
+
+    /// The archetype's record declaration, its compact constructor and the static name fields.
+    fn render_archetype_record(&self, code: &mut String, object: &'a Object, name: &str) {
         writeln!(code, "public record {name}(").unwrap();
         for (index, field) in object.fields.iter().enumerate() {
             let comma = if index + 1 == object.fields.len() {
@@ -1000,7 +918,7 @@ impl<'a> JavaGenerator<'a> {
             } else {
                 ","
             };
-            write_docs(&mut code, &field.docs, "    ", self.objects);
+            write_docs(code, &field.docs, "    ", self.objects);
             let nullable = !field.has_attr(RerunAttr::Required);
             writeln!(
                 code,
@@ -1054,7 +972,10 @@ impl<'a> JavaGenerator<'a> {
             object.fields.len()
         )
         .unwrap();
+    }
 
+    /// The `.rerun/components` presence cache plus the `writeColumns` override.
+    fn render_archetype_columns(&self, code: &mut String, object: &'a Object) {
         // Column writer: metadata first, then the present components' columns.
         writeln!(code).unwrap();
         writeln!(code, "    @Override").unwrap();
@@ -1146,8 +1067,10 @@ impl<'a> JavaGenerator<'a> {
             writeln!(code, "        }}").unwrap();
         }
         writeln!(code, "    }}").unwrap();
+    }
 
-        // Builder.
+    /// The fluent `Builder` and the required-fields convenience constructor.
+    fn render_archetype_builder(&self, code: &mut String, object: &'a Object, name: &str) {
         writeln!(code).unwrap();
         writeln!(
             code,
@@ -1156,68 +1079,15 @@ impl<'a> JavaGenerator<'a> {
         .unwrap();
         writeln!(code).unwrap();
         writeln!(code, "    public static final class Builder {{").unwrap();
-        for field in &object.fields {
-            let nullable = !field.has_attr(RerunAttr::Required);
-            writeln!(
-                code,
-                "        private {} {};",
-                self.java_type(&field.typ, nullable),
-                Self::java_field_name(field)
-            )
-            .unwrap();
-        }
+        self.render_archetype_builder_fields(code, object);
         writeln!(code, "        private Builder() {{}}").unwrap();
-        for field in &object.fields {
-            let field_name = Self::java_field_name(field);
-            let method = format!("with{}", field.pascal_case_name());
-            let component_fqname = field.typ.fqname().unwrap_or_default();
-            let component_class = java_class(component_fqname);
-            let component = &self.objects[component_fqname];
-            writeln!(code).unwrap();
-            if matches!(field.typ, Type::List { .. }) {
-                writeln!(
-                    code,
-                    "        public Builder {method}(java.util.List<{component_class}> value) {{"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "            this.{field_name} = java.util.List.copyOf(value);"
-                )
-                .unwrap();
-                writeln!(code, "            return this;").unwrap();
-                writeln!(code, "        }}").unwrap();
-                self.render_builder_overloads(&mut code, &method, component, true);
-                writeln!(code).unwrap();
-                writeln!(
-                    code,
-                    "        public Builder {method}({component_class}... value) {{"
-                )
-                .unwrap();
-                writeln!(
-                    code,
-                    "            return {method}(java.util.List.of(value));"
-                )
-                .unwrap();
-                writeln!(code, "        }}").unwrap();
-            } else {
-                writeln!(
-                    code,
-                    "        public Builder {method}({component_class} value) {{"
-                )
-                .unwrap();
-                writeln!(code, "            this.{field_name} = value;").unwrap();
-                writeln!(code, "            return this;").unwrap();
-                writeln!(code, "        }}").unwrap();
-                self.render_builder_overloads(&mut code, &method, component, false);
-            }
-        }
+        self.render_archetype_builder_methods(code, object);
         writeln!(code).unwrap();
         writeln!(code, "        public {name} build() {{").unwrap();
         let args = object
             .fields
             .iter()
-            .map(|field| Self::java_field_name(field))
+            .map(Self::java_field_name)
             .collect::<Vec<_>>()
             .join(", ");
         writeln!(code, "            return new {name}({args});").unwrap();
@@ -1259,15 +1129,126 @@ impl<'a> JavaGenerator<'a> {
         }
         writeln!(code, "        return new {name}({});", args.join(", ")).unwrap();
         writeln!(code, "    }}").unwrap();
+    }
 
-        writeln!(code, "}}").unwrap();
-        Ok(code)
+    /// The builder's backing fields, one per archetype field.
+    fn render_archetype_builder_fields(&self, code: &mut String, object: &'a Object) {
+        for field in &object.fields {
+            let nullable = !field.has_attr(RerunAttr::Required);
+            writeln!(
+                code,
+                "        private {} {};",
+                self.java_type(&field.typ, nullable),
+                Self::java_field_name(field)
+            )
+            .unwrap();
+        }
+    }
+
+    /// The builder's `with*` setters and their unwrapped overloads.
+    fn render_archetype_builder_methods(&self, code: &mut String, object: &'a Object) {
+        for field in &object.fields {
+            let field_name = Self::java_field_name(field);
+            let method = format!("with{}", field.pascal_case_name());
+            let component_fqname = field.typ.fqname().unwrap_or_default();
+            let component_class = java_class(component_fqname);
+            let component = &self.objects[component_fqname];
+            writeln!(code).unwrap();
+            if matches!(field.typ, Type::List { .. }) {
+                writeln!(
+                    code,
+                    "        public Builder {method}(java.util.List<{component_class}> value) {{"
+                )
+                .unwrap();
+                writeln!(
+                    code,
+                    "            this.{field_name} = java.util.List.copyOf(value);"
+                )
+                .unwrap();
+                writeln!(code, "            return this;").unwrap();
+                writeln!(code, "        }}").unwrap();
+                self.render_builder_overloads(code, &method, component, true);
+                writeln!(code).unwrap();
+                writeln!(
+                    code,
+                    "        public Builder {method}({component_class}... value) {{"
+                )
+                .unwrap();
+                writeln!(
+                    code,
+                    "            return {method}(java.util.List.of(value));"
+                )
+                .unwrap();
+                writeln!(code, "        }}").unwrap();
+            } else {
+                writeln!(
+                    code,
+                    "        public Builder {method}({component_class} value) {{"
+                )
+                .unwrap();
+                writeln!(code, "            this.{field_name} = value;").unwrap();
+                writeln!(code, "            return this;").unwrap();
+                writeln!(code, "        }}").unwrap();
+                self.render_builder_overloads(code, &method, component, false);
+            }
+        }
     }
 }
 
 /// The presence bit of archetype field `index`, as used by the generated `ComponentsCache`.
-fn component_mask(index: usize) -> u64 {
+const fn component_mask(index: usize) -> u64 {
     1u64 << index
+}
+
+/// Emits the `equals`/`hashCode` overrides a record with array fields needs.
+///
+/// Records compare array components by identity, so a record holding a fixed-size list has to
+/// supply deep versions or two equal values would never be equal.
+fn render_array_equality(code: &mut String, object: &Object, name: &str, added_unwrapped: bool) {
+    let comparisons = object
+        .fields
+        .iter()
+        .map(|field| {
+            let field_name = JavaGenerator::java_field_name(field);
+            if matches!(field.typ, Type::FixedSizeList { .. }) {
+                format!("java.util.Arrays.equals({field_name}, that.{field_name})")
+            } else {
+                format!("java.util.Objects.equals({field_name}, that.{field_name})")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n                && ");
+    let hashes = object
+        .fields
+        .iter()
+        .map(|field| {
+            let field_name = JavaGenerator::java_field_name(field);
+            if matches!(field.typ, Type::FixedSizeList { .. }) {
+                format!("java.util.Arrays.hashCode({field_name})")
+            } else {
+                format!("java.util.Objects.hashCode({field_name})")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    if !added_unwrapped {
+        writeln!(code).unwrap();
+    }
+    writeln!(code, "    @Override").unwrap();
+    writeln!(code, "    public boolean equals(java.lang.Object other) {{").unwrap();
+    writeln!(code, "        if (this == other) return true;").unwrap();
+    writeln!(
+        code,
+        "        if (!(other instanceof {name} that)) return false;"
+    )
+    .unwrap();
+    writeln!(code, "        return {comparisons};").unwrap();
+    writeln!(code, "    }}").unwrap();
+    writeln!(code).unwrap();
+    writeln!(code, "    @Override").unwrap();
+    writeln!(code, "    public int hashCode() {{").unwrap();
+    writeln!(code, "        return java.util.Objects.hash({hashes});").unwrap();
+    writeln!(code, "    }}").unwrap();
 }
 
 /// The Java condition under which an archetype field has data to write.
@@ -1288,7 +1269,7 @@ fn present_condition(field: &re_types_builder::ObjectField) -> String {
 
 // ------------------------------------------------------------------ emitter
 
-/// Emits the Java statements that write one datatype node's NetworkTables columns.
+/// Emits the Java statements that write one datatype node's `NetworkTables` columns.
 ///
 /// The layout follows the protocol:
 ///
@@ -1373,7 +1354,7 @@ impl NodeCtx {
 }
 
 impl<'g, 'a> ColumnsEmitter<'g, 'a> {
-    fn new(generator: &'g JavaGenerator<'a>) -> Self {
+    const fn new(generator: &'g JavaGenerator<'a>) -> Self {
         Self {
             generator,
             code: String::new(),
@@ -1381,7 +1362,7 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         }
     }
 
-    fn id(&mut self) -> usize {
+    const fn id(&mut self) -> usize {
         let id = self.next_id;
         self.next_id += 1;
         id
@@ -1418,6 +1399,59 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         current
     }
 
+    /// Emits the lazy `.present` mask of a node whose Arrow field is nullable.
+    ///
+    /// The mask is only allocated once a null is actually seen, so a batch without nulls costs
+    /// neither the allocation nor the fill.
+    fn emit_present_mask(&mut self, chain: &Chain, ctx: &NodeCtx) {
+        let indent = "        ";
+        let id = self.id();
+        writeln!(self.code, "{indent}boolean[] present{id} = null;").unwrap();
+        writeln!(self.code, "{indent}boolean anyNull{id} = false;").unwrap();
+        writeln!(
+            self.code,
+            "{indent}for (int {i} = 0; {i} < {n}; {i}++) {{",
+            i = ctx.index,
+            n = ctx.count
+        )
+        .unwrap();
+        let inner = format!("{indent}    ");
+        let value = self.chain_expr(chain, id, &inner);
+        writeln!(self.code, "{inner}boolean ok{id} = ({value}) != null;").unwrap();
+        writeln!(self.code, "{inner}if (ok{id}) {{").unwrap();
+        writeln!(
+            self.code,
+            "{inner}    if (present{id} != null) present{id}[{i}] = true;",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "{inner}}} else {{").unwrap();
+        writeln!(self.code, "{inner}    if (present{id} == null) {{").unwrap();
+        writeln!(
+            self.code,
+            "{inner}        present{id} = new boolean[{n}];",
+            n = ctx.count
+        )
+        .unwrap();
+        writeln!(
+            self.code,
+            "{inner}        java.util.Arrays.fill(present{id}, 0, {i}, true);",
+            i = ctx.index
+        )
+        .unwrap();
+        writeln!(self.code, "{inner}    }}").unwrap();
+        writeln!(self.code, "{inner}    anyNull{id} = true;").unwrap();
+        writeln!(self.code, "{inner}}}").unwrap();
+        writeln!(self.code, "{indent}}}").unwrap();
+        writeln!(
+            self.code,
+            "{indent}w.present({}, present{id}, anyNull{id}, {n});",
+            ctx.path(),
+            n = ctx.count
+        )
+        .unwrap();
+    }
+
     /// Emits one node.
     ///
     /// * `may_be_null`: the node's value expression may be null.
@@ -1430,61 +1464,14 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         node_nullable: bool,
         ctx: &NodeCtx,
     ) -> Result<()> {
-        let indent = "        ".to_owned();
         // A mask is only emitted for nodes whose Arrow field is nullable: the codegen already
         // knows that non-nullable nodes cannot produce a null, so they get no mask at all.
         if node_nullable {
-            let id = self.id();
-            // The mask is allocated lazily: most batches have no nulls at all, and a mask costs
-            // one byte per instance to allocate and fill.
-            writeln!(self.code, "{indent}boolean[] present{id} = null;").unwrap();
-            writeln!(self.code, "{indent}boolean anyNull{id} = false;").unwrap();
-            writeln!(
-                self.code,
-                "{indent}for (int {i} = 0; {i} < {n}; {i}++) {{",
-                i = ctx.index,
-                n = ctx.count
-            )
-            .unwrap();
-            let inner = format!("{indent}    ");
-            let value = self.chain_expr(chain, id, &inner);
-            writeln!(self.code, "{inner}boolean ok{id} = ({value}) != null;").unwrap();
-            writeln!(self.code, "{inner}if (ok{id}) {{").unwrap();
-            writeln!(
-                self.code,
-                "{inner}    if (present{id} != null) present{id}[{i}] = true;",
-                i = ctx.index
-            )
-            .unwrap();
-            writeln!(self.code, "{inner}}} else {{").unwrap();
-            writeln!(self.code, "{inner}    if (present{id} == null) {{").unwrap();
-            writeln!(
-                self.code,
-                "{inner}        present{id} = new boolean[{n}];",
-                n = ctx.count
-            )
-            .unwrap();
-            writeln!(
-                self.code,
-                "{inner}        java.util.Arrays.fill(present{id}, 0, {i}, true);",
-                i = ctx.index
-            )
-            .unwrap();
-            writeln!(self.code, "{inner}    }}").unwrap();
-            writeln!(self.code, "{inner}    anyNull{id} = true;").unwrap();
-            writeln!(self.code, "{inner}}}").unwrap();
-            writeln!(self.code, "{indent}}}").unwrap();
-            writeln!(
-                self.code,
-                "{indent}w.present({}, present{id}, anyNull{id}, {n});",
-                ctx.path(),
-                n = ctx.count
-            )
-            .unwrap();
+            self.emit_present_mask(chain, ctx);
         }
 
         match typ {
-            Type::Atomic(atomic) => self.emit_atomic(atomic, chain, may_be_null, ctx)?,
+            Type::Atomic(atomic) => self.emit_atomic(*atomic, chain, may_be_null, ctx)?,
             Type::Utf8 => self.emit_utf8(chain, may_be_null, ctx),
             Type::Binary => self.emit_binary(chain, may_be_null, ctx),
             Type::FixedSizeList { elem_type, length } => {
@@ -1542,7 +1529,7 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
 
     fn emit_atomic(
         &mut self,
-        atomic: &AtomicDataType,
+        atomic: AtomicDataType,
         chain: &Chain,
         may_be_null: bool,
         ctx: &NodeCtx,
@@ -1811,7 +1798,7 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
                 "        java.util.ArrayList<{java_type}> {payload} = new java.util.ArrayList<>();"
             )
             .unwrap();
-            payloads.push((ordinal, field, payload));
+            payloads.push((ordinal, payload));
         }
         writeln!(
             self.code,
@@ -1875,7 +1862,22 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
         )
         .unwrap();
         let _ = may_be_null;
-        for (ordinal, field, payload) in payloads {
+        self.emit_union_payloads(object, &payloads, &ctx.suffix, id)
+    }
+
+    /// Emits the flattened payload columns of a union's non-unit variants.
+    ///
+    /// Payloads are flattened because every instance may hold a different variant; the ordinal
+    /// column says which variant's column an instance's payload came from.
+    fn emit_union_payloads(
+        &mut self,
+        object: &Object,
+        payloads: &[(usize, String)],
+        ctx_suffix: &str,
+        id: usize,
+    ) -> Result<()> {
+        for (ordinal, payload) in payloads {
+            let field = &object.fields[*ordinal];
             writeln!(self.code, "        if (!{payload}.isEmpty()) {{").unwrap();
             writeln!(
                 self.code,
@@ -1886,7 +1888,7 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
             let child_ctx = NodeCtx {
                 index: format!("k{id}_{ordinal}"),
                 count: format!("payloadCount{id}_{ordinal}"),
-                suffix: format!("{}/{}", ctx.suffix, field.name),
+                suffix: format!("{ctx_suffix}/{}", field.name),
             };
             self.emit(&field.typ, &child_chain, false, false, &child_ctx)?;
             writeln!(self.code, "        }}").unwrap();
@@ -1899,10 +1901,10 @@ impl<'g, 'a> ColumnsEmitter<'g, 'a> {
 
 fn fixed_size_scalar_field(object: &Object) -> Option<(Type, usize)> {
     let field = object.fields.first()?;
-    if let Type::FixedSizeList { elem_type, length } = &field.typ {
-        if matches!(**elem_type, Type::Atomic(_)) {
-            return Some(((**elem_type).clone(), *length));
-        }
+    if let Type::FixedSizeList { elem_type, length } = &field.typ
+        && matches!(**elem_type, Type::Atomic(_))
+    {
+        return Some(((**elem_type).clone(), *length));
     }
     None
 }
@@ -1922,24 +1924,20 @@ fn component_fixed_size_scalar(
     fixed_size_scalar_field(inner)
 }
 
-/// Declares the per-instance local used by a leaf column loop.
-fn emit_value_local(
-    code: &mut String,
-    id: usize,
-    indent: &str,
-    expr: &str,
-    primitive: &str,
-    can_be_null: bool,
-) {
-    if can_be_null {
-        writeln!(
-            code,
-            "{indent}    {} value{id} = {expr};",
-            boxed_primitive(primitive)
-        )
-        .unwrap();
-    } else {
-        writeln!(code, "{indent}    {primitive} value{id} = {expr};").unwrap();
+/// The Java spelling of an atomic datatype, before any boxing.
+///
+/// The unsigned widths are widened one size so that a full-range `u8`/`u16`/`u32` fits: a Java
+/// `byte` could not hold 255.
+const fn java_primitive(atomic: AtomicDataType) -> &'static str {
+    match atomic {
+        AtomicDataType::Null => "java.lang.Void",
+        AtomicDataType::Boolean => "boolean",
+        AtomicDataType::Int8 => "byte",
+        AtomicDataType::Int16 | AtomicDataType::UInt8 => "short",
+        AtomicDataType::Int32 | AtomicDataType::UInt16 => "int",
+        AtomicDataType::Int64 | AtomicDataType::UInt32 | AtomicDataType::UInt64 => "long",
+        AtomicDataType::Float16 | AtomicDataType::Float32 => "float",
+        AtomicDataType::Float64 => "double",
     }
 }
 
@@ -1977,10 +1975,9 @@ fn snake_to_camel(name: &str) -> String {
         result
     } else {
         let mut chars = name.chars();
-        match chars.next() {
-            Some(first) => first.to_lowercase().chain(chars).collect(),
-            None => String::new(),
-        }
+        chars
+            .next()
+            .map_or_else(String::new, |first| first.to_lowercase().chain(chars).collect())
     }
 }
 
@@ -2122,44 +2119,39 @@ fn java_doc_line(line: &str, objects: &Objects) -> String {
             if let Some(link_end) = after_start.find("`]") {
                 let label = &after_start[..link_end];
                 let after_label = &after_start[link_end + 2..];
-                let (target, mut remainder) = if let Some(target) = after_label.strip_prefix('[') {
-                    if let Some(target_end) = target.find(']') {
-                        (&target[1..target_end], &target[target_end + 1..])
-                    } else {
-                        (label, after_label)
-                    }
-                } else {
-                    (label, after_label)
-                };
+                let (target, mut remainder) = after_label.strip_prefix('[').map_or(
+                    (label, after_label),
+                    |target| {
+                        target.find(']').map_or((label, after_label), |target_end| {
+                            (&target[1..target_end], &target[target_end + 1..])
+                        })
+                    },
+                );
 
                 // A markdown link whose label is itself a Rust doclink, e.g.
                 // [`DepthImage`](https://...): keep the Javadoc link and drop the outer URL.
                 let trailing = remainder
                     .strip_prefix("](")
                     .or_else(|| remainder.strip_prefix('('));
-                if let Some(trailing) = trailing {
-                    if let Some(url_end) = trailing.find(')') {
-                        remainder = &trailing[url_end + 1..];
-                    }
+                if let Some(trailing) = trailing
+                    && let Some(url_end) = trailing.find(')')
+                {
+                    remainder = &trailing[url_end + 1..];
                 }
-                match java_doc_link(target, objects) {
-                    Some(target) => {
-                        output.push_str("{@link ");
-                        output.push_str(&target);
-                        if target != label {
-                            output.push(' ');
-                            output.push_str(&escape_javadoc_text(label));
-                        }
-                        output.push('}');
+                if let Some(target) = java_doc_link(target, objects) {
+                    output.push_str("{@link ");
+                    output.push_str(&target);
+                    if target != label {
+                        output.push(' ');
+                        output.push_str(&escape_javadoc_text(label));
                     }
+                } else {
                     // The target lives in a skipped namespace (blueprints and views), so there
                     // is no Java class to link to; keep the name readable as code.
-                    None => {
-                        output.push_str("{@code ");
-                        output.push_str(&escape_javadoc_code(label));
-                        output.push('}');
-                    }
+                    output.push_str("{@code ");
+                    output.push_str(&escape_javadoc_code(label));
                 }
+                output.push('}');
                 rest = remainder;
                 continue;
             }
@@ -2206,13 +2198,13 @@ fn java_doc_line(line: &str, objects: &Objects) -> String {
 }
 
 fn java_doc_link(path: &str, objects: &Objects) -> Option<String> {
-    let path = if let Some(path) = path.strip_prefix("crate::") {
-        format!("{JAVA_PACKAGE_PREFIX}.{}", path.replace("::", "."))
-    } else if let Some(path) = path.strip_prefix("rerun::") {
-        format!("{JAVA_PACKAGE_PREFIX}.{}", path.replace("::", "."))
-    } else {
-        path.to_owned()
-    };
+    let prefix = path
+        .strip_prefix("crate::")
+        .or_else(|| path.strip_prefix("rerun::"));
+    let path = prefix.map_or_else(
+        || path.to_owned(),
+        |rest| format!("{JAVA_PACKAGE_PREFIX}.{}", rest.replace("::", ".")),
+    );
     let path = path
         .replace("::", ".")
         .replace(".datatypes.", ".encodings.");
@@ -2230,13 +2222,13 @@ fn java_doc_link(path: &str, objects: &Objects) -> Option<String> {
     let Some(prefix) = parts.next() else {
         // A bare type name can only be resolved if the type is generated. Rerun's docs reference
         // blueprint/view types by short name; those packages are skipped.
-        if is_skipped_type_name(&last, objects) {
+        if is_skipped_type_name(last, objects) {
             return None;
         }
         return Some(path);
     };
 
-    if is_skipped_type_name(&last, objects) {
+    if is_skipped_type_name(last, objects) {
         return None;
     }
 

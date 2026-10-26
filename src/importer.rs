@@ -195,7 +195,9 @@ pub fn parse_wpilog(
     let mut contexts = HashMap::new();
     let mut logger = EntryLog::new();
 
-    let (_, _) = WpiLogFile::parse(contents, |record| {
+    // Stream the records in: keeping them would hold a second copy of the whole log's metadata
+    // for nothing, since only the callback's side effects are used.
+    WpiLogFile::parse_streaming(contents, |record| {
         if let Err(error) = fill_log(&mut contexts, &mut logger, record) {
             re_log::warn!("failed to parse WPI log entry: {error}");
         }

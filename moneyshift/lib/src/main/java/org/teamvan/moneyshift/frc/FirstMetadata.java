@@ -359,14 +359,6 @@ public final class FirstMetadata {
     /**
      * One viewer view robot code asks the bridge for.
      *
-     * <p>{@code kind} is {@code three_d}, {@code two_d} or {@code dataframe}; {@code origin} is the
-     * entity path the view is rooted at (defaulted per kind when empty), and {@code entities} are
-     * the entity paths a dataframe view lists. An empty {@code entities} leaves a dataframe showing
-     * the recording's timeline alone, which is what robot code gets when it declares nothing.
-     */
-    /**
-     * One viewer view robot code asks the bridge for.
-     *
      * <p>{@code kind} is the wire name the declaration carries; {@link ViewKind} supplies the ones
      * the bridge knows, and a plain string overrides it when robot code needs a name of its own.
      */
@@ -617,8 +609,8 @@ public final class FirstMetadata {
         }
     }
 
-    /** PhotonVision's MJPEG URLs: plain HTTP with a host and a path, no TLS. */
-    private static String requireStreamUrl(String url) {
+    /** Rejects anything that is not a plain-HTTP PhotonVision MJPEG URL: no TLS, no redirects. */
+    private static void requireStreamUrl(String url) {
         Objects.requireNonNull(url, "stream");
         if (!url.startsWith("http://") || url.length() <= "http://".length()) {
             throw new IllegalArgumentException(
@@ -633,16 +625,14 @@ public final class FirstMetadata {
         if (url.chars().anyMatch(Character::isWhitespace)) {
             throw new IllegalArgumentException("stream must not contain whitespace: \"" + url + "\"");
         }
-        return url;
     }
 
-    private static String requireTopic(String topic, String name) {
+    private static void requireTopic(String topic, String name) {
         Objects.requireNonNull(topic, name);
         if (!topic.startsWith("/") || topic.length() < 2) {
             throw new IllegalArgumentException(
                     name + " must be an absolute NetworkTables topic, got \"" + topic + "\"");
         }
-        return topic;
     }
 
     private static void requireSegment(String value, String name) {

@@ -1,5 +1,6 @@
 package org.teamvan.moneyshift;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import org.wpilib.networktables.NetworkTableEntry;
 import org.wpilib.networktables.NetworkTableInstance;
@@ -129,8 +131,7 @@ public final class NtRecorder {
 
     // ------------------------------------------------------------- internals
 
-    private void write(
-            String entity, boolean isStatic, java.util.function.Consumer<NtEntityWriter> body) {
+    private void write(String entity, boolean isStatic, Consumer<NtEntityWriter> body) {
         EntityState state = stateFor(entity);
         synchronized (state) {
             ensureMode(state, isStatic);
@@ -263,7 +264,7 @@ public final class NtRecorder {
                 // Generated code skips the mask allocation when nothing is null, but a sticky
                 // column still has to be refreshed so readers cannot see a stale mask.
                 mask = new boolean[count];
-                java.util.Arrays.fill(mask, true);
+                Arrays.fill(mask, true);
             }
             columnEntry(state, path + "/.present").setBooleanArray(mask);
         }
@@ -288,9 +289,14 @@ public final class NtRecorder {
         final Map<String, Boxed<Boolean>> metaBooleans = new HashMap<>();
         final Set<String> presentPaths = new HashSet<>();
         final LinkedHashMap<String, String> rawComponents = new LinkedHashMap<>();
-        /** Entries by column path (without the entity prefix), filled on first publish. */
-        final ConcurrentHashMap<String, NetworkTableEntry> columnEntries =
-                new ConcurrentHashMap<>();
+        /**
+         * Entries by column path (without the entity prefix), filled on first publish.
+         *
+         * <p>Only ever touched while holding this state's monitor (every column write goes
+         * through {@link NtRecorder#write} or {@link NtRecorder#logComponent}), so a plain
+         * {@link HashMap} is both correct and cheaper than a concurrent one.
+         */
+        final HashMap<String, NetworkTableEntry> columnEntries = new HashMap<>();
         boolean modeKnown;
         boolean staticMode;
         private volatile NtEntityWriter writer;

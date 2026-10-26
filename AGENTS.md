@@ -75,7 +75,7 @@ definitions.` **Never edit them by hand.** Fix the generator (`xtask/src/codegen
 
 ## Rust conversion pipeline
 
-`wpilog bytes → WpiLogFile::parse → EntryLog → conv::log_changes_to_chunks_with_options → Chunk`
+`wpilog bytes → WpiLogFile::parse_streaming → EntryLog → conv::log_changes_to_chunks_with_options → Chunk`
 
 Struct schemas live in `StructSchemas` (`src/values/parse/wpistruct.rs`): it keeps the raw
 schemas and a memoized cache of resolved layouts (nested structs are shared through `Arc`), so

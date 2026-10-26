@@ -1,6 +1,5 @@
 use nom::{
-    IResult, Parser, bytes::streaming as bstreaming, error::ErrorKind,
-    number::streaming as nstreaming,
+    IResult, bytes::streaming as bstreaming, error::ErrorKind, number::streaming as nstreaming,
 };
 
 use crate::log;
@@ -247,19 +246,43 @@ impl<'log> WpiLogFile<'log> {
         Ok((input, (version, extra_header)))
     }
 
+    /// Parses every record of the log, handing each one to `record_cb` as it is read.
+    ///
+    /// Records are never retained, so importing a large log costs no more memory than the log
+    /// itself. This is what the importer uses; [`WpiLogFile::parse`] is the variant that also
+    /// keeps the record list.
+    pub fn parse_streaming(
+        input: &'log [u8],
+        mut record_cb: impl FnMut(WpiRecord<'log>),
+    ) -> IResult<&'log [u8], (u16, &'log str), ParseError> {
+        let (mut input, header) = Self::parse_header(input)?;
+
+        // An exhausted input surfaces as `Err::Error`, which ends the log; a `Failure` or
+        // `Incomplete` means the log itself is broken and has to propagate.
+        loop {
+            match WpiRecord::parse(input) {
+                Ok((remaining, record)) => {
+                    record_cb(record);
+                    input = remaining;
+                }
+                Err(nom::Err::Error(_)) => break,
+                Err(error) => return Err(error),
+            }
+        }
+
+        Ok((input, header))
+    }
+
+    /// Parses the whole log, retaining every record in [`WpiLogFile::records`].
     pub fn parse(
         input: &'log [u8],
         mut record_cb: impl FnMut(WpiRecord<'log>),
     ) -> IResult<&'log [u8], Self, ParseError> {
-        let (input, (version, extra_header)) = Self::parse_header(input)?;
-
-        let (input, records) =
-            nom::multi::many0(|input| -> IResult<&[u8], WpiRecord, ParseError> {
-                let record = WpiRecord::parse(input)?;
-                record_cb(record.1.clone());
-                Ok(record)
-            })
-            .parse(input)?;
+        let mut records = Vec::new();
+        let (input, (version, extra_header)) = Self::parse_streaming(input, |record| {
+            records.push(record.clone());
+            record_cb(record);
+        })?;
 
         Ok((
             input,

@@ -1,6 +1,6 @@
 //! The FIRST declaration the bridge reads from NetworkTables.
 //!
-//! Robot code publishes [`TOPIC`] once with [`FirstMetadata`] on the Java side. The declaration
+//! Robot code publishes [`TOPIC`] once with `FirstMetadata` on the Java side. The declaration
 //! says where each robot's pose comes from and what the field looks like; this module turns it
 //! into static field geometry plus a per-frame robot transform, so robots show up on a field
 //! without any Rerun-specific robot code.
@@ -792,7 +792,7 @@ pub fn poses_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<Pose>> {
 
 /// Logs one frame of swerve module vectors in the robot frame.
 ///
-/// Arrow length is the module speed scaled by [`SWERVE_ARROW_SECONDS`], so a full-speed module
+/// Arrow length is the module speed scaled by `SWERVE_ARROW_SECONDS`, so a full-speed module
 /// draws a quarter-second of travel.
 pub fn log_swerve(
     stream: &RecordingStream,
