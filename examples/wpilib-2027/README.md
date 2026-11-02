@@ -1,6 +1,6 @@
-# FIRSTrun on a WPILib 2027 robot
+# moneyshift on a WPILib 2027 robot
 
-A minimal, runnable WPILib 2027 robot that exercises the whole FIRSTrun path:
+A minimal, runnable WPILib 2027 robot that exercises the whole moneyshift path:
 
 - **Command-based v2** (`org.wpilib.command2`), default field-relative joystick drive;
 - **AdvantageKit** 27 alpha, logging to NetworkTables through `NT4Publisher`;
@@ -8,7 +8,7 @@ A minimal, runnable WPILib 2027 robot that exercises the whole FIRSTrun path:
   field's AprilTags;
 - an **extremely basic swerve sim**: four velocity-steered modules, first-order lag, integrated
   gyro, `SwerveDrivePoseEstimator`;
-- **FIRSTrun integration**: one `FirstMetadata` declaration at `/Firstrun/layout` carrying the
+- **moneyshift integration**: one `FirstMetadata` declaration at `/Moneyshift/layout` carrying the
   field's 32 AprilTags, plus `struct:Pose2d` and `struct:SwerveModuleVelocity[]` topics the bridge
   reads.
 
@@ -35,7 +35,7 @@ start resets odometry. All three modes work, but there is no real robot to talk 
 While the robot runs, from the repository root in another terminal:
 
 ```sh
-cargo run --release --bin rerun-importer-firstrun -- --nt --save /tmp/demo.rrd
+cargo run --release --bin rerun-importer-moneyshift -- --nt --save /tmp/demo.rrd
 rerun /tmp/demo.rrd
 ```
 
@@ -56,7 +56,7 @@ opens with; drop them and the bridge's default layout applies.
 
 | Symptom | Where to look |
 | --- | --- |
-| field and robots missing | `/Firstrun/layout` — the bridge logs the declaration it parses |
+| field and robots missing | `/Moneyshift/layout` — the bridge logs the declaration it parses |
 | robots missing, field drawn | the pose topic name; it must match `Constants.POSE_TOPIC` |
 | no swerve arrows | the swerve topic must be a struct array, and the robot must be enabled |
 | no camera frames | the MJPEG URL and port: `curl -sI http://<coprocessor>:1181/stream.mjpg` must answer `200` from a host the bridge can reach. The bridge parses plain HTTP itself, so an `https://` URL or a redirect is refused instead of followed |

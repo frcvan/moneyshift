@@ -81,7 +81,7 @@ class FirstMetadataTest {
                         + "[0.0,8.069326]],\"closed\":true},"
                         + "{\"points\":[[8.270875,0.0],[8.270875,8.069326]],\"closed\":false}],"
                         + "\"tags\":[]},\"robots\":[]}",
-                instance.getEntry("/Firstrun/layout").getString(""));
+                instance.getEntry("/Moneyshift/layout").getString(""));
     }
 
     @Test
@@ -125,7 +125,7 @@ class FirstMetadataTest {
                         .build();
 
         metadata.publish(recorder);
-        String json = instance.getEntry("/Firstrun/layout").getString("");
+        String json = instance.getEntry("/Moneyshift/layout").getString("");
 
         assertEquals(metadata.json(), json);
         assertTrue(json.contains("\"carpet\":false"));

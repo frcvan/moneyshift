@@ -1,16 +1,16 @@
-//! `rerun-importer-firstrun`: the FIRSTrun Rerun importer.
+//! `rerun-importer-moneyshift`: the moneyshift Rerun importer.
 //!
 //! Two modes share this binary:
 //!
-//! * `rerun-importer-firstrun <path.wpilog> [...]` implements Rerun's external-importer protocol:
+//! * `rerun-importer-moneyshift <path.wpilog> [...]` implements Rerun's external-importer protocol:
 //!   RRD goes to stdout, diagnostics to stderr, and exit code 66 means "not my file".
-//! * `rerun-importer-firstrun --nt [...]` runs the live NetworkTables bridge.
+//! * `rerun-importer-moneyshift --nt [...]` runs the live NetworkTables bridge.
 //!
-//! See [`firstrun::cli`] for the flag reference.
+//! See [`moneyshift::cli`] for the flag reference.
 
 use std::process::ExitCode;
 
-use firstrun::cli::{Command, parse, usage};
+use moneyshift::cli::{Command, parse, usage};
 
 fn main() -> ExitCode {
     configure_logging();
@@ -18,7 +18,7 @@ fn main() -> ExitCode {
     let command = match parse(std::env::args()) {
         Ok(command) => command,
         Err(error) => {
-            eprintln!("firstrun: {error}\n\n{}", usage());
+            eprintln!("moneyshift: {error}\n\n{}", usage());
             return ExitCode::from(2);
         }
     };
@@ -29,22 +29,22 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Command::Version => {
-            println!("rerun-importer-firstrun {}", env!("CARGO_PKG_VERSION"));
+            println!("rerun-importer-moneyshift {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
         }
         Command::Import(args) => {
             if args.path.as_os_str().is_empty() {
-                eprintln!("firstrun: no log path given\n\n{}", usage());
+                eprintln!("moneyshift: no log path given\n\n{}", usage());
                 return ExitCode::from(2);
             }
             // The importer protocol owns stdout, so rerun's default "logs go to stdout" is not
             // an option here.
-            firstrun::importer::run_cli(&args)
+            moneyshift::importer::run_cli(&args)
         }
-        Command::Live(args) => match firstrun::live::run(&args) {
+        Command::Live(args) => match moneyshift::live::run(&args) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
-                eprintln!("firstrun: live bridge failed: {error}");
+                eprintln!("moneyshift: live bridge failed: {error}");
                 ExitCode::FAILURE
             }
         },

@@ -18,7 +18,7 @@ import org.wpilib.networktables.NetworkTableInstance;
  * The process-wide Rerun recorder for FRC robots.
  *
  * <p>Everything is published as plain NetworkTables topics under the fixed {@value NtPath#ROOT}
- * root; the Rust {@code rerun-importer-firstrun --nt} bridge turns those topics into Rerun chunks.
+ * root; the Rust {@code rerun-importer-moneyshift --nt} bridge turns those topics into Rerun chunks.
  * The recorder never connects, starts, or stops a NetworkTables instance — the team owns it.
  *
  * <pre>{@code

@@ -14,7 +14,7 @@
 
 use std::f64::consts::{FRAC_PI_2, PI};
 
-use firstrun::first::{
+use moneyshift::first::{
     self, Camera, FIELD_LENGTH_METERS, FIELD_WIDTH_METERS, Field, Layout, Line, Path, Pose, Robot,
     Swerve, SwerveModuleState,
 };
@@ -126,7 +126,7 @@ fn main() -> anyhow::Result<()> {
         }],
     };
 
-    let stream = RecordingStreamBuilder::new("FIRSTrun first field")
+    let stream = RecordingStreamBuilder::new("moneyshift first field")
         .recording_name("FIRST field test")
         .save(&out)?;
 
@@ -254,7 +254,7 @@ fn align_advantagescope_model(stream: &re_sdk::RecordingStream) -> anyhow::Resul
 /// assets. Returns an empty list when `ffmpeg` is not available.
 fn render_camera_frames(frames: i64, frame_nanos: i64) -> Vec<Vec<u8>> {
     let seconds = frames as f64 * frame_nanos as f64 / 1e9;
-    let dir = std::env::temp_dir().join("firstrun-camera-frames");
+    let dir = std::env::temp_dir().join("moneyshift-camera-frames");
     let _ = std::fs::remove_dir_all(&dir);
     if std::fs::create_dir_all(&dir).is_err() {
         return Vec::new();

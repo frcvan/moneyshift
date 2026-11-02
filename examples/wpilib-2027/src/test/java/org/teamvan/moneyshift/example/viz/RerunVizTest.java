@@ -1,4 +1,4 @@
-package org.teamvan.firstrun.example.viz;
+package org.teamvan.moneyshift.example.viz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

@@ -1,7 +1,7 @@
-package org.teamvan.firstrun.example.drive;
+package org.teamvan.moneyshift.example.drive;
 
 import org.littletonrobotics.junction.Logger;
-import org.teamvan.firstrun.example.Constants;
+import org.teamvan.moneyshift.example.Constants;
 import org.wpilib.command2.Command;
 import org.wpilib.command2.SubsystemBase;
 import org.wpilib.command2.button.CommandGamepad;
@@ -20,12 +20,12 @@ import org.wpilib.units.Units;
 
 /**
  * An extremely basic swerve drive: four simulated modules, a gyro, odometry, and the two topics the
- * FIRSTrun bridge reads.
+ * moneyshift bridge reads.
  *
  * <p>There is no hardware layer. Each module's velocity and steering angle are first-order lagged
  * toward the requested {@link SwerveModuleVelocity}, the wheel distances are integrated, and the
  * pose estimator fuses those distances with the integrated gyro angle. Vision measurements are
- * added by {@link org.teamvan.firstrun.example.vision.Vision}.
+ * added by {@link org.teamvan.moneyshift.example.vision.Vision}.
  */
 public class SwerveDrive extends SubsystemBase {
   /** Fixed loop period the integrator assumes; the simulator runs at the standard 50 Hz. */

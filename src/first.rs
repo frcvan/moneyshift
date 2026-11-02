@@ -34,7 +34,7 @@ use re_sdk_types::{
 use serde::Deserialize;
 
 /// The plain NetworkTables topic robot code publishes the declaration on.
-pub const TOPIC: &str = "/Firstrun/layout";
+pub const TOPIC: &str = "/Moneyshift/layout";
 
 /// Root entity of the 3D field.
 pub const ROOT_3D: &str = "first";
@@ -70,9 +70,10 @@ const CAMERA_HEIGHT: f32 = 720.0;
 /// two keeps the frustum readable next to a 0.9 m robot on a 16 m field.
 const CAMERA_IMAGE_PLANE_DISTANCE: f32 = 2.0;
 
-/// A parsed `/Firstrun/layout` declaration.
+/// A parsed `/Moneyshift/layout` declaration.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Layout {
+    #[serde(default = "default_version")]
     pub version: u32,
     pub field: Field,
     #[serde(default)]
@@ -134,11 +135,19 @@ impl Layout {
     /// Parses and validates a declaration published by `FirstMetadata`.
     pub fn parse(text: &str) -> anyhow::Result<Self> {
         let layout: Self = serde_json::from_str(text).context("not a FIRST declaration")?;
-        if layout.version != 1 {
-            bail!("unsupported declaration version {}", layout.version);
+        layout.validate()
+    }
+
+    /// Rejects a declaration whose contents the bridge cannot draw.
+    ///
+    /// The same checks run for the `/Moneyshift/layout` topic and for a config file's `[layout]`, so
+    /// a hand-written file fails the way robot code's own declaration would.
+    pub fn validate(self) -> anyhow::Result<Self> {
+        if self.version != 1 {
+            bail!("unsupported declaration version {}", self.version);
         }
-        layout.field.validate()?;
-        for robot in &layout.robots {
+        self.field.validate()?;
+        for robot in &self.robots {
             if robot.team == 0 {
                 bail!("team numbers are positive");
             }
@@ -158,7 +167,7 @@ impl Layout {
             }
         }
         let mut path_names = HashSet::new();
-        for path in &layout.paths {
+        for path in &self.paths {
             if !path.topic.starts_with('/') {
                 bail!("path \"{}\": topic is not absolute", path.name);
             }
@@ -170,7 +179,7 @@ impl Layout {
             }
         }
         let mut streams = HashSet::new();
-        for robot in &layout.robots {
+        for robot in &self.robots {
             if let Some(swerve) = &robot.swerve {
                 if !swerve.states_topic.starts_with('/') {
                     bail!("team {}: swerve topic is not absolute", robot.team);
@@ -212,7 +221,7 @@ impl Layout {
                 }
             }
         }
-        Ok(layout)
+        Ok(self)
     }
 
     /// The robots the declaration draws, keyed by their pose topic.
@@ -1289,6 +1298,11 @@ const fn default_true() -> bool {
     true
 }
 
+/// The declaration version this bridge speaks; a config file may leave it out.
+const fn default_version() -> u32 {
+    1
+}
+
 const fn default_half_extents() -> [f64; 3] {
     [0.45, 0.45, 0.30]
 }
@@ -1557,7 +1571,7 @@ mod tests {
 
     #[test]
     fn custom_models_replace_the_declared_assets() {
-        let dir = std::env::temp_dir().join(format!("firstrun-models-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("moneyshift-models-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let field = dir.join("field.glb");
         let robot = dir.join("robot.glb");

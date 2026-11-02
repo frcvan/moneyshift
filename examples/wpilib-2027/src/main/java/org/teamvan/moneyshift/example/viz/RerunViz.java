@@ -1,7 +1,7 @@
-package org.teamvan.firstrun.example.viz;
+package org.teamvan.moneyshift.example.viz;
 
 import java.util.List;
-import org.teamvan.firstrun.example.Constants;
+import org.teamvan.moneyshift.example.Constants;
 import org.teamvan.moneyshift.NtRecorder;
 import org.teamvan.moneyshift.frc.FieldGeometry;
 import org.teamvan.moneyshift.frc.FirstMetadata;
@@ -9,9 +9,9 @@ import org.wpilib.fields.FieldTag;
 import org.wpilib.fields.Fields;
 
 /**
- * Tells the FIRSTrun bridge where this robot's data lives.
+ * Tells the moneyshift bridge where this robot's data lives.
  *
- * <p>This is the entire robot-side integration: one string at `/Firstrun/layout`. The bridge
+ * <p>This is the entire robot-side integration: one string at `/Moneyshift/layout`. The bridge
  * subscribes to the declared pose and swerve topics, reads the camera's MJPEG stream, and draws
  * the field, the robot, its swerve vectors and its camera frustum in the Rerun recording.
  *

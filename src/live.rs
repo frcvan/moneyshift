@@ -24,6 +24,7 @@ use re_log_types::{EntityPath, NonMinI64, TimeCell, TimePoint, Timeline};
 use re_sdk::{RecordingStream, RecordingStreamBuilder};
 
 use crate::cli::{LiveArgs, LiveSink};
+use crate::config;
 use crate::conv::{self, ConversionOptions};
 use crate::first;
 use crate::log::{EntryLog, Timestamp};
@@ -46,13 +47,43 @@ const HEALTHY_CONNECTION: Duration = Duration::from_secs(5);
 
 /// Runs the live bridge on a dedicated Tokio runtime.
 pub fn run(args: &LiveArgs) -> anyhow::Result<()> {
+    let config = config::Config::discover(args.config.as_deref())?;
+    let (args, layout) = resolve(args, config);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
-    runtime.block_on(run_async(args))
+    runtime.block_on(run_async(&args, layout))
 }
 
-async fn run_async(args: &LiveArgs) -> anyhow::Result<()> {
+/// Applies a config file to the command line, which wins where both say something.
+///
+/// Returns the resolved arguments and the declaration the file carries. A file without a
+/// `[layout]` table only changes the bridge's own options, so the declaration still comes live.
+fn resolve(args: &LiveArgs, config: Option<config::Config>) -> (LiveArgs, Option<first::Layout>) {
+    let Some(config) = config else {
+        return (args.clone(), None);
+    };
+    if let Some(source) = &config.source {
+        re_log::info!("reading the bridge's config from {}", source.display());
+    }
+    let mut resolved = args.clone();
+    if resolved.field_model.is_none() {
+        resolved.field_model = config.field_model;
+    }
+    if resolved.robot_model.is_none() {
+        resolved.robot_model = config.robot_model;
+    }
+    resolved.r#override |= config.r#override;
+    if resolved.r#override && config.layout.is_none() {
+        re_log::warn!(
+            "`override` is set, but the config file declares no [layout]; the field will stay \
+             empty"
+        );
+    }
+    (resolved, config.layout)
+}
+
+async fn run_async(args: &LiveArgs, layout: Option<first::Layout>) -> anyhow::Result<()> {
     let stream = build_stream(args)?;
     let options = NewClientOptions {
         addr: match (args.team, args.nt_addr) {
@@ -60,7 +91,7 @@ async fn run_async(args: &LiveArgs) -> anyhow::Result<()> {
             (_, Some(addr)) => NTAddr::Custom(addr),
             _ => NTAddr::Local,
         },
-        name: "rerun-firstrun".to_owned(),
+        name: "rerun-moneyshift".to_owned(),
         ..NewClientOptions::default()
     };
 
@@ -75,7 +106,18 @@ async fn run_async(args: &LiveArgs) -> anyhow::Result<()> {
         }
     }
 
-    let state = Arc::new(Mutex::new(LiveState::new(args.clone())));
+    let state = {
+        let mut state = LiveState::new(args.clone());
+        state.set_layout(layout);
+        Arc::new(Mutex::new(state))
+    };
+    // A config file can carry the declaration, and with no robot code running nothing else would
+    // ever ask for the first draw, so the field, robot models, cameras and viewer layout are sent
+    // before the first NetworkTables update arrives.
+    state
+        .lock()
+        .expect("live state poisoned")
+        .flush(&stream, Instant::now(), true);
     let stop = Arc::new(AtomicBool::new(false));
     // Set while a Rerun reconnection is in flight, so a slow viewer is only tried once at a time.
     let reconnecting = Arc::new(AtomicBool::new(false));
@@ -153,9 +195,9 @@ async fn wait_for_stop(stop: Arc<AtomicBool>) {
 }
 
 fn build_stream(args: &LiveArgs) -> anyhow::Result<RecordingStream> {
-    let builder = RecordingStreamBuilder::new("FIRSTrun")
-        .recording_name("FIRSTrun live")
-        .recording_id("firstrun_live".to_owned());
+    let builder = RecordingStreamBuilder::new("moneyshift")
+        .recording_name("moneyshift live")
+        .recording_id("moneyshift_live".to_owned());
     let stream = match &args.sink {
         LiveSink::Spawn => builder.spawn().map_err(|error| {
             anyhow::anyhow!(
@@ -450,7 +492,7 @@ struct LiveState {
     entities_by_topic: HashMap<String, EntityPath>,
     /// Value topics seen before their entity's metadata; claimed when the entity appears.
     orphans: HashMap<String, protocol::NtValue>,
-    /// The latest `/Firstrun/layout` declaration, and whether it still needs drawing.
+    /// The latest `/Moneyshift/layout` declaration, and whether it still needs drawing.
     layout: Option<first::Layout>,
     layout_pending: bool,
     /// Robots by pose topic, so every pose update is a map lookup.
@@ -567,6 +609,21 @@ impl LiveState {
         }
     }
 
+    /// Adopts a declaration and indexes it by the topics it names.
+    ///
+    /// The config file's declaration comes through here at startup and robot code's when it
+    /// arrives, so the indexes and the pending draw cannot drift apart.
+    fn set_layout(&mut self, layout: Option<first::Layout>) {
+        let Some(layout) = layout else {
+            return;
+        };
+        self.pose_robots = layout.robots_by_pose_topic();
+        self.swerve_robots = layout.robots_by_swerve_topic();
+        self.path_names = layout.paths_by_topic();
+        self.layout = Some(layout);
+        self.layout_pending = true;
+    }
+
     fn warn_once(&mut self, key: String, message: String) {
         if self.warned.insert(key) {
             re_log::warn!("{message}");
@@ -623,17 +680,25 @@ impl LiveState {
         }
 
         if name == first::TOPIC {
+            // With `override` the config file is authoritative; a declaration left over from a
+            // previous run must not replace the field someone asked for.
+            if self.args.r#override {
+                self.warn_once(
+                    format!("{name}:ignored"),
+                    format!(
+                        "ignoring the FIRST declaration on {name}: the bridge was started with \
+                         --override and draws its config file instead"
+                    ),
+                );
+                return;
+            }
             match value.as_str().map(first::Layout::parse) {
                 Some(Ok(layout)) => {
                     // Robot code may republish the same declaration every loop; only redraw
                     // when the declaration actually changed.
                     if self.layout.as_ref() != Some(&layout) {
                         re_log::info!("drawing FIRST data from the declaration on {name}");
-                        self.pose_robots = layout.robots_by_pose_topic();
-                        self.swerve_robots = layout.robots_by_swerve_topic();
-                        self.path_names = layout.paths_by_topic();
-                        self.layout = Some(layout);
-                        self.layout_pending = true;
+                        self.set_layout(Some(layout));
                         self.queue.schedule(now);
                     }
                 }
@@ -1056,7 +1121,8 @@ mod tests {
     /// The models a `--field-model`/`--robot-model` pair names replace the declaration's.
     #[test]
     fn custom_models_are_drawn_on_the_first_lane() {
-        let dir = std::env::temp_dir().join(format!("firstrun-live-models-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("moneyshift-live-models-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let field = dir.join("field.glb");
         let robot = dir.join("robot.glb");
@@ -1072,6 +1138,8 @@ mod tests {
             entity_path_prefix: None,
             field_model: Some(field.clone()),
             robot_model: Some(robot.clone()),
+            config: None,
+            r#override: false,
         };
         let (stream, storage) = re_sdk::RecordingStreamBuilder::new("live_models_test")
             .memory()
@@ -1112,6 +1180,57 @@ mod tests {
                 "{entity} should carry the custom model"
             );
         }
+    }
+
+    /// With no robot code running nothing publishes `/Moneyshift/layout`, so the config file's
+    /// declaration has to be drawn on its own, before any NetworkTables update arrives.
+    #[test]
+    fn a_config_declaration_is_drawn_without_robot_code() {
+        let args = LiveArgs {
+            team: None,
+            nt_addr: None,
+            robot_time_topic: None,
+            sink: LiveSink::Stdout,
+            quiet: true,
+            entity_path_prefix: None,
+            field_model: None,
+            robot_model: None,
+            config: None,
+            r#override: true,
+        };
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("live_config_test")
+            .memory()
+            .unwrap();
+        let mut state = LiveState::new(args);
+        state.set_layout(Some(
+            Layout::parse(
+                r#"{"version":1,"field":{"carpet":true,
+                "lines":[{"points":[[0.0,0.0],[16.54175,8.069326]],"closed":false}]},
+                "robots":[{"team":254,"pose_topic":"/Pose"}]}"#,
+            )
+            .unwrap(),
+        ));
+        assert!(state.layout_pending);
+        assert!(state.pose_robots.contains_key("/Pose"));
+
+        state.flush(&stream, Instant::now(), true);
+
+        let entities = storage
+            .take()
+            .into_iter()
+            .filter_map(|message| match message {
+                re_log_msg::LogMsg::ArrowMsg(_, arrow) => {
+                    re_chunk::Chunk::from_arrow_msg(&arrow).ok()
+                }
+                _ => None,
+            })
+            .map(|chunk| chunk.entity_path().to_string())
+            .collect::<Vec<_>>();
+        assert!(
+            entities.contains(&"/first/field".to_owned()),
+            "the field comes from the config file alone, got {entities:?}"
+        );
+        assert!(!state.layout_pending, "the draw is not repeated");
     }
 
     #[test]
@@ -1269,7 +1388,7 @@ mod tests {
     #[test]
     fn file_and_pipe_sinks_are_never_reconnected() {
         for sink in [
-            LiveSink::Save(std::path::PathBuf::from("/tmp/firstrun-reconnect.rrd")),
+            LiveSink::Save(std::path::PathBuf::from("/tmp/moneyshift-reconnect.rrd")),
             LiveSink::Stdout,
         ] {
             let args = LiveArgs {
@@ -1281,6 +1400,8 @@ mod tests {
                 entity_path_prefix: None,
                 field_model: None,
                 robot_model: None,
+                config: None,
+                r#override: false,
             };
             assert!(super::rerun_endpoint(&args).is_none());
 

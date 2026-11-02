@@ -32,7 +32,7 @@ import org.wpilib.networktables.NetworkTableInstance;
  * prints the command that connects the Rust bridge:
  *
  * <pre>{@code
- * cargo run --bin rerun-importer-firstrun -- --nt --save /tmp/live.rrd
+ * cargo run --bin rerun-importer-moneyshift -- --nt --save /tmp/live.rrd
  * }</pre>
  *
  * <p>Use {@code --client <host>} to publish to a server that already exists (for example the one
@@ -96,7 +96,7 @@ public final class MoneyshiftDemo {
                 "published %d frames to %s%n",
                 frames, clientHost == null ? "the embedded NT server on port " + port : clientHost);
         System.out.println("connect the Rust bridge with:");
-        System.out.println("  cargo run --bin rerun-importer-firstrun -- --nt --save /tmp/live.rrd");
+        System.out.println("  cargo run --bin rerun-importer-moneyshift -- --nt --save /tmp/live.rrd");
         System.out.println("then open the recording with: rerun --load /tmp/live.rrd");
 
         if (lingerSeconds > 0) {

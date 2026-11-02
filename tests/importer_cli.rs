@@ -1,4 +1,4 @@
-//! End-to-end tests for `rerun-importer-firstrun` in external-importer mode.
+//! End-to-end tests for `rerun-importer-moneyshift` in external-importer mode.
 
 use std::io::Write;
 use std::process::Command;
@@ -6,7 +6,7 @@ use std::process::Command;
 use re_log_encoding::rrd::Decoder;
 use re_log_msg::LogMsg;
 
-const BIN: &str = env!("CARGO_BIN_EXE_rerun-importer-firstrun");
+const BIN: &str = env!("CARGO_BIN_EXE_rerun-importer-moneyshift");
 const FIXTURE: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/test_data/FRC_TBD_d225b5377c70a88d.wpilog"
@@ -57,7 +57,7 @@ fn imports_a_wpilog_to_pure_rrd_on_stdout() {
 #[test]
 fn refuses_non_wpilogs_with_exit_code_66_and_empty_stdout() {
     let mut dir = std::env::temp_dir();
-    dir.push(format!("firstrun-cli-{}", std::process::id()));
+    dir.push(format!("moneyshift-cli-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("not-a-log.txt");
     std::fs::File::create(&path)

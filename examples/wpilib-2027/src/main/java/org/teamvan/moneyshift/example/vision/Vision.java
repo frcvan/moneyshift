@@ -1,4 +1,4 @@
-package org.teamvan.firstrun.example.vision;
+package org.teamvan.moneyshift.example.vision;
 
 import org.littletonrobotics.junction.Logger;
 import org.photonvision.EstimatedRobotPose;
@@ -8,8 +8,8 @@ import org.photonvision.simulation.PhotonCameraSim;
 import org.photonvision.simulation.SimCameraProperties;
 import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonPipelineResult;
-import org.teamvan.firstrun.example.Constants;
-import org.teamvan.firstrun.example.drive.SwerveDrive;
+import org.teamvan.moneyshift.example.Constants;
+import org.teamvan.moneyshift.example.drive.SwerveDrive;
 import org.wpilib.fields.Field;
 import org.wpilib.fields.Fields;
 import org.wpilib.math.geometry.Rotation3d;
@@ -21,7 +21,7 @@ import org.wpilib.math.geometry.Translation3d;
  *
  * <p>The camera is a name and an MJPEG stream: PhotonVision publishes its results over
  * NetworkTables and serves the picture at `http://<coprocessor>:1181/stream.mjpg`, which is the
- * URL the FIRSTrun layout declares. In simulation there is no coprocessor, so {@link
+ * URL the moneyshift layout declares. In simulation there is no coprocessor, so {@link
  * VisionSystemSim} renders the tags from the WPILib field definition instead.
  */
 public final class Vision {

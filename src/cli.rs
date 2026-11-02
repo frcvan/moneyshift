@@ -1,4 +1,4 @@
-//! Hand-written command-line parsing for `rerun-importer-firstrun`.
+//! Hand-written command-line parsing for `rerun-importer-moneyshift`.
 //!
 //! There are two modes: the Rerun external-importer mode (a WPI log path plus the flags the Rerun
 //! viewer passes) and the live NetworkTables bridge (`--nt`). The parser deliberately has no
@@ -28,7 +28,7 @@ pub struct TimeCellArg {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ImportArgs {
     pub path: PathBuf,
-    /// `--application-id`, defaults to `FIRSTrun`.
+    /// `--application-id`, defaults to `moneyshift`.
     pub application_id: String,
     /// `--recording-id`, if the viewer assigned one.
     pub recording_id: Option<String>,
@@ -60,6 +60,10 @@ pub struct LiveArgs {
     pub robot_time_topic: Option<String>,
     pub sink: LiveSink,
     pub quiet: bool,
+    /// A `moneyshift.toml` to read; `None` means the default file, if it exists.
+    pub config: Option<PathBuf>,
+    /// Ignore `/Moneyshift/layout`; the config file's declaration wins instead.
+    pub r#override: bool,
     /// Prefix applied to every mapped entity (mostly for tests and recordings).
     pub entity_path_prefix: Option<String>,
     /// A model file that replaces the declaration's field model.
@@ -91,7 +95,7 @@ impl ImportArgs {
     fn new(path: PathBuf) -> Self {
         Self {
             path,
-            application_id: "FIRSTrun".to_owned(),
+            application_id: "moneyshift".to_owned(),
             recording_id: None,
             entity_path_prefix: None,
             static_: false,
@@ -109,6 +113,8 @@ impl LiveArgs {
             robot_time_topic: None,
             sink: LiveSink::Spawn,
             quiet: false,
+            config: None,
+            r#override: false,
             entity_path_prefix: None,
             field_model: None,
             robot_model: None,
@@ -217,6 +223,10 @@ where
             "--robot-model" => {
                 live_args.robot_model = Some(PathBuf::from(next_value(&arg)?));
             }
+            "--config" => {
+                live_args.config = Some(PathBuf::from(next_value(&arg)?));
+            }
+            "--override" => live_args.r#override = true,
             "--spawn" => set_sink(&mut sink, LiveSink::Spawn)?,
             "--stdout" => set_sink(&mut sink, LiveSink::Stdout)?,
             "--connect" => set_sink(&mut sink, LiveSink::Connect(next_value(&arg)?))?,
@@ -245,11 +255,14 @@ where
     if team.is_some()
         || nt_addr.is_some()
         || sink.is_some()
+        || live_args.config.is_some()
+        || live_args.r#override
         || live_args.field_model.is_some()
         || live_args.robot_model.is_some()
     {
         return Err(CliError(
-            "--team, --nt-addr, --field-model, --robot-model and the sink flags need --nt"
+            "--team, --nt-addr, --config, --override, --field-model, --robot-model and the \
+             sink flags need --nt"
                 .to_owned(),
         ));
     }
@@ -297,11 +310,11 @@ fn parse_time_cell(flag: &str, value: &str, kind: TimeCellKind) -> Result<TimeCe
 
 pub fn usage() -> &'static str {
     concat!(
-        "FIRSTrun: import FRC robot telemetry into Rerun\n",
+        "moneyshift: import FRC robot telemetry into Rerun\n",
         "\n",
         "Usage:\n",
-        "  rerun-importer-firstrun <path.wpilog> [importer flags]\n",
-        "  rerun-importer-firstrun --nt [--team <n> | --nt-addr <ip>] [options]\n",
+        "  rerun-importer-moneyshift <path.wpilog> [importer flags]\n",
+        "  rerun-importer-moneyshift --nt [--team <n> | --nt-addr <ip>] [options]\n",
         "\n",
         "Importer flags (passed by the Rerun viewer):\n",
         "  --application-id <id>        application id for the recording\n",
@@ -322,6 +335,10 @@ pub fn usage() -> &'static str {
         "  --field-model <path>         draw this glTF/GLB/OBJ/STL field model instead of the\n",
         "                               one the declaration names\n",
         "  --robot-model <path>         draw this model for every robot instead of a box\n",
+        "  --config <path>              read the field, robots and viewer layout from a TOML\n",
+        "                               file (default: moneyshift.toml, when it exists)\n",
+        "  --override                   ignore /Moneyshift/layout; the config file decides what\n",
+        "                               is drawn, so no robot code is needed\n",
         "  --spawn                      start a viewer (default)\n",
         "  --connect <url>              send to a running viewer\n",
         "  --save <path.rrd>            write a recording instead\n",
@@ -338,7 +355,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn cmd(args: &[&str]) -> Result<Command, super::CliError> {
-        parse(std::iter::once("rerun-importer-firstrun").chain(args.iter().copied()))
+        parse(std::iter::once("rerun-importer-moneyshift").chain(args.iter().copied()))
     }
 
     #[test]
@@ -347,7 +364,7 @@ mod tests {
             panic!("expected importer mode");
         };
         assert_eq!(args.path, PathBuf::from("log.wpilog"));
-        assert_eq!(args.application_id, "FIRSTrun");
+        assert_eq!(args.application_id, "moneyshift");
         assert!(!args.static_);
     }
 
@@ -412,6 +429,19 @@ mod tests {
         // Only the live bridge draws a field, so the importer mode rejects them.
         assert!(cmd(&["--field-model", "field.glb", "log.wpilog"]).is_err());
         assert!(cmd(&["--robot-model", "robot.glb", "log.wpilog"]).is_err());
+    }
+
+    #[test]
+    fn parses_a_config_file_and_the_override_flag() {
+        let Ok(Command::Live(args)) = cmd(&["--nt", "--config", "arena.toml", "--override"]) else {
+            panic!("expected live mode");
+        };
+        assert_eq!(args.config, Some(PathBuf::from("arena.toml")));
+        assert!(args.r#override);
+
+        // Only the live bridge reads a config file.
+        assert!(cmd(&["--config", "arena.toml", "log.wpilog"]).is_err());
+        assert!(cmd(&["--override", "log.wpilog"]).is_err());
     }
 
     #[test]

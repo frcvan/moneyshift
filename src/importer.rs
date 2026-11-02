@@ -46,9 +46,9 @@ pub struct ImportOptions {
 impl Default for ImportOptions {
     fn default() -> Self {
         Self {
-            application_id: "FIRSTrun".to_owned(),
+            application_id: "moneyshift".to_owned(),
             recording_id: None,
-            recording_name: Some("FIRSTrun WPI log".to_owned()),
+            recording_name: Some("moneyshift WPI log".to_owned()),
             store_source: "WpiLog".to_owned(),
             entity_path_prefix: None,
             timepoint: None,
@@ -108,7 +108,7 @@ impl ImportOptions {
 
     fn store_id(&self) -> StoreId {
         let application_id = ApplicationId::try_new(self.application_id.as_str())
-            .unwrap_or_else(|_| ApplicationId::from_static_str("FIRSTrun"));
+            .unwrap_or_else(|_| ApplicationId::from_static_str("moneyshift"));
         let id = StoreId::random(StoreKind::Recording, application_id);
         match &self.recording_id {
             Some(recording_id) => id.with_recording_id(recording_id.clone()),
@@ -267,7 +267,10 @@ pub fn run_cli(args: &ImportArgs) -> std::process::ExitCode {
     let contents = match std::fs::read(&args.path) {
         Ok(contents) => contents,
         Err(error) => {
-            eprintln!("firstrun: failed to read {}: {error}", args.path.display());
+            eprintln!(
+                "moneyshift: failed to read {}: {error}",
+                args.path.display()
+            );
             return std::process::ExitCode::FAILURE;
         }
     };
@@ -285,7 +288,7 @@ pub fn run_cli(args: &ImportArgs) -> std::process::ExitCode {
         Ok(parsed) => parsed,
         Err(error) => {
             eprintln!(
-                "firstrun: failed to import {}: {error}",
+                "moneyshift: failed to import {}: {error}",
                 args.path.display()
             );
             return std::process::ExitCode::FAILURE;
@@ -312,7 +315,7 @@ pub fn run_cli(args: &ImportArgs) -> std::process::ExitCode {
     match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("firstrun: failed to write RRD: {error}");
+            eprintln!("moneyshift: failed to write RRD: {error}");
             std::process::ExitCode::FAILURE
         }
     }

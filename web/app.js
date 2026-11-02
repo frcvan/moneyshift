@@ -1,14 +1,14 @@
-import initImporter, { import_wpilog } from "./firstrun.js";
+import initImporter, { import_wpilog } from "./moneyshift.js";
 import initViewer, { WebHandle } from "./re_viewer.js";
 
 const input = document.querySelector("#file-input");
 const canvas = document.querySelector("#rerun-canvas");
-const channelId = "firstrun-wpilog";
+const channelId = "moneyshift-wpilog";
 
 await Promise.all([initImporter(), initViewer("./re_viewer_bg.wasm")]);
 const viewer = new WebHandle({ persistState: true });
 await viewer.start(canvas);
-viewer.open_channel(channelId, "FIRSTrun WPI log");
+viewer.open_channel(channelId, "moneyshift WPI log");
 
 input.addEventListener("change", async () => {
     const [file] = input.files;

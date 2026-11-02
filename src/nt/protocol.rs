@@ -921,12 +921,12 @@ pub fn plan_entity(meta: &EntityMeta) -> Result<EntityPlan, DecodeError> {
             }
             // Column roots come from `<entity>/.rerun/components`, which any publisher can write.
             // Report a malformed one instead of panicking on it.
-            None => ComponentIdentifier::try_new(field.as_str()).map_err(|_| {
-                DecodeError::Columns {
+            None => {
+                ComponentIdentifier::try_new(field.as_str()).map_err(|_| DecodeError::Columns {
                     path: field.clone(),
                     message: "column root is not a valid component identifier".to_owned(),
-                }
-            })?,
+                })?
+            }
         };
 
         components.push(ComponentPlan::new(

@@ -3,8 +3,8 @@ use re_log_msg::LogMsg;
 
 fn main() {
     let contents = include_bytes!("../test_data/FRC_TBD_d225b5377c70a88d.wpilog");
-    let rrd = firstrun::import_to_rrd(contents).unwrap();
-    std::fs::write("/tmp/firstrun.rrd", &rrd).unwrap();
+    let rrd = moneyshift::import_to_rrd(contents).unwrap();
+    std::fs::write("/tmp/moneyshift.rrd", &rrd).unwrap();
     println!("rrd len {}", rrd.len());
     let mut decoder: Decoder<LogMsg> = Decoder::new();
     decoder.push_byte_chunk(rrd);

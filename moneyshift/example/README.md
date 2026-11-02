@@ -16,7 +16,7 @@ By default the demo starts an embedded NT4 server on port 5810, publishes 60 fra
 bridge command, and exits. Start the Rust bridge against the same server:
 
 ```sh
-cargo run --bin rerun-importer-firstrun -- --nt --save /tmp/live.rrd
+cargo run --bin rerun-importer-moneyshift -- --nt --save /tmp/live.rrd
 rerun --load /tmp/live.rrd
 ```
 

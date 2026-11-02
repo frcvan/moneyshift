@@ -1,13 +1,13 @@
-# FIRSTrun
+# moneyshift
 
 Turn FRC robot telemetry into [Rerun](https://rerun.io) recordings and live streams.
 
-FIRSTrun has four surfaces that all speak Rerun 0.40.0:
+moneyshift has four surfaces that all speak Rerun 0.40.0:
 
 | Surface | What it does |
 |---|---|
-| `rerun-importer-firstrun` | Rerun **external importer**: `*.wpilog` in, RRD out on stdout |
-| `rerun-importer-firstrun --nt` | **Live bridge**: NetworkTables topics in, Rerun stream out |
+| `rerun-importer-moneyshift` | Rerun **external importer**: `*.wpilog` in, RRD out on stdout |
+| `rerun-importer-moneyshift --nt` | **Live bridge**: NetworkTables topics in, Rerun stream out |
 | `moneyshift/` | **Java SDK** that publishes Rerun data to NetworkTables from robot code |
 | `web/` | Static browser importer (the wasm build of the same `*.wpilog` importer) |
 
@@ -17,8 +17,8 @@ Build and put the binary on `PATH` (the Rerun viewer discovers executables named
 `rerun-importer-*`):
 
 ```sh
-cargo build --release --bin rerun-importer-firstrun
-install -m 755 target/release/rerun-importer-firstrun ~/.local/bin/
+cargo build --release --bin rerun-importer-moneyshift
+install -m 755 target/release/rerun-importer-moneyshift ~/.local/bin/
 ```
 
 Then open a log in the viewer as usual - `rerun match.wpilog` - and the importer handles it. The
@@ -30,8 +30,8 @@ honored.
 You can also import without a viewer:
 
 ```sh
-rerun-importer-firstrun match.wpilog > match.rrd
-rerun-importer-firstrun match.wpilog --entity-path-prefix robot --static > scene.rrd
+rerun-importer-moneyshift match.wpilog > match.rrd
+rerun-importer-moneyshift match.wpilog --entity-path-prefix robot --static > scene.rrd
 ```
 
 ## Live mode
@@ -42,7 +42,7 @@ The live bridge subscribes to every topic on the team's NetworkTables server and
 - everything else through the same WPILib-struct heuristics the WPILog importer uses, so plain
   robot code, AdvantageKit and dashboard topics are graphed without extra work.
 
-Robot code can also publish one `/Firstrun/layout` string (see
+Robot code can also publish one `/Moneyshift/layout` string (see
 [`FirstMetadata`](moneyshift/README.md#first-field-and-robot-overlays)). It declares which topics
 carry each robot's pose, swerve module states and planned paths, and what the field and cameras
 look like; the bridge then adds the carpet, field lines, tags, robot bounding boxes, swerve
@@ -96,9 +96,9 @@ AdvantageKit, PhotonVision and a simulated swerve drive that publishes the layou
 `--nt --save` records a real robot end to end.
 
 ```sh
-rerun-importer-firstrun --nt --team 254 --spawn
-rerun-importer-firstrun --nt --nt-addr 10.0.0.2 --save /tmp/live.rrd
-rerun-importer-firstrun --nt --robot-time-topic /FMSInfo/MatchTime --connect rerun+http://127.0.0.1:9876/proxy
+rerun-importer-moneyshift --nt --team 254 --spawn
+rerun-importer-moneyshift --nt --nt-addr 10.0.0.2 --save /tmp/live.rrd
+rerun-importer-moneyshift --nt --robot-time-topic /FMSInfo/MatchTime --connect rerun+http://127.0.0.1:9876/proxy
 ```
 
 Sinks are mutually exclusive: `--spawn` (default, needs `rerun` on `PATH`), `--connect <url>`,
@@ -114,6 +114,75 @@ instead of waiting for the declaration to name a field model or settling for rob
 field model is drawn in the field frame; a robot model is drawn in the robot frame (`+x` forward,
 `+y` left, `+z` up) with its origin at the footprint center on the carpet, and replaces the box on
 every declared robot. A robot model that cannot be read only falls back to the boxes.
+
+### A config file, and running with no robot code
+
+Everything robot code can declare can also come from a file. `--nt` reads `moneyshift.toml` from the
+working directory when it exists, and `--config <path>` names another file. The `[layout]` table is
+the same declaration `/Moneyshift/layout` carries, so the field, robots, cameras, paths and the
+viewer blueprint read the same either way:
+
+```toml
+# moneyshift.toml: draw the field and the viewer layout without any robot code.
+override = true
+field_model = "models/field.glb"   # replaces the model the layout names
+robot_model = "models/robot.glb"   # replaces every robot's bounding box
+
+[layout]
+version = 1                        # optional; the bridge speaks version 1
+
+[layout.field]
+carpet = true
+lines = [
+  { points = [[0.0, 0.0], [16.54175, 0.0], [16.54175, 8.069326], [0.0, 8.069326]], closed = true },
+  { points = [[8.270875, 0.0], [8.270875, 8.069326]], closed = false },
+]
+
+[[layout.field.tags]]
+id = 3
+x = 3.62
+y = 4.03
+z = 1.35
+yaw = 3.1416
+size = 0.1651
+
+[[layout.robots]]
+team = 254
+pose_topic = "/AdvantageKit/RealOutputs/Drive/Pose2d"
+half_extents = [0.45, 0.45, 0.3]
+swerve = { states_topic = "/AdvantageKit/RealOutputs/Drive/SwerveStates" }
+
+[[layout.robots.cameras]]
+name = "front"
+x = 0.3
+y = 0.0
+z = 0.5
+pitch = -10.0
+fov = 70.0
+stream = "http://10.25.4.11:1181/stream.mjpg"
+
+[[layout.paths]]
+name = "auto"
+topic = "/Auto/Path"
+
+[layout.blueprint]
+container = "tabs"
+
+[[layout.blueprint.views]]
+kind = "three_d"
+
+[[layout.blueprint.views]]
+kind = "dataframe"
+name = "State"
+entities = ["/AdvantageKit/RealOutputs/Drive/Pose2d"]
+```
+
+The file's declaration is drawn as soon as the bridge starts, so the field, the robot models, the
+camera streams and the viewer layout appear even with the robot off and no robot code running. A
+`/Moneyshift/layout` published later replaces it, exactly as it replaces the default layout; set
+`override = true` (or pass `--override`) to ignore that topic and keep the file authoritative.
+Command-line flags win over the file for `--field-model` and `--robot-model`, and a `[layout]`
+declared in the file is validated exactly like one robot code publishes.
 
 On the robot side, see [`moneyshift/README.md`](moneyshift/README.md):
 
@@ -131,7 +200,7 @@ rec.log("world/points", Points3D.builder()
 
 ```sh
 cargo build --release --lib --target wasm32-unknown-unknown
-wasm-bindgen --target web --out-dir web/dist target/wasm32-unknown-unknown/release/firstrun.wasm
+wasm-bindgen --target web --out-dir web/dist target/wasm32-unknown-unknown/release/moneyshift.wasm
 ```
 
 ## Development
@@ -154,7 +223,7 @@ The Java type surface is generated: edit `xtask/src/codegen/java.rs` and run
 The `/Rerun` wire format is shared by the Java writer and the Rust bridge, so it is pinned by a
 checked-in fixture: `moneyshift/lib/src/test/resources/rerun_wire_fixture.json` is produced by the
 Java `WireFixtureTest` and decoded by `tests/wire_fixture.rs`. Regenerate it after an intentional
-layout change with `./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true`
+layout change with `./gradlew :lib:test --tests '*WireFixtureTest' -Dmoneyshift.writeFixture=true`
 and commit it together with the codegen output.
 
 ## Layout
@@ -165,6 +234,7 @@ and commit it together with the codegen output.
 | `src/nt/protocol.rs` | `/Rerun` NetworkTables column decoder |
 | `src/nt/native.rs` | Plain NT topic adapter |
 | `src/live.rs` | Live subscription, debounce, timestamps, sinks, reconnect |
+| `src/config.rs` | The live bridge's `moneyshift.toml` (field, robots, cameras, blueprint) |
 | `src/conv/`, `src/log.rs`, `src/values/`, `src/wpilog/` | WPILog parsing and Rerun conversion heuristics |
 | `moneyshift/` | Java SDK and example |
 | `web/` | Browser importer |

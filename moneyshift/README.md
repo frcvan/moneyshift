@@ -5,7 +5,7 @@ A Java API for publishing [Rerun](https://rerun.io) data from FRC robot code ove
 
 The SDK keeps Rerun 0.40.0's archetype/component/encoding type surface (generated from Rerun's own
 type definitions) and re-targets it to plain NT topics under `/Rerun`. The Rust
-`rerun-importer-firstrun --nt` bridge turns those topics back into Rerun chunks in real time, so
+`rerun-importer-moneyshift --nt` bridge turns those topics back into Rerun chunks in real time, so
 Java never touches Arrow, protobuf, gRPC or RRD.
 
 ## Usage
@@ -35,7 +35,7 @@ backing instance with `NtRecorder.setInstance(instance)`; `null` restores the de
 Then run the bridge on the laptop or coprocessor:
 
 ```sh
-rerun-importer-firstrun --nt --team 254 --spawn
+rerun-importer-moneyshift --nt --team 254 --spawn
 ```
 
 ### Entities, static data and timelines
@@ -56,7 +56,7 @@ other entity's topics. `log("", ...)`, `log("/", ...)` and `NtPath.encodeEntityP
 ## FIRST field and robot overlays
 
 `org.teamvan.moneyshift.frc.FirstMetadata` declares FIRST data for the bridge. It is not Rerun
-protocol data: one plain NetworkTables string at `/Firstrun/layout`.
+protocol data: one plain NetworkTables string at `/Moneyshift/layout`.
 
 ```java
 FirstMetadata.builder()
@@ -203,7 +203,7 @@ the Java writer and the Rust bridge cannot drift apart silently. After an intent
 change, regenerate the fixture and commit it with the codegen output:
 
 ```sh
-./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true
+./gradlew :lib:test --tests '*WireFixtureTest' -Dmoneyshift.writeFixture=true
 ```
 
 ## Publishing

@@ -2,10 +2,10 @@
 
 ## What this repo is
 
-**FIRSTrun** turns FRC robot telemetry into [Rerun](https://rerun.io) recordings. It has two
+**moneyshift** turns FRC robot telemetry into [Rerun](https://rerun.io) recordings. It has two
 independent surfaces:
 
-- a Rust crate (`firstrun`) that parses WPILog (`*.wpilog`) files into Rerun chunks, compiled for
+- a Rust crate (`moneyshift`) that parses WPILog (`*.wpilog`) files into Rerun chunks, compiled for
   native (console importer) and `wasm32` (browser importer), plus a static viewer app in `web/`;
 - a Java SDK in `moneyshift/` that exposes Rerun's archetype/component type surface (generated
   from Rerun 0.40.0) and publishes it to NetworkTables.
@@ -18,14 +18,14 @@ is generated from the `re_type_definitions` git tag `0.40.0`.
 | Path                                             | Purpose                                                                            |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `src/lib.rs`                                     | Wasm-safe library entry: `import_to_rrd` / `import_wpilog`                         |
-| `src/main.rs`                                    | `rerun-importer-firstrun`: CLI dispatch for the importer and `--nt` modes          |
+| `src/main.rs`                                    | `rerun-importer-moneyshift`: CLI dispatch for the importer and `--nt` modes          |
 | `src/log.rs`                                     | `EntryLog`: timestamped raw values keyed by `EntityPath`, with change tracking     |
 | `src/values/`                                    | WPILog value parsing (primitive arrays, structs, WPILib schemas)                   |
 | `src/wpilog/`                                    | WPILog container parser (records, payloads)                                        |
 | `src/conv.rs`, `src/conv/components.rs`          | Heuristics that turn raw values into Rerun archetypes and chunks                   |
-| `src/nt/`                                        | `/Rerun` column decoder (`protocol.rs`) and plain-topic adapter (`native.rs`)      |
-| `src/live.rs`                                    | Live NT subscription, debounce, timestamps, sinks and reconnect                    |
-| `src/first.rs`                                   | `/Firstrun/layout` declaration: field, robot and pose overlays for the live bridge |
+| `src/nt/`                                        | `/Rerun` column decoder (`protocol.rs`) and plain-topic adapter (`native.rs`)      || `src/live.rs`                                      | Live NT subscription, debounce, timestamps, sinks and reconnect                    |
+| `src/config.rs`                                    | The bridge's `moneyshift.toml`: field, robots, cameras and blueprint from a file      |
+| `src/first.rs`                                   | `/Moneyshift/layout` declaration: field, robot and pose overlays for the live bridge |
 | `src/importer.rs`, `src/cli.rs`                  | WPI-log to RRD importer and the hand-written CLI parser                            |
 | `xtask/`                                         | Code generator: `re_type_definitions` → Java sources (`xtask/src/codegen/java.rs`) |
 | `moneyshift/lib/`                                | Java library (`org.teamvan.moneyshift`)                                            |
@@ -40,7 +40,7 @@ is generated from the `re_type_definitions` git tag `0.40.0`.
 ```sh
 # Rust (nightly toolchain from rust-toolchain.toml; see .cargo/config.toml for wasm flags)
 cargo test
-cargo build --release --bin rerun-importer-firstrun
+cargo build --release --bin rerun-importer-moneyshift
 cargo build --release --lib --target wasm32-unknown-unknown
 
 # Decode an RRD produced anywhere in this repo
@@ -58,7 +58,7 @@ cd examples/wpilib-2027
 ```
 
 The wasm artifact is built with `wasm-bindgen` **0.2.126** and then `wasm-opt -Oz` (see
-`.github/workflows/pages.yml`); the site expects `web/dist/firstrun.js` and `firstrun_bg.wasm`.
+`.github/workflows/pages.yml`); the site expects `web/dist/moneyshift.js` and `moneyshift_bg.wasm`.
 
 ## Code generation
 
@@ -103,7 +103,7 @@ Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUE
 - Hand-written runtime: `NtRecorder`, `NtEntityWriter`, `NtPath`, `Archetype`, `NtComponent`,
   `NtEncoding`. The old wire-protocol classes (Arrow, protobuf, gRPC, RRD, blueprints) are gone;
   do not reintroduce them.
-- `org.teamvan.moneyshift.frc.FirstMetadata` publishes the `/Firstrun/layout` declaration the
+- `org.teamvan.moneyshift.frc.FirstMetadata` publishes the `/Moneyshift/layout` declaration the
   bridge reads; `src/first.rs` owns the drawing. Robot bodies span `0..2h` above the carpet (a
   pose is on the floor) and swerve vectors are drawn above the body. A camera's optional ninth
   argument is PhotonVision's MJPEG URL. There is no NT transport for camera frames: `src/mjpeg.rs`

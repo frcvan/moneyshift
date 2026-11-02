@@ -1,8 +1,8 @@
-package org.teamvan.firstrun.example;
+package org.teamvan.moneyshift.example;
 
-import org.teamvan.firstrun.example.drive.SwerveDrive;
-import org.teamvan.firstrun.example.vision.Vision;
-import org.teamvan.firstrun.example.viz.RerunViz;
+import org.teamvan.moneyshift.example.drive.SwerveDrive;
+import org.teamvan.moneyshift.example.vision.Vision;
+import org.teamvan.moneyshift.example.viz.RerunViz;
 import org.wpilib.command2.Command;
 import org.wpilib.command2.button.CommandGamepad;
 import org.wpilib.math.geometry.Pose2d;

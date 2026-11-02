@@ -6,7 +6,7 @@
 //! the layout. Regenerate the fixture with:
 //!
 //! ```sh
-//! cd moneyshift && ./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true
+//! cd moneyshift && ./gradlew :lib:test --tests '*WireFixtureTest' -Dmoneyshift.writeFixture=true
 //! ```
 
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::path::Path;
 
 use arrow::array::{Array, AsArray};
 use arrow::datatypes::{Float32Type, UInt16Type, UInt32Type, UInt64Type};
-use firstrun::nt::protocol::{
+use moneyshift::nt::protocol::{
     EntityMeta, NtValue, decode_planned, entity_path_from_topic, plan_entity,
 };
 
@@ -48,7 +48,7 @@ fn fixture() -> Fixture {
     let text = std::fs::read_to_string(&path).unwrap_or_else(|error| {
         panic!(
             "could not read {}: {error}; regenerate it from moneyshift with \
-             `./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true`",
+             `./gradlew :lib:test --tests '*WireFixtureTest' -Dmoneyshift.writeFixture=true`",
             path.display()
         )
     });

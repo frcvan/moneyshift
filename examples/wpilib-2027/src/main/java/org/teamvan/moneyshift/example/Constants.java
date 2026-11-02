@@ -1,4 +1,4 @@
-package org.teamvan.firstrun.example;
+package org.teamvan.moneyshift.example;
 
 import org.wpilib.framework.RobotBase;
 import org.wpilib.units.Units;
@@ -10,7 +10,7 @@ import org.wpilib.units.measure.LinearVelocity;
  * The demo robot's constants.
  *
  * <p>Everything is deliberately small: a square 0.6 m swerve base, one front camera, and the
- * NetworkTables topic names the FIRSTrun bridge reads. The camera stream is PhotonVision's MJPEG
+ * NetworkTables topic names the moneyshift bridge reads. The camera stream is PhotonVision's MJPEG
  * URL, which is all a camera is to the bridge.
  */
 public final class Constants {

@@ -7,4 +7,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'firstrun-wpilib-2027'
+rootProject.name = 'moneyshift-wpilib-2027'

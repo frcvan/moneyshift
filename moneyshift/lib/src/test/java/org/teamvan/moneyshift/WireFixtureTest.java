@@ -43,11 +43,11 @@ import org.teamvan.moneyshift.encodings.Utf8;
  * <p>Regenerate after an intentional layout change:
  *
  * <pre>{@code
- * ./gradlew :lib:test --tests '*WireFixtureTest' -Dfirstrun.writeFixture=true
+ * ./gradlew :lib:test --tests '*WireFixtureTest' -Dmoneyshift.writeFixture=true
  * }</pre>
  */
 class WireFixtureTest {
-    private static final String WRITE_PROPERTY = "firstrun.writeFixture";
+    private static final String WRITE_PROPERTY = "moneyshift.writeFixture";
 
     private NetworkTableInstance instance;
     private NtRecorder recorder;

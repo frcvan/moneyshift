@@ -13,7 +13,7 @@ import org.teamvan.moneyshift.NtRecorder;
  *
  * <p>The declaration answers two questions: which plain NetworkTables topics carry the robot's
  * pose, swerve states and planned paths, and what the field and cameras look like. Robot code
- * publishes it once at {@value #TOPIC}; the {@code rerun-importer-firstrun --nt} bridge reads it
+ * publishes it once at {@value #TOPIC}; the {@code rerun-importer-moneyshift --nt} bridge reads it
  * and injects the carpet, field lines, tags, robot bounding boxes, swerve module vectors, camera
  * frustums and paths into the Rerun recording. Nothing here is Rerun protocol data, so it works
  * even when robot code publishes no {@code /Rerun} topics at all.
@@ -37,7 +37,7 @@ import org.teamvan.moneyshift.NtRecorder;
  */
 public final class FirstMetadata {
     /** The plain NetworkTables topic the bridge reads the declaration from. */
-    public static final String TOPIC = "/Firstrun/layout";
+    public static final String TOPIC = "/Moneyshift/layout";
 
     /** Bumped when the JSON shape changes incompatibly. */
     public static final int VERSION = 1;

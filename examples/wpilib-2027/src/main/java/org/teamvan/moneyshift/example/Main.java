@@ -1,4 +1,4 @@
-package org.teamvan.firstrun.example;
+package org.teamvan.moneyshift.example;
 
 import org.wpilib.framework.RobotBase;
 

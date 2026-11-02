@@ -1,4 +1,4 @@
-package org.teamvan.firstrun.example;
+package org.teamvan.moneyshift.example;
 
 import org.littletonrobotics.junction.LoggedRobot;
 import org.littletonrobotics.junction.Logger;
@@ -12,7 +12,7 @@ public class Robot extends LoggedRobot {
   private Command autonomousCommand;
 
   public Robot() {
-    // AdvantageKit publishes the log to NetworkTables, so AdvantageScope and the FIRSTrun bridge
+    // AdvantageKit publishes the log to NetworkTables, so AdvantageScope and the moneyshift bridge
     // see live data next to the topics the robot publishes itself.
     Logger.addDataReceiver(new NT4Publisher());
     Logger.start();

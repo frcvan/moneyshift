@@ -1,4 +1,4 @@
-//! FIRSTrun: turn FRC robot telemetry into Rerun data.
+//! moneyshift: turn FRC robot telemetry into Rerun data.
 //!
 //! The crate is wasm-safe: [`import_to_rrd`] and [`import_wpilog`] turn a WPI log into an in-memory
 //! RRD stream for the browser importer. The native-only modules add the console importer
@@ -11,6 +11,8 @@ pub mod log;
 pub mod values;
 pub mod wpilog;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod config;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod first;
 #[cfg(not(target_arch = "wasm32"))]

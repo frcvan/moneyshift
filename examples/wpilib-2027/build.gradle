@@ -10,7 +10,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
-def ROBOT_MAIN_CLASS = 'org.teamvan.firstrun.example.Main'
+def ROBOT_MAIN_CLASS = 'org.teamvan.moneyshift.example.Main'
 
 repositories {
     mavenCentral()
@@ -43,7 +43,7 @@ def deployArtifact = deploy.targets.systemcore.artifacts.wpilibJava
 wpi.java.runSimWithDebugJni = false
 
 dependencies {
-    // FIRSTrun: publishes the /Firstrun/layout declaration the rerun importer reads.
+    // moneyshift: publishes the /Moneyshift/layout declaration the rerun importer reads.
     implementation 'org.teamvan.moneyshift:lib:0.1.0'
     // WPILib 2027 ships the command-based framework v2 as its own artifact (org.wpilib.command2).
     implementation 'org.wpilib.commandsv2:commandsv2-java:2027.0.0-alpha-7'
