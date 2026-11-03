@@ -24,8 +24,7 @@ is generated from the `re_type_definitions` git tag `0.40.0`.
 | `src/wpilog/`                                    | WPILog container parser (records, payloads)                                        |
 | `src/conv.rs`, `src/conv/components.rs`          | Heuristics that turn raw values into Rerun archetypes and chunks                   |
 | `src/nt/`                                        | `/Rerun` column decoder (`protocol.rs`) and plain-topic adapter (`native.rs`)      || `src/live.rs`                                      | Live NT subscription, debounce, timestamps, sinks and reconnect                    |
-| `src/config.rs`                                    | The bridge's `moneyshift.toml`: field, robots, cameras and blueprint from a file      |
-| `src/first.rs`                                   | `/Moneyshift/layout` declaration: field, robot and pose overlays for the live bridge |
+| `src/config.rs`                                    | The bridge's `moneyshift.toml`: field, robots, cameras and blueprint from a file      || `src/first.rs`                                     | `/Moneyshift/layout` declaration and `Overlay`, the one drawing layer live and import share |
 | `src/importer.rs`, `src/cli.rs`                  | WPI-log to RRD importer and the hand-written CLI parser                            |
 | `xtask/`                                         | Code generator: `re_type_definitions` → Java sources (`xtask/src/codegen/java.rs`) |
 | `moneyshift/lib/`                                | Java library (`org.teamvan.moneyshift`)                                            |
@@ -83,7 +82,14 @@ samples only clone an `Arc`. Schema parsing **fails closed** — a schema that c
 understood is rejected instead of truncated, because a truncated schema silently changes the byte
 layout of every value. Resolution rejects self-referential schemas. Decoded values are
 `EntryValue::Struct`/`StructArray`, carrying the shared schema plus a `Vec` of field values.
-Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUED_STRUCTS`.
+Unknown struct types are queued until their schema arrives, capped by `MAX_QUEUED_STRUCTS`; once
+the cap is reached the type is dropped with one warning. Rerun has nothing to render a struct
+without a layout with, so URCL's opaque packets are not kept as blobs either.
+
+Reading a log recovers from damage instead of failing: a bad record is skipped by resynchronising
+on the next chain of plausible records (timestamps near the last intact one, values of started
+entries), and unrecoverable bytes are dropped with a warning. A truncated match log therefore
+still imports.
 
 - `EntryLog` stores one Arrow array per `(entity, timestamp)` and tracks a changed set. It also
   retains WPILog type strings and struct schemas, which the heuristics need.

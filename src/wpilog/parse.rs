@@ -1,8 +1,27 @@
+use std::collections::HashSet;
+
 use nom::{
     IResult, bytes::streaming as bstreaming, error::ErrorKind, number::streaming as nstreaming,
 };
 
 use crate::log;
+
+/// Magic, version and extra-header length: the part of the header every reader needs.
+const FIXED_HEADER_LEN: usize = 12;
+
+/// How many consecutive records a resynchronisation candidate must produce, so that payload
+/// bytes that happen to parse as a record are not mistaken for the end of the damage.
+const RESYNC_CHAIN: usize = 4;
+
+/// How far ahead of the last intact record a candidate may be, in microseconds.
+const RESYNC_MAX_GAP_US: u64 = 5_000_000;
+
+/// How far behind the last intact record a candidate may be. Records are allowed to arrive out
+/// of order, but only barely, and a candidate that jumps backwards is almost always junk.
+const RESYNC_MAX_BACKWARD_US: u64 = 100_000;
+
+/// How far a damaged region is scanned for the next intact record before the rest is dropped.
+const RESYNC_MAX_SCAN_BYTES: usize = 8 << 20;
 
 struct RecordHeaderLengths(u8);
 impl RecordHeaderLengths {
@@ -145,7 +164,7 @@ impl<'log> WpiRecord<'log> {
                     let (input, entry_metadata_len) = nstreaming::le_u32(input)?;
                     let (input, entry_metadata) = parse_string(input, entry_metadata_len as usize)?;
 
-                    debug_assert!(input.is_empty(), "didn't consume all input",);
+                    require_consumed(input)?;
 
                     Ok((
                         leftover,
@@ -161,7 +180,7 @@ impl<'log> WpiRecord<'log> {
                     ))
                 }
                 Self::FINISH_CONTROL_RECORD => {
-                    debug_assert!(input.is_empty(), "didn't consume all input");
+                    require_consumed(input)?;
 
                     Ok((
                         leftover,
@@ -177,7 +196,7 @@ impl<'log> WpiRecord<'log> {
                     let (input, entry_metadata_len) = nstreaming::le_u32(input)?;
                     let (input, entry_metadata) = parse_string(input, entry_metadata_len as usize)?;
 
-                    debug_assert!(input.is_empty(), "didn't consume all input");
+                    require_consumed(input)?;
 
                     Ok((
                         leftover,
@@ -251,23 +270,75 @@ impl<'log> WpiLogFile<'log> {
     /// Records are never retained, so importing a large log costs no more memory than the log
     /// itself. This is what the importer uses; [`WpiLogFile::parse`] is the variant that also
     /// keeps the record list.
+    ///
+    /// Damage is recovered from instead of propagated: a log pulled off the robot while it is
+    /// still being written, or one with a scrambled stretch, imports up to the damage and then
+    /// continues at the next intact record. Bytes that cannot be resynchronised are dropped with
+    /// a warning, never turned into an error, because a truncated match log is still useful.
     pub fn parse_streaming(
         input: &'log [u8],
         mut record_cb: impl FnMut(WpiRecord<'log>),
     ) -> IResult<&'log [u8], (u16, &'log str), ParseError> {
-        let (mut input, header) = Self::parse_header(input)?;
+        let (mut input, header) = match Self::parse_header(input) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                // Records start at a fixed offset, so a damaged extra header only loses the
+                // header string; the records after it may still be intact.
+                re_log::warn!(
+                    "the WPI log's header is damaged; looking for intact records after it"
+                );
+                let start = FIXED_HEADER_LEN.min(input.len());
+                (&input[start..], (0x0100, ""))
+            }
+        };
 
-        // An exhausted input surfaces as `Err::Error`, which ends the log; a `Failure` or
-        // `Incomplete` means the log itself is broken and has to propagate.
+        let mut last_timestamp = 0u64;
+        let mut known_entries = HashSet::new();
+        let mut skipped = 0usize;
+
         loop {
+            if input.is_empty() {
+                break;
+            }
             match WpiRecord::parse(input) {
                 Ok((remaining, record)) => {
+                    match &record.payload {
+                        Payload::Start { entry_id, .. } => {
+                            known_entries.insert(*entry_id);
+                        }
+                        Payload::Finish { entry_id } => {
+                            known_entries.remove(entry_id);
+                        }
+                        Payload::SetMetadata { .. } | Payload::Raw { .. } => {}
+                    }
+                    last_timestamp = last_timestamp.max(record.timestamp.0);
                     record_cb(record);
                     input = remaining;
                 }
-                Err(nom::Err::Error(_)) => break,
-                Err(error) => return Err(error),
+                Err(_) => match next_intact_record(input, last_timestamp, &known_entries) {
+                    Some(offset) => {
+                        re_log::warn!(
+                            "skipping {offset} damaged bytes and resuming at the next intact \
+                             record"
+                        );
+                        skipped += offset;
+                        input = &input[offset..];
+                    }
+                    None => {
+                        re_log::warn!(
+                            "dropping the last {} bytes of the log: no intact record follows",
+                            input.len()
+                        );
+                        skipped += input.len();
+                        input = &input[input.len()..];
+                        break;
+                    }
+                },
             }
+        }
+
+        if skipped > 0 {
+            re_log::warn!("{skipped} bytes of the log could not be read");
         }
 
         Ok((input, header))
@@ -293,6 +364,79 @@ impl<'log> WpiLogFile<'log> {
             },
         ))
     }
+}
+
+/// Rejects a control record whose payload has bytes left over.
+///
+/// The spec gives each control record an exact payload, so leftovers mean the bytes are not a
+/// record at all. Checked in release builds too, because resynchronisation relies on a parse
+/// failure meaning damage rather than a silently truncated control record.
+fn require_consumed(input: &[u8]) -> Result<(), nom::Err<ParseError>> {
+    if input.is_empty() {
+        Ok(())
+    } else {
+        Err(nom::Err::Failure(ParseError::InvalidFormat(ErrorKind::Tag)))
+    }
+}
+
+/// Looks for the next byte offset in a damaged region that starts intact records.
+///
+/// A WPI log is a flat record stream, so after a bad length or a scrambled payload the only way
+/// back is to scan. One record is not evidence, since payload bytes can parse as records: a
+/// candidate has to be followed by [`RESYNC_CHAIN`] records whose timestamps stay near the last
+/// intact one and whose values belong to entries that have been started. Returns the offset of
+/// the candidate, or `None` when none is found within [`RESYNC_MAX_SCAN_BYTES`].
+fn next_intact_record(
+    input: &[u8],
+    last_timestamp: u64,
+    known_entries: &HashSet<u32>,
+) -> Option<usize> {
+    let limit = if last_timestamp == 0 {
+        u64::MAX
+    } else {
+        last_timestamp.saturating_add(RESYNC_MAX_GAP_US)
+    };
+    let earliest = last_timestamp.saturating_sub(RESYNC_MAX_BACKWARD_US);
+    let scan = &input[..input.len().min(RESYNC_MAX_SCAN_BYTES)];
+
+    (1..scan.len()).find(|offset| {
+        let mut rest = &scan[*offset..];
+        let mut started = [0u32; RESYNC_CHAIN];
+        let mut started_len = 0;
+        let mut previous = last_timestamp;
+        for step in 0..RESYNC_CHAIN {
+            if rest.is_empty() {
+                // A chain that runs into the end of the file counts once it has a record behind
+                // it; a truncated last record is not evidence of anything.
+                return step > 0;
+            }
+            let Ok((remaining, record)) = WpiRecord::parse(rest) else {
+                return false;
+            };
+            let timestamp = record.timestamp.0;
+            if timestamp > limit || timestamp < earliest || timestamp < previous {
+                return false;
+            }
+            previous = timestamp;
+            match &record.payload {
+                Payload::Start { entry_id, .. } => {
+                    if started_len < RESYNC_CHAIN {
+                        started[started_len] = *entry_id;
+                        started_len += 1;
+                    }
+                }
+                Payload::Raw { entry_id, .. }
+                    if !known_entries.contains(entry_id)
+                        && !started[..started_len].contains(entry_id) =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+            rest = remaining;
+        }
+        true
+    })
 }
 
 #[cfg(test)]
@@ -683,5 +827,73 @@ mod tests {
         let (input, _wpi_log) = super::WpiLogFile::parse(example, |_| {}).unwrap();
 
         assert_eq!(input.len(), 0);
+    }
+
+    /// The fixed header of a WPI log, with no extra header string.
+    fn header() -> Vec<u8> {
+        let mut file = b"WPILOG".to_vec();
+        file.extend_from_slice(&0x0100u16.to_le_bytes());
+        file.extend_from_slice(&0u32.to_le_bytes());
+        file
+    }
+
+    /// One record with 1-byte entry ids, 1-byte payload lengths and 3-byte timestamps.
+    fn push_record(file: &mut Vec<u8>, entry_id: u8, timestamp: u32, payload: &[u8]) {
+        assert!(payload.len() < 128 && timestamp < 1 << 24);
+        file.push(0x20);
+        file.push(entry_id);
+        file.push(payload.len() as u8);
+        file.extend_from_slice(&timestamp.to_le_bytes()[..3]);
+        file.extend_from_slice(payload);
+    }
+
+    /// A Start control record for an `int64` entry.
+    fn push_start(file: &mut Vec<u8>, entry_id: u32, timestamp: u32) {
+        let mut payload = vec![0];
+        payload.extend_from_slice(&entry_id.to_le_bytes());
+        for string in ["test", "int64", ""] {
+            payload.extend_from_slice(&(string.len() as u32).to_le_bytes());
+            payload.extend_from_slice(string.as_bytes());
+        }
+        push_record(file, 0, timestamp, &payload);
+    }
+
+    #[test]
+    fn resumes_after_a_damaged_record() {
+        let mut file = header();
+        push_start(&mut file, 1, 1_000_000);
+        push_record(&mut file, 1, 1_000_001, b"ab");
+        push_record(&mut file, 1, 1_000_002, b"cd");
+        // A scrambled stretch, sized so nothing in it suggests a record chain.
+        file.extend_from_slice(&[0xde, 0xad, 0xbe, 0xef, 0x00, 0x00, 0x00]);
+        for step in 0..6 {
+            push_record(&mut file, 1, 1_000_100 + step, b"ef");
+        }
+
+        let mut timestamps = Vec::new();
+        super::WpiLogFile::parse_streaming(&file, |record| {
+            if matches!(record.payload, super::Payload::Raw { .. }) {
+                timestamps.push(record.timestamp.0);
+            }
+        })
+        .unwrap();
+
+        assert_eq!(timestamps[..2], [1_000_001, 1_000_002]);
+        assert_eq!(timestamps.len(), 8, "the records after the damage are read");
+        assert_eq!(timestamps[2], 1_000_100);
+    }
+
+    #[test]
+    fn stops_cleanly_at_a_truncated_last_record() {
+        let mut file = header();
+        push_start(&mut file, 1, 1_000_000);
+        push_record(&mut file, 1, 1_000_001, b"ab");
+        // A record header whose 64-byte payload never arrives.
+        file.extend_from_slice(&[0x20, 0x01, 0x40, 0x42]);
+
+        let mut count = 0;
+        super::WpiLogFile::parse_streaming(&file, |_| count += 1).unwrap();
+
+        assert_eq!(count, 2, "everything before the cut is imported");
     }
 }

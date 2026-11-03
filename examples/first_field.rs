@@ -138,6 +138,7 @@ fn main() -> anyhow::Result<()> {
         &stream,
         &layout.paths[0].name,
         &path,
+        first::TIMELINE,
         TimeCell::from_duration_nanos(NonMinI64::new(0).unwrap_or_default()),
         None,
     )?;
@@ -162,11 +163,19 @@ fn main() -> anyhow::Result<()> {
             yaw: (angle + FRAC_PI_2) as f32,
             quaternion: None,
         };
-        first::log_pose(&stream, &layout.robots[0], pose, time, None)?;
+        first::log_pose(
+            &stream,
+            &layout.robots[0],
+            pose,
+            first::TIMELINE,
+            time,
+            None,
+        )?;
         first::log_swerve(
             &stream,
             &layout.robots[0],
             &swerve_states(&[0.15, -0.10, -0.20, 0.05], seconds),
+            first::TIMELINE,
             time,
             None,
         )?;
@@ -181,11 +190,19 @@ fn main() -> anyhow::Result<()> {
             yaw: (3.0 * 2.0 * (t * 2.0).cos()).atan2(4.0 * t.cos()) as f32,
             quaternion: None,
         };
-        first::log_pose(&stream, &layout.robots[1], pose, time, None)?;
+        first::log_pose(
+            &stream,
+            &layout.robots[1],
+            pose,
+            first::TIMELINE,
+            time,
+            None,
+        )?;
         first::log_swerve(
             &stream,
             &layout.robots[1],
             &swerve_states(&[-0.05, 0.20, 0.10, -0.15], seconds + 0.7),
+            first::TIMELINE,
             time,
             None,
         )?;

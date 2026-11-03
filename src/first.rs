@@ -42,6 +42,12 @@ pub const ROOT_3D: &str = "first";
 /// Root entity of the 2D field, in WPILib's field frame.
 pub const ROOT_2D: &str = "first2d";
 
+/// The timeline robot poses, swerve states and paths are drawn on.
+///
+/// The live bridge logs NetworkTables timestamps on it; the importer passes its own timeline
+/// name instead, so an imported recording does not grow a second clock.
+pub const TIMELINE: &str = "robot_time";
+
 /// Length of an FRC carpet, in meters. The field size is fixed; only its contents are declared.
 pub const FIELD_LENGTH_METERS: f64 = 16.54175;
 
@@ -327,6 +333,285 @@ impl Layout {
     }
 }
 
+/// What a declared topic carries.
+///
+/// The declaration names a topic and nothing else; what arrives on it is decided by the slot the
+/// topic fills. Both front ends ask [`Overlay::topic_kind`] instead of guessing from the value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TopicKind {
+    Pose,
+    Swerve,
+    Path,
+}
+
+/// The drawing layer the live bridge and the WPI-log importer both drive.
+///
+/// It owns the declaration's topic indexes, the values one frame still has to draw, and the
+/// calls into [`log_pose`], [`log_swerve`], [`log_path`], [`Layout::log_static_with_models`] and
+/// [`log_blueprint`]. Both front ends go through it, so a topic cannot map to one robot in a
+/// live session and to another in an import.
+#[derive(Debug, Clone, Default)]
+pub struct Overlay {
+    layout: Option<Layout>,
+    pose_robots: HashMap<String, Robot>,
+    swerve_robots: HashMap<String, Robot>,
+    path_names: HashMap<String, String>,
+    pending_poses: Vec<(Robot, Pose)>,
+    pending_swerve: Vec<(Robot, Vec<SwerveModuleState>)>,
+    pending_paths: Vec<(String, Vec<Pose>)>,
+}
+
+impl Overlay {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adopts a declaration and indexes it by the topics it names.
+    ///
+    /// Returns `false` when there is no declaration to adopt; an earlier one stays in place.
+    pub fn set_layout(&mut self, layout: Option<Layout>) -> bool {
+        let Some(layout) = layout else {
+            return false;
+        };
+        let keyed = |topic: &str| topic_key(topic).to_owned();
+        self.pose_robots = layout
+            .robots_by_pose_topic()
+            .into_iter()
+            .map(|(topic, robot)| (keyed(&topic), robot))
+            .collect();
+        self.swerve_robots = layout
+            .robots_by_swerve_topic()
+            .into_iter()
+            .map(|(topic, robot)| (keyed(&topic), robot))
+            .collect();
+        self.path_names = layout
+            .paths_by_topic()
+            .into_iter()
+            .map(|(topic, name)| (keyed(&topic), name))
+            .collect();
+        self.layout = Some(layout);
+        true
+    }
+
+    #[must_use]
+    pub fn layout(&self) -> Option<&Layout> {
+        self.layout.as_ref()
+    }
+
+    #[must_use]
+    pub fn has_layout(&self) -> bool {
+        self.layout.is_some()
+    }
+
+    /// The declared cameras, in declaration order, with the team each is mounted on.
+    pub fn cameras(&self) -> impl Iterator<Item = (u16, &Camera)> {
+        self.layout.iter().flat_map(|layout| layout.cameras())
+    }
+
+    /// Whether a robot is declared with `topic` as its pose source.
+    #[must_use]
+    pub fn is_pose_topic(&self, topic: &str) -> bool {
+        self.topic_kind(topic) == Some(TopicKind::Pose)
+    }
+
+    /// Whether a robot is declared with `topic` as its swerve-states source.
+    #[must_use]
+    pub fn is_swerve_topic(&self, topic: &str) -> bool {
+        self.topic_kind(topic) == Some(TopicKind::Swerve)
+    }
+
+    /// Whether a path is declared on `topic`.
+    #[must_use]
+    pub fn is_path_topic(&self, topic: &str) -> bool {
+        self.topic_kind(topic) == Some(TopicKind::Path)
+    }
+
+    /// What the declaration says `topic` carries, if it names it at all.
+    ///
+    /// Swerve states are checked before poses, which is the order the live bridge has always
+    /// decoded in. Both front ends ask this one question, so a declaration that names one topic
+    /// twice cannot be drawn one way live and another in an import.
+    #[must_use]
+    pub fn topic_kind(&self, topic: &str) -> Option<TopicKind> {
+        let topic = topic_key(topic);
+        if self.swerve_robots.contains_key(topic) {
+            Some(TopicKind::Swerve)
+        } else if self.pose_robots.contains_key(topic) {
+            Some(TopicKind::Pose)
+        } else if self.path_names.contains_key(topic) {
+            Some(TopicKind::Path)
+        } else {
+            None
+        }
+    }
+
+    /// Queues a NetworkTables value that arrived on `topic`.
+    ///
+    /// `Ok(false)` means the declaration names no such topic, so it is not the overlay's to
+    /// draw; an error means it names the topic but the value is not what it declared there.
+    pub fn feed_nt(
+        &mut self,
+        topic: &str,
+        ty: &DataType,
+        value: &rmpv::Value,
+    ) -> anyhow::Result<bool> {
+        match self.topic_kind(topic) {
+            None => Ok(false),
+            Some(TopicKind::Swerve) => match swerve_states_from_nt(ty, value) {
+                Some(states) => Ok(self.swerve(topic, &states)),
+                None => bail!("not a SwerveModuleState[] value"),
+            },
+            Some(TopicKind::Pose) => match Pose::from_nt(ty, value) {
+                Some(pose) => Ok(self.pose(topic, pose)),
+                None => bail!("not a Pose2d/Pose3d value"),
+            },
+            Some(TopicKind::Path) => match poses_from_nt(ty, value) {
+                Some(poses) => Ok(self.path(topic, &poses)),
+                None => bail!("not a Pose2d[]/Translation2d[] value"),
+            },
+        }
+    }
+
+    /// Queues the bytes a WPI-log entry carried on `topic`.
+    ///
+    /// The byte-level half of [`Self::feed_nt`]: the same topic kind and the same decoders, so a
+    /// log import and a live session draw the topics a config file declares identically even
+    /// though one carries NetworkTables values and the other raw struct payloads.
+    pub fn feed_log(&mut self, topic: &str, ty: &str, bytes: &[u8]) -> anyhow::Result<bool> {
+        match self.topic_kind(topic) {
+            None => Ok(false),
+            Some(TopicKind::Swerve) => match swerve_states_from_bytes(ty, bytes) {
+                Some(states) => Ok(self.swerve(topic, &states)),
+                None => bail!("not a SwerveModuleState[] payload"),
+            },
+            Some(TopicKind::Pose) => match Pose::from_struct_bytes(ty, bytes) {
+                Some(pose) => Ok(self.pose(topic, pose)),
+                None => bail!("not a Pose2d/Pose3d payload"),
+            },
+            Some(TopicKind::Path) => match poses_from_bytes(ty, bytes) {
+                Some(poses) => Ok(self.path(topic, &poses)),
+                None => bail!("not a Pose2d[]/Translation2d[] payload"),
+            },
+        }
+    }
+
+    /// Queues a pose that arrived on `topic`; `false` when no robot is declared there.
+    pub fn pose(&mut self, topic: &str, pose: Pose) -> bool {
+        match self.pose_robots.get(topic_key(topic)) {
+            Some(robot) => {
+                self.pending_poses.push((robot.clone(), pose));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Queues swerve states that arrived on `topic`; `false` when no robot is declared there.
+    pub fn swerve(&mut self, topic: &str, states: &[SwerveModuleState]) -> bool {
+        match self.swerve_robots.get(topic_key(topic)) {
+            Some(robot) => {
+                self.pending_swerve.push((robot.clone(), states.to_vec()));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Queues a path that arrived on `topic`; `false` when no path is declared there.
+    pub fn path(&mut self, topic: &str, poses: &[Pose]) -> bool {
+        match self.path_names.get(topic_key(topic)) {
+            Some(name) => {
+                self.pending_paths.push((name.clone(), poses.to_vec()));
+                true
+            }
+            None => false,
+        }
+    }
+
+    #[must_use]
+    pub fn has_pending(&self) -> bool {
+        !self.pending_poses.is_empty()
+            || !self.pending_swerve.is_empty()
+            || !self.pending_paths.is_empty()
+    }
+
+    /// Draws everything queued for this frame and clears it.
+    ///
+    /// Failures are returned instead of logged, because each front end reports them its own way.
+    pub fn flush(
+        &mut self,
+        stream: &RecordingStream,
+        timeline: &'static str,
+        time: TimeCell,
+        prefix: Option<&EntityPath>,
+    ) -> Vec<anyhow::Error> {
+        let mut errors = Vec::new();
+        for (robot, states) in std::mem::take(&mut self.pending_swerve) {
+            if let Err(error) = log_swerve(stream, &robot, &states, timeline, time, prefix) {
+                errors.push(error.context(format!(
+                    "could not draw team {}'s swerve states",
+                    robot.team
+                )));
+            }
+        }
+        for (name, poses) in std::mem::take(&mut self.pending_paths) {
+            if let Err(error) = log_path(stream, &name, &poses, timeline, time, prefix) {
+                errors.push(error.context(format!("could not draw path {name}")));
+            }
+        }
+        for (robot, pose) in std::mem::take(&mut self.pending_poses) {
+            if let Err(error) = log_pose(stream, &robot, pose, timeline, time, prefix) {
+                errors.push(error.context(format!("could not draw team {}'s pose", robot.team)));
+            }
+        }
+        errors
+    }
+
+    /// Draws the field and robots as static data, as the declaration describes them.
+    pub fn draw_static(
+        &self,
+        stream: &RecordingStream,
+        models: Models<'_>,
+        prefix: Option<&EntityPath>,
+    ) -> anyhow::Result<()> {
+        match &self.layout {
+            Some(layout) => layout.log_static_with_models(stream, prefix, models),
+            None => Ok(()),
+        }
+    }
+
+    /// Sends the viewer layout the declaration asks for, cameras included.
+    pub fn draw_blueprint(
+        &self,
+        stream: &RecordingStream,
+        prefix: Option<&EntityPath>,
+    ) -> anyhow::Result<bool> {
+        match &self.layout {
+            Some(layout) => log_blueprint(stream, layout, prefix),
+            None => Ok(false),
+        }
+    }
+}
+
+/// The key a declared topic and a value topic agree on.
+///
+/// A declaration and the live bridge name NetworkTables topics (`/AdvantageKit/RealOutputs/...`),
+/// while a WPI log stores the entry without the leading slash and without the logger's own
+/// namespace (`RealOutputs/...`), because the logger *is* that namespace. Dropping both leaves
+/// one key for both front ends.
+fn topic_key(topic: &str) -> &str {
+    let topic = topic.strip_prefix("NT:").unwrap_or(topic);
+    let topic = topic.trim_start_matches('/');
+    topic.strip_prefix("AdvantageKit/").unwrap_or(topic)
+}
+
+/// The bare struct name of a WPILog type (`struct:Pose2d[]` -> `Pose2d`).
+fn struct_type_name(ty: &str) -> &str {
+    let ty = ty.strip_prefix("struct:").unwrap_or(ty);
+    ty.strip_suffix("[]").unwrap_or(ty)
+}
+
 /// Model files that replace the ones the declaration names.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Models<'a> {
@@ -592,11 +877,7 @@ impl Pose {
                     rmpv::Value::String(text) => text.as_str()?.as_bytes(),
                     _ => return None,
                 };
-                match name {
-                    "Pose2d" | "Transform2d" => Self::from_struct_2d(bytes),
-                    "Pose3d" | "Transform3d" => Self::from_struct_3d(bytes),
-                    _ => None,
-                }
+                Self::from_struct_bytes(name, bytes)
             }
             DataType::DoubleArray | DataType::FloatArray => {
                 let values = value
@@ -613,6 +894,23 @@ impl Pose {
                     _ => None,
                 }
             }
+            _ => None,
+        }
+    }
+
+    /// Decodes a pose from the bytes of a WPILib struct.
+    ///
+    /// The live bridge reaches this through [`Pose::from_nt`], and the importer calls it with
+    /// the bytes a WPI-log entry carried, so both decode a pose exactly the same way.
+    #[must_use]
+    pub fn from_struct_bytes(ty: &str, bytes: &[u8]) -> Option<Self> {
+        if ty.ends_with("[]") {
+            // An array is a path or a list of poses, not one pose.
+            return None;
+        }
+        match struct_type_name(ty) {
+            "Pose2d" | "Transform2d" => Self::from_struct_2d(bytes),
+            "Pose3d" | "Transform3d" => Self::from_struct_3d(bytes),
             _ => None,
         }
     }
@@ -673,10 +971,11 @@ pub fn log_pose(
     stream: &RecordingStream,
     robot: &Robot,
     pose: Pose,
+    timeline: &'static str,
     time: TimeCell,
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<()> {
-    stream.set_time("robot_time", time);
+    stream.set_time(timeline, time);
 
     let rotation = match pose.quaternion {
         Some(quaternion) => Rotation3D::Quaternion(RotationQuat(Quaternion::from_xyzw(quaternion))),
@@ -743,11 +1042,21 @@ pub struct SwerveModuleState {
 #[must_use]
 pub fn swerve_states_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<SwerveModuleState>> {
     let name = struct_array_name(ty)?;
-    if name != "SwerveModuleState" && name != "SwerveModuleVelocity" {
-        return None;
-    }
     let bytes = binary(value)?;
-    if bytes.len() % 16 != 0 {
+    swerve_states_from_bytes(name, bytes)
+}
+
+/// Decodes a `SwerveModuleState[]`/`SwerveModuleVelocity[]` payload.
+///
+/// Both struct names are a pair of doubles (speed in m/s, steering angle in radians), so they
+/// decode alike; this is what the importer uses on the bytes a WPI-log entry carried.
+#[must_use]
+pub fn swerve_states_from_bytes(ty: &str, bytes: &[u8]) -> Option<Vec<SwerveModuleState>> {
+    if !matches!(
+        struct_type_name(ty),
+        "SwerveModuleState" | "SwerveModuleVelocity"
+    ) || bytes.len() % 16 != 0
+    {
         return None;
     }
     bytes
@@ -768,29 +1077,25 @@ pub fn swerve_states_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<S
 pub fn poses_from_nt(ty: &DataType, value: &rmpv::Value) -> Option<Vec<Pose>> {
     let name = struct_array_name(ty)?;
     let bytes = binary(value)?;
-    match name {
-        "Pose2d" | "Transform2d" => {
-            if bytes.len() % 24 != 0 {
-                return None;
-            }
-            bytes
-                .as_chunks::<24>()
-                .0
-                .iter()
-                .map(|chunk| Pose::from_struct_2d(chunk))
-                .collect()
-        }
-        "Translation2d" => {
-            if bytes.len() % 16 != 0 {
-                return None;
-            }
-            bytes
-                .as_chunks::<16>()
-                .0
-                .iter()
-                .map(|chunk| Some(Pose::from_2d(read_f64(chunk, 0)?, read_f64(chunk, 8)?, 0.0)))
-                .collect()
-        }
+    poses_from_bytes(name, bytes)
+}
+
+/// Decodes a path stored as `Pose2d[]` or `Translation2d[]` bytes.
+#[must_use]
+pub fn poses_from_bytes(ty: &str, bytes: &[u8]) -> Option<Vec<Pose>> {
+    match struct_type_name(ty) {
+        "Pose2d" | "Transform2d" if bytes.len() % 24 == 0 => bytes
+            .as_chunks::<24>()
+            .0
+            .iter()
+            .map(|chunk| Pose::from_struct_2d(chunk))
+            .collect(),
+        "Translation2d" if bytes.len() % 16 == 0 => bytes
+            .as_chunks::<16>()
+            .0
+            .iter()
+            .map(|chunk| Some(Pose::from_2d(read_f64(chunk, 0)?, read_f64(chunk, 8)?, 0.0)))
+            .collect(),
         _ => None,
     }
 }
@@ -803,13 +1108,14 @@ pub fn log_swerve(
     stream: &RecordingStream,
     robot: &Robot,
     states: &[SwerveModuleState],
+    timeline: &'static str,
     time: TimeCell,
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<()> {
     if states.is_empty() {
         return Ok(());
     }
-    stream.set_time("robot_time", time);
+    stream.set_time(timeline, time);
 
     let offsets = module_offsets(robot);
     let top = swerve_arrow_height(robot);
@@ -836,13 +1142,14 @@ pub fn log_path(
     stream: &RecordingStream,
     name: &str,
     poses: &[Pose],
+    timeline: &'static str,
     time: TimeCell,
     prefix: Option<&EntityPath>,
 ) -> anyhow::Result<()> {
     if poses.len() < 2 {
         return Ok(());
     }
-    stream.set_time("robot_time", time);
+    stream.set_time(timeline, time);
 
     let strip_3d = poses
         .iter()
@@ -899,7 +1206,7 @@ pub fn log_image(
     let Some(media_type) = image_media_type(bytes) else {
         return Ok(false);
     };
-    stream.set_time("robot_time", time);
+    stream.set_time(TIMELINE, time);
     stream.log(
         at(prefix, camera_image_entity(team, &camera.name)),
         &EncodedImage::new(bytes.to_vec()).with_media_type(media_type),
@@ -922,7 +1229,7 @@ pub fn log_camera_frame(
     if jpeg.is_empty() {
         return Ok(());
     }
-    stream.set_time("robot_time", time);
+    stream.set_time(TIMELINE, time);
     stream.log(
         at(prefix, camera_image_entity(team, &camera.name)),
         &EncodedImage::new(jpeg.to_vec()).with_media_type(MediaType::JPEG),
@@ -1310,9 +1617,9 @@ const fn default_half_extents() -> [f64; 3] {
 #[cfg(test)]
 mod tests {
     use super::{
-        Layout, Pose, ROOT_2D, ROOT_3D, footprint_2d, image_media_type, log_image, log_path,
-        log_pose, log_swerve, poses_from_nt, robot_entity, robot_model, swerve_arrow_height,
-        swerve_color, swerve_states_from_nt, team_color,
+        Layout, Pose, ROOT_2D, ROOT_3D, TIMELINE, footprint_2d, image_media_type, log_image,
+        log_path, log_pose, log_swerve, poses_from_nt, robot_entity, robot_model,
+        swerve_arrow_height, swerve_color, swerve_states_from_nt, team_color,
     };
     use nt_client::data::DataType;
 
@@ -1729,7 +2036,7 @@ mod tests {
             yaw: 0.5,
             quaternion: None,
         };
-        log_pose(&stream, robot, pose, time, None).unwrap();
+        log_pose(&stream, robot, pose, TIMELINE, time, None).unwrap();
         let states = [
             super::SwerveModuleState {
                 speed_mps: 1.0,
@@ -1748,8 +2055,8 @@ mod tests {
                 angle: 1.0,
             },
         ];
-        log_swerve(&stream, robot, &states, time, None).unwrap();
-        log_path(&stream, "auto", &[pose, pose], time, None).unwrap();
+        log_swerve(&stream, robot, &states, TIMELINE, time, None).unwrap();
+        log_path(&stream, "auto", &[pose, pose], TIMELINE, time, None).unwrap();
         let camera = &robot.cameras[0];
         assert!(
             log_image(&stream, robot.team, camera, JPEG, time, None).unwrap(),
@@ -1935,6 +2242,103 @@ mod tests {
                 "a pale tint stays bright, got {pale:?}"
             );
         }
+    }
+
+    #[test]
+    fn the_overlay_maps_log_topics_the_same_way_as_live_ones() {
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_overlay_test")
+            .memory()
+            .unwrap();
+        let mut overlay = super::Overlay::new();
+        assert!(overlay.set_layout(Some(Layout::parse(DECLARATION).unwrap())));
+
+        // The declaration names `/AdvantageKit/RealOutputs/Drive/Pose2d`; a WPI log stores the
+        // entry as `RealOutputs/Drive/Pose2d`, so both spellings reach the same robot.
+        assert!(overlay.is_pose_topic("RealOutputs/Drive/Pose2d"));
+        assert!(overlay.pose(
+            "RealOutputs/Drive/Pose2d",
+            Pose {
+                translation: [1.0, 2.0, 0.0],
+                yaw: 0.25,
+                quaternion: None,
+            }
+        ));
+        let errors = overlay.flush(
+            &stream,
+            TIMELINE,
+            super::TimeCell::from_duration_nanos(
+                re_log_types::NonMinI64::new(0).unwrap_or_default(),
+            ),
+            None,
+        );
+        assert!(errors.is_empty(), "{errors:?}");
+        stream.flush_blocking().unwrap();
+
+        let chunks = chunks(storage.take());
+        assert!(has(
+            &chunks,
+            "/first/robots/254",
+            "rerun.archetypes.Transform3D"
+        ));
+        assert!(has(
+            &chunks,
+            "/first2d/robots/254",
+            "rerun.archetypes.LineStrips2D"
+        ));
+    }
+
+    #[test]
+    fn the_overlay_decodes_log_bytes_with_the_same_decoders_as_live() {
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_overlay_log_test")
+            .memory()
+            .unwrap();
+        let mut overlay = super::Overlay::new();
+        assert!(overlay.set_layout(Some(Layout::parse(DECLARATION).unwrap())));
+        assert_eq!(
+            overlay.topic_kind("RealOutputs/Drive/Pose2d"),
+            Some(super::TopicKind::Pose)
+        );
+
+        // A `Pose2d` as a WPI log stores it: three little-endian doubles, under the entry name
+        // without the logger's own `AdvantageKit/` namespace.
+        let mut pose2d = Vec::new();
+        for value in [1.0f64, 2.0, 0.25] {
+            pose2d.extend_from_slice(&value.to_le_bytes());
+        }
+        assert!(
+            overlay
+                .feed_log("RealOutputs/Drive/Pose2d", "struct:Pose2d", &pose2d)
+                .unwrap()
+        );
+        assert!(
+            !overlay
+                .feed_log("RealOutputs/SomeOtherTopic", "struct:Pose2d", &pose2d)
+                .unwrap(),
+            "a topic the declaration does not name is not the overlay's"
+        );
+        assert!(
+            overlay
+                .feed_log("RealOutputs/Drive/Pose2d", "double", &pose2d)
+                .is_err(),
+            "a declared pose topic carrying something else is reported"
+        );
+
+        let errors = overlay.flush(
+            &stream,
+            TIMELINE,
+            super::TimeCell::from_duration_nanos(
+                re_log_types::NonMinI64::new(0).unwrap_or_default(),
+            ),
+            None,
+        );
+        assert!(errors.is_empty(), "{errors:?}");
+        stream.flush_blocking().unwrap();
+
+        assert!(has(
+            &chunks(storage.take()),
+            "/first/robots/254",
+            "rerun.archetypes.Transform3D"
+        ));
     }
 
     #[test]

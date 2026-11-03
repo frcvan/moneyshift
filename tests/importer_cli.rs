@@ -125,6 +125,32 @@ fn honors_time_flags() {
 }
 
 #[test]
+fn imports_a_log_cut_off_mid_record() {
+    let contents = std::fs::read(FIXTURE).unwrap();
+    let mut dir = std::env::temp_dir();
+    dir.push(format!("moneyshift-truncated-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("truncated.wpilog");
+    std::fs::File::create(&path)
+        .unwrap()
+        .write_all(&contents[..contents.len() * 7 / 10])
+        .unwrap();
+
+    let output = Command::new(BIN).arg(&path).output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.starts_with(b"RRF2"));
+    assert!(
+        !chunks(&decode(&output.stdout)).is_empty(),
+        "the intact part of the log is still imported"
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn rejects_bad_arguments_with_exit_code_2() {
     let output = Command::new(BIN)
         .args(["--not-a-flag", FIXTURE])

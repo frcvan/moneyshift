@@ -27,6 +27,11 @@ when the file is not a WPI log, **2** for bad arguments. `--static`, `--entity-p
 `--time_sequence` and `--time_duration_nanos` (and the legacy `--sequence`/`--time` aliases) are
 honored.
 
+A log that was cut off while being written, or has a scrambled stretch, imports up to the damage
+and continues at the next intact record, with a warning naming the bytes that had to be dropped.
+A struct type that never publishes a schema is dropped with a single warning: Rerun has no way
+to render a struct whose layout was never published.
+
 You can also import without a viewer:
 
 ```sh
@@ -118,7 +123,9 @@ every declared robot. A robot model that cannot be read only falls back to the b
 ### A config file, and running with no robot code
 
 Everything robot code can declare can also come from a file. `--nt` reads `moneyshift.toml` from the
-working directory when it exists, and `--config <path>` names another file. The `[layout]` table is
+working directory when it exists, and `--config <path>` names another file. The importer reads it
+too: `rerun-importer-moneyshift <log>` looks for `moneyshift.toml` next to the log and then in each
+parent directory, so one file at the top of a log folder lays out every log below it. The `[layout]` table is
 the same declaration `/Moneyshift/layout` carries, so the field, robots, cameras, paths and the
 viewer blueprint read the same either way:
 
@@ -177,7 +184,9 @@ name = "State"
 entities = ["/AdvantageKit/RealOutputs/Drive/Pose2d"]
 ```
 
-The file's declaration is drawn as soon as the bridge starts, so the field, the robot models, the
+The importer and the live bridge draw a declaration through the same overlay and decode the topics
+it names with the same code, so a topic means the same thing in a recording as it does live. The
+file's declaration is drawn as soon as the bridge starts, so the field, the robot models, the
 camera streams and the viewer layout appear even with the robot off and no robot code running. A
 `/Moneyshift/layout` published later replaces it, exactly as it replaces the default layout; set
 `override = true` (or pass `--override`) to ignore that topic and keep the file authoritative.

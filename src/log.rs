@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     num::{NonZero, TryFromIntError},
     path::Path,
     sync::Arc,
@@ -22,8 +22,9 @@ use crate::values::{
 /// Upper bound on struct values buffered while waiting for their schema.
 ///
 /// Values of an unknown struct type are queued until the schema arrives, which never happens for
-/// a type whose producer never publishes one (a live session that connects after the topics were
-/// created, for example). Cap the queue so such a session cannot grow without bound.
+/// a type whose producer never publishes one (URCL's opaque packets, for example). Once the cap
+/// is reached the type is given up on and its values are dropped, because Rerun has nothing to
+/// render a struct without a layout with.
 const MAX_QUEUED_STRUCTS: usize = 4096;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -103,6 +104,9 @@ pub struct EntryLog {
     schemas: StructSchemas,
     queued_structs: HashMap<String, Vec<QueuedStruct>>,
     queued_count: usize,
+    /// Struct types that were given up on because no schema ever arrived; their values are
+    /// dropped rather than kept queued forever.
+    dropped_structs: HashSet<String>,
     paths: PathCache,
 }
 
@@ -122,6 +126,7 @@ impl EntryLog {
             schemas: StructSchemas::new(),
             queued_structs: HashMap::new(),
             queued_count: 0,
+            dropped_structs: HashSet::new(),
             paths: PathCache::default(),
         }
     }
@@ -179,8 +184,7 @@ impl EntryLog {
             return match self.schemas.resolve(name) {
                 Ok(schema) => self.add_struct_bytes(key, timestamp, value, &schema, is_array),
                 Err(ResolveError::NotFound(name)) => {
-                    self.queue_struct(key, timestamp, ty, value, &name);
-                    Ok(())
+                    self.queue_struct(key, timestamp, ty, value, &name)
                 }
                 Err(err) => Err(anyhow::anyhow!("{err}")),
             };
@@ -189,8 +193,7 @@ impl EntryLog {
         match EntryValue::parse_from_wpilog(ty, value, &mut self.schemas) {
             Ok(v) => self.add_entryvalue(key, timestamp, v),
             Err(EntryValueParseError::StructNotFound(name)) => {
-                self.queue_struct(key, timestamp, ty, value, &name);
-                Ok(())
+                self.queue_struct(key, timestamp, ty, value, &name)
             }
             Err(EntryValueParseError::Other(e)) => Err(e),
         }
@@ -308,13 +311,28 @@ impl EntryLog {
         ty: &str,
         value: &[u8],
         missing: &str,
-    ) {
+    ) -> Result<(), anyhow::Error> {
+        // Queue under the bare name so it matches a later `.schema/struct:Name` entry
+        // regardless of whether the producer used the `struct:` prefix.
+        let queued_name = missing
+            .strip_prefix("struct:")
+            .unwrap_or(missing)
+            .to_owned();
+
+        // Rerun has nothing to render an opaque struct with, so a type that already used up its
+        // queue is dropped instead of growing the log.
+        if self.dropped_structs.contains(&queued_name) {
+            return Ok(());
+        }
+
         if self.queued_count >= MAX_QUEUED_STRUCTS {
-            re_log::warn_once!(
-                "dropping values of unknown struct type {missing}: {} values are already queued",
-                self.queued_count
-            );
-            return;
+            // Nothing taught us this layout and nothing is likely to, so let the memory go
+            // rather than keeping the values queued for the rest of the session.
+            let queued = self.queued_structs.remove(&queued_name).unwrap_or_default();
+            self.queued_count = self.queued_count.saturating_sub(queued.len());
+            re_log::warn_once!("no schema for struct type {missing}; dropping its values");
+            self.dropped_structs.insert(queued_name);
+            return Ok(());
         }
 
         re_log::info_once!(
@@ -322,12 +340,6 @@ impl EntryLog {
             timestamp.0
         );
 
-        // Queue under the bare name so it matches a later `.schema/struct:Name` entry
-        // regardless of whether the producer used the `struct:` prefix.
-        let queued_name = missing
-            .strip_prefix("struct:")
-            .unwrap_or(missing)
-            .to_owned();
         self.queued_structs
             .entry(queued_name)
             .or_default()
@@ -338,6 +350,7 @@ impl EntryLog {
                 data: value.to_vec(),
             });
         self.queued_count += 1;
+        Ok(())
     }
 
     pub fn add_entryvalue(
@@ -525,6 +538,27 @@ mod tests {
         let (_, value) = log.get_latest_entry(&key).unwrap();
         let values = value.as_any().downcast_ref::<StringArray>().unwrap();
         assert_eq!(values.value(0), "Scalar");
+    }
+
+    #[test]
+    fn schema_less_structs_are_dropped_once_the_queue_is_full() {
+        let mut log = EntryLog::new();
+        let key = EntityPath::from_single_string("URCL/Raw/Periodic");
+        for step in 0..=super::MAX_QUEUED_STRUCTS as u64 {
+            log.add_entry(
+                key.clone(),
+                Timestamp(step),
+                "URCLr3_periodic",
+                &[1, 2, 3, 4],
+            )
+            .unwrap();
+        }
+
+        assert_eq!(log.queued_struct_len(), 0, "the queue is given up on");
+        assert!(
+            log.get_entry(&key).is_none(),
+            "an opaque struct is not drawn at all"
+        );
     }
 
     #[test]

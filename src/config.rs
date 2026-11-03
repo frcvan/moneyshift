@@ -33,8 +33,9 @@ use serde::Deserialize;
 
 use crate::first::Layout;
 
-/// The config file the bridge reads when `--config` is not given.
-pub const DEFAULT_PATH: &str = "firstrun.toml";
+/// The config file the bridge reads when `--config` is not given, and the file an import looks
+/// for next to its log.
+pub const DEFAULT_PATH: &str = "moneyshift.toml";
 
 /// A parsed config file.
 ///
@@ -83,6 +84,23 @@ impl Config {
             config.layout = Some(layout.validate()?);
         }
         Ok(config)
+    }
+
+    /// Reads the config file that governs `log`: the one in its directory, or else the nearest
+    /// one in a parent directory.
+    ///
+    /// The importer is handed a path inside a session's log folder, so one `moneyshift.toml` at
+    /// the top of that folder applies to every log in it and in its subfolders.
+    pub fn discover_for(log: &Path) -> anyhow::Result<Option<Self>> {
+        let mut directory = log.parent();
+        while let Some(dir) = directory {
+            let candidate = dir.join(DEFAULT_PATH);
+            if candidate.is_file() {
+                return Self::load(&candidate).map(Some);
+            }
+            directory = dir.parent();
+        }
+        Ok(None)
     }
 
     /// Loads the file `path` names, or the default file when it exists.
@@ -219,6 +237,27 @@ entities = ["/Pose"]
         // A typo in an option name is reported instead of silently ignored.
         assert!(Config::parse("override = true\nrobotcode = 254\n").is_err());
         assert!(Config::parse("not toml at all [").is_err());
+    }
+
+    #[test]
+    fn the_importer_finds_a_file_a_parent_directory_up() {
+        let root = std::env::temp_dir().join(format!("moneyshift-config-{}", std::process::id()));
+        let nested = root.join("logs").join("session");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(root.join(super::DEFAULT_PATH), "override = true\n").unwrap();
+
+        let found = super::Config::discover_for(&nested.join("match.wpilog"))
+            .unwrap()
+            .expect("the file above the log is found");
+        assert!(found.r#override);
+
+        std::fs::remove_file(root.join(super::DEFAULT_PATH)).unwrap();
+        assert!(
+            super::Config::discover_for(&nested.join("match.wpilog"))
+                .unwrap()
+                .is_none()
+        );
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

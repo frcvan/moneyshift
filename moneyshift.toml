@@ -1,0 +1,13 @@
+override = true
+
+[layout]
+version = 1 # optional; the bridge speaks version 1
+
+[layout.field]
+carpet = true
+
+[[layout.robots]]
+team = 386
+pose_topic = "/AdvantageKit/RealOutputs/Odometry/Robot"
+half_extents = [0.45, 0.45, 0.3]
+swerve = { states_topic = "/AdvantageKit/RealOutputs/SwerveStates/Measured" }

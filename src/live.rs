@@ -265,7 +265,7 @@ fn ensure_rerun(
         // Redraw the field, the robots and the cameras for the viewer that just opened, exactly
         // as if the declaration had arrived now.
         let mut state = reconnect_state.lock().expect("live state poisoned");
-        if state.layout.is_some() {
+        if state.overlay.has_layout() {
             state.layout_pending = true;
             state.queue.schedule(Instant::now());
         }
@@ -492,18 +492,13 @@ struct LiveState {
     entities_by_topic: HashMap<String, EntityPath>,
     /// Value topics seen before their entity's metadata; claimed when the entity appears.
     orphans: HashMap<String, protocol::NtValue>,
-    /// The latest `/Moneyshift/layout` declaration, and whether it still needs drawing.
-    layout: Option<first::Layout>,
+    /// The declaration's topic indexes, its pending draw and its static geometry.
+    ///
+    /// The importer drives the same type, so a topic maps to one robot in a live session and in
+    /// an import, and a frame is drawn by one implementation.
+    overlay: first::Overlay,
+    /// Whether the field, robots, cameras and viewer layout still need drawing.
     layout_pending: bool,
-    /// Robots by pose topic, so every pose update is a map lookup.
-    pose_robots: HashMap<String, first::Robot>,
-    pending_poses: Vec<(first::Robot, first::Pose)>,
-    /// Robots by swerve-states topic.
-    swerve_robots: HashMap<String, first::Robot>,
-    pending_swerve: Vec<(first::Robot, Vec<first::SwerveModuleState>)>,
-    /// Path names by the topic their poses arrive on.
-    path_names: HashMap<String, String>,
-    pending_paths: Vec<(String, Vec<first::Pose>)>,
     /// One MJPEG reader per camera stream in the declaration.
     streams: HashMap<String, mjpeg::CameraVideo>,
     /// The robot time camera frames are logged at, shared with the reader threads.
@@ -524,14 +519,8 @@ impl LiveState {
             entities: HashMap::new(),
             entities_by_topic: HashMap::new(),
             orphans: HashMap::new(),
-            layout: None,
+            overlay: first::Overlay::new(),
             layout_pending: false,
-            pose_robots: HashMap::new(),
-            pending_poses: Vec::new(),
-            swerve_robots: HashMap::new(),
-            pending_swerve: Vec::new(),
-            path_names: HashMap::new(),
-            pending_paths: Vec::new(),
             streams: HashMap::new(),
             robot_ns: Arc::new(AtomicI64::new(0)),
             queue: FlushQueue::new(),
@@ -564,10 +553,15 @@ impl LiveState {
     /// layout changes or the bridge exits.
     fn start_streams(&mut self, stream: &RecordingStream, prefix: Option<&EntityPath>) {
         self.streams.clear();
-        let Some(layout) = self.layout.clone() else {
+        if !self.overlay.has_layout() {
             return;
-        };
-        for (team, camera) in layout.cameras() {
+        }
+        let cameras = self
+            .overlay
+            .cameras()
+            .map(|(team, camera)| (team, camera.clone()))
+            .collect::<Vec<_>>();
+        for (team, camera) in cameras {
             let Some(url) = camera.stream.clone() else {
                 continue;
             };
@@ -614,14 +608,9 @@ impl LiveState {
     /// The config file's declaration comes through here at startup and robot code's when it
     /// arrives, so the indexes and the pending draw cannot drift apart.
     fn set_layout(&mut self, layout: Option<first::Layout>) {
-        let Some(layout) = layout else {
-            return;
-        };
-        self.pose_robots = layout.robots_by_pose_topic();
-        self.swerve_robots = layout.robots_by_swerve_topic();
-        self.path_names = layout.paths_by_topic();
-        self.layout = Some(layout);
-        self.layout_pending = true;
+        if self.overlay.set_layout(layout) {
+            self.layout_pending = true;
+        }
     }
 
     fn warn_once(&mut self, key: String, message: String) {
@@ -696,7 +685,7 @@ impl LiveState {
                 Some(Ok(layout)) => {
                     // Robot code may republish the same declaration every loop; only redraw
                     // when the declaration actually changed.
-                    if self.layout.as_ref() != Some(&layout) {
+                    if self.overlay.layout() != Some(&layout) {
                         re_log::info!("drawing FIRST data from the declaration on {name}");
                         self.set_layout(Some(layout));
                         self.queue.schedule(now);
@@ -711,43 +700,16 @@ impl LiveState {
             return;
         }
 
-        if let Some(robot) = self.swerve_robots.get(name) {
-            match first::swerve_states_from_nt(topic.r#type(), value) {
-                Some(states) => {
-                    self.pending_swerve.push((robot.clone(), states));
-                    self.queue.schedule(now);
-                }
-                None => self.warn_once(
-                    format!("{name}:swerve"),
-                    format!("ignoring swerve states on {name} that are not SwerveModuleState[]"),
-                ),
-            }
-            return;
-        }
-
-        if let Some(robot) = self.pose_robots.get(name) {
-            match first::Pose::from_nt(topic.r#type(), value) {
-                Some(pose) => {
-                    self.pending_poses.push((robot.clone(), pose));
-                    self.queue.schedule(now);
-                }
-                None => self.warn_once(
-                    format!("{name}:pose"),
-                    format!("ignoring a pose on {name} that is not a Pose2d/Pose3d"),
-                ),
-            }
-            return;
-        }
-
-        if let Some(path) = self.path_names.get(name) {
-            match first::poses_from_nt(topic.r#type(), value) {
-                Some(poses) => {
-                    self.pending_paths.push((path.clone(), poses));
-                    self.queue.schedule(now);
-                }
-                None => self.warn_once(
-                    format!("{name}:path"),
-                    format!("ignoring path poses on {name} that are not Pose2d[]/Translation2d[]"),
+        // A declared topic is the overlay's: it decides whether the topic carries a pose, swerve
+        // states or a path, and decodes it exactly as an import of a log from the same robot
+        // does, so the two surfaces cannot disagree about what a declaration means.
+        if self.overlay.topic_kind(name).is_some() {
+            match self.overlay.feed_nt(name, topic.r#type(), value) {
+                Ok(true) => self.queue.schedule(now),
+                Ok(false) => {}
+                Err(error) => self.warn_once(
+                    format!("{name}:overlay"),
+                    format!("ignoring the value on {name}: {error:#}"),
                 ),
             }
             return;
@@ -850,9 +812,7 @@ impl LiveState {
         let layout_pending = std::mem::take(&mut self.layout_pending);
         if entities.is_empty()
             && self.native_updates.is_empty()
-            && self.pending_poses.is_empty()
-            && self.pending_swerve.is_empty()
-            && self.pending_paths.is_empty()
+            && !self.overlay.has_pending()
             && !layout_pending
         {
             return;
@@ -868,20 +828,14 @@ impl LiveState {
                 field: self.args.field_model.as_deref(),
                 robot: self.args.robot_model.as_deref(),
             };
-            let error = self.layout.as_ref().and_then(|layout| {
-                let error = layout
-                    .log_static_with_models(stream, prefix.as_ref(), models)
-                    .err();
-                if let Err(error) = first::log_blueprint(stream, layout, prefix.as_ref()) {
-                    re_log::debug!("could not send the camera layout: {error:#}");
-                }
-                error
-            });
-            if let Some(error) = error {
+            if let Err(error) = self.overlay.draw_static(stream, models, prefix.as_ref()) {
                 self.warn_once(
                     "first:static".to_owned(),
                     format!("could not draw the FIRST field: {error:#}"),
                 );
+            }
+            if let Err(error) = self.overlay.draw_blueprint(stream, prefix.as_ref()) {
+                re_log::debug!("could not send the camera layout: {error:#}");
             }
             self.start_streams(stream, prefix.as_ref());
         }
@@ -948,7 +902,7 @@ impl LiveState {
                         None => entity.clone(),
                     };
                     // `log_serialized_batches` adds the SDK's wall-clock `log_time`.
-                    stream.set_time("robot_time", robot_cell);
+                    stream.set_time(first::TIMELINE, robot_cell);
                     if let Err(error) = stream.log_serialized_batches(target, static_, batches) {
                         self.warn_once(
                             format!("{entity}:log"),
@@ -965,46 +919,11 @@ impl LiveState {
             }
         }
 
-        if !self.pending_swerve.is_empty() {
-            for (robot, states) in std::mem::take(&mut self.pending_swerve) {
-                if let Err(error) =
-                    first::log_swerve(stream, &robot, &states, robot_cell, prefix.as_ref())
-                {
-                    self.warn_once(
-                        format!("first:swerve:{}", robot.team),
-                        format!(
-                            "could not draw team {}'s swerve states: {error:#}",
-                            robot.team
-                        ),
-                    );
-                }
-            }
-        }
-
-        if !self.pending_paths.is_empty() {
-            for (name, poses) in std::mem::take(&mut self.pending_paths) {
-                if let Err(error) =
-                    first::log_path(stream, &name, &poses, robot_cell, prefix.as_ref())
-                {
-                    self.warn_once(
-                        format!("first:path:{name}"),
-                        format!("could not draw path {name}: {error:#}"),
-                    );
-                }
-            }
-        }
-
-        if !self.pending_poses.is_empty() {
-            for (robot, pose) in std::mem::take(&mut self.pending_poses) {
-                if let Err(error) =
-                    first::log_pose(stream, &robot, pose, robot_cell, prefix.as_ref())
-                {
-                    self.warn_once(
-                        format!("first:pose:{}", robot.team),
-                        format!("could not draw team {}'s pose: {error:#}", robot.team),
-                    );
-                }
-            }
+        for error in self
+            .overlay
+            .flush(stream, first::TIMELINE, robot_cell, prefix.as_ref())
+        {
+            self.warn_once(format!("first:draw:{error:#}"), format!("{error:#}"));
         }
 
         if !self.native_updates.is_empty() {
@@ -1145,13 +1064,13 @@ mod tests {
             .memory()
             .unwrap();
         let mut state = LiveState::new(args);
-        state.layout = Some(
+        state.set_layout(Some(
             Layout::parse(
                 r#"{"version":1,"field":{"carpet":false,"lines":[]},
                 "robots":[{"team":254,"pose_topic":"/Pose"}]}"#,
             )
             .unwrap(),
-        );
+        ));
         state.layout_pending = true;
         state.flush(&stream, Instant::now(), true);
         let chunks = storage
@@ -1211,7 +1130,7 @@ mod tests {
             .unwrap(),
         ));
         assert!(state.layout_pending);
-        assert!(state.pose_robots.contains_key("/Pose"));
+        assert!(state.overlay.is_pose_topic("/Pose"));
 
         state.flush(&stream, Instant::now(), true);
 
