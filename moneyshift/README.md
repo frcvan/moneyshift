@@ -114,7 +114,7 @@ From that declaration the bridge draws:
 | `first/field/tags` | AprilTag plates |
 | `first/field/model` | optional glTF/GLB field model (`fieldModel(...)`, or the bridge's `--field-model`) |
 | `first/robots/<team>` | `Transform3D` driven by the declared pose topic |
-| `first/robots/<team>/model` | static bounding box (`Boxes3D`, default 0.9 m square), or the bridge's `--robot-model` |
+| `first/robots/<team>/model` | static robot model (`Asset3D`: the bundled 0.88 m kitbot drivebase), or the bridge's `--robot-model` |
 | `first/robots/<team>/swerve` | per-module speed and steering vectors (`Arrows3D`) |
 | `first/robots/<team>/cameras/<name>` | camera transform and pinhole frustum (`Transform3D`, `Pinhole`) |
 | `first/robots/<team>/cameras/<name>/image` | the camera's footage, one `EncodedImage` per frame; a 2D view of the camera is rooted here |

@@ -110,8 +110,10 @@ still imports.
   `NtEncoding`. The old wire-protocol classes (Arrow, protobuf, gRPC, RRD, blueprints) are gone;
   do not reintroduce them.
 - `org.teamvan.moneyshift.frc.FirstMetadata` publishes the `/Moneyshift/layout` declaration the
-  bridge reads; `src/first.rs` owns the drawing. Robot bodies span `0..2h` above the carpet (a
-  pose is on the floor) and swerve vectors are drawn above the body. A camera's optional ninth
+bridge reads; `src/first.rs` owns the drawing. A robot is drawn with the bundled kitbot drivebase
+(`assets/kitbot.glb`, already in the robot frame) unless `robot_model`/`--robot-model` names one;
+a pose is the footprint center on the carpet and swerve vectors are drawn above the body. A
+camera's optional ninth
   argument is PhotonVision's MJPEG URL. There is no NT transport for camera frames: `src/mjpeg.rs`
   opens that URL over a plain socket, splits the `multipart/x-mixed-replace` response into JPEGs
   itself, and the bridge needs no external process for footage. Only plain `http://` is supported —

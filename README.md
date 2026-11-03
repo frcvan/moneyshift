@@ -50,7 +50,7 @@ The live bridge subscribes to every topic on the team's NetworkTables server and
 Robot code can also publish one `/Moneyshift/layout` string (see
 [`FirstMetadata`](moneyshift/README.md#first-field-and-robot-overlays)). It declares which topics
 carry each robot's pose, swerve module states and planned paths, and what the field and cameras
-look like; the bridge then adds the carpet, field lines, tags, robot bounding boxes, swerve
+look like; the bridge then adds the carpet, field lines, tags, robot models, swerve
 vectors, camera frustums, paths and a 2D top-down mirror under `first/` and `first2d/` - no
 `/Rerun` topics required on the robot.
 
@@ -115,10 +115,11 @@ is reopened (`--spawn`) or retried (`--connect`) and gets the field, robots, cam
 again. `--save` and `--stdout` have no connection to lose and are never restarted.
 
 `--field-model <path>` and `--robot-model <path>` select your own glTF/GLB/OBJ/STL models
-instead of waiting for the declaration to name a field model or settling for robot boxes. The
-field model is drawn in the field frame; a robot model is drawn in the robot frame (`+x` forward,
-`+y` left, `+z` up) with its origin at the footprint center on the carpet, and replaces the box on
-every declared robot. A robot model that cannot be read only falls back to the boxes.
+instead of waiting for the declaration to name a field model or using the bundled kitbot
+drivebase. The field model is drawn in the field frame; a robot model is drawn in the robot frame
+(`+x` forward, `+y` left, `+z` up) with its origin at the footprint center on the carpet, and
+replaces the kitbot on every declared robot. A robot model that cannot be read only falls back to
+the kitbot.
 
 ### A config file, and running with no robot code
 
@@ -133,7 +134,7 @@ viewer blueprint read the same either way:
 # moneyshift.toml: draw the field and the viewer layout without any robot code.
 override = true
 field_model = "models/field.glb"   # replaces the model the layout names
-robot_model = "models/robot.glb"   # replaces every robot's bounding box
+robot_model = "models/robot.glb"   # replaces the bundled kitbot
 
 [layout]
 version = 1                        # optional; the bridge speaks version 1

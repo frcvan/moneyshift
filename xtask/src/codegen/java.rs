@@ -3,9 +3,7 @@ use std::fs;
 
 use anyhow::{Context as _, Result};
 use camino::{Utf8Path, Utf8PathBuf};
-use re_types_builder::{
-    AtomicDataType, Docs, Object, ObjectClass, Objects, RerunAttr, Type,
-};
+use re_types_builder::{AtomicDataType, Docs, Object, ObjectClass, Objects, RerunAttr, Type};
 
 const JAVA_PACKAGE_PREFIX: &str = "org.teamvan.moneyshift";
 const CORE_PACKAGE: &str = "org.teamvan.moneyshift";
@@ -67,10 +65,7 @@ pub fn generate(output_dir: &Utf8Path, objects: &Objects) -> Result<()> {
         .filter(|object| !is_skipped(&object.fqname))
     {
         let path = output_path(output_dir, object);
-        println!(
-            "[+] Generating Java code for {} to {}",
-            object.fqname, path
-        );
+        println!("[+] Generating Java code for {} to {}", object.fqname, path);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).with_context(|| format!("creating {parent}"))?;
         }
@@ -1975,9 +1970,9 @@ fn snake_to_camel(name: &str) -> String {
         result
     } else {
         let mut chars = name.chars();
-        chars
-            .next()
-            .map_or_else(String::new, |first| first.to_lowercase().chain(chars).collect())
+        chars.next().map_or_else(String::new, |first| {
+            first.to_lowercase().chain(chars).collect()
+        })
     }
 }
 
@@ -2119,14 +2114,14 @@ fn java_doc_line(line: &str, objects: &Objects) -> String {
             if let Some(link_end) = after_start.find("`]") {
                 let label = &after_start[..link_end];
                 let after_label = &after_start[link_end + 2..];
-                let (target, mut remainder) = after_label.strip_prefix('[').map_or(
-                    (label, after_label),
-                    |target| {
-                        target.find(']').map_or((label, after_label), |target_end| {
-                            (&target[1..target_end], &target[target_end + 1..])
-                        })
-                    },
-                );
+                let (target, mut remainder) =
+                    after_label
+                        .strip_prefix('[')
+                        .map_or((label, after_label), |target| {
+                            target.find(']').map_or((label, after_label), |target_end| {
+                                (&target[1..target_end], &target[target_end + 1..])
+                            })
+                        });
 
                 // A markdown link whose label is itself a Rust doclink, e.g.
                 // [`DepthImage`](https://...): keep the Javadoc link and drop the outer URL.

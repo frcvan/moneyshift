@@ -14,7 +14,7 @@ import org.teamvan.moneyshift.NtRecorder;
  * <p>The declaration answers two questions: which plain NetworkTables topics carry the robot's
  * pose, swerve states and planned paths, and what the field and cameras look like. Robot code
  * publishes it once at {@value #TOPIC}; the {@code rerun-importer-moneyshift --nt} bridge reads it
- * and injects the carpet, field lines, tags, robot bounding boxes, swerve module vectors, camera
+ * and injects the carpet, field lines, tags, robot models, swerve module vectors, camera
  * frustums and paths into the Rerun recording. Nothing here is Rerun protocol data, so it works
  * even when robot code publishes no {@code /Rerun} topics at all.
  *
@@ -241,7 +241,7 @@ public final class FirstMetadata {
         recorder.instance().getEntry(TOPIC).setString(json());
     }
 
-    /** One robot the bridge draws: its pose source and its bounding box. */
+    /** One robot the bridge draws: its pose source and footprint half-extents. */
     public record Robot(int team, String poseTopic, double[] halfExtents) {
         public Robot {
             if (team < 1) {

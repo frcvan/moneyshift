@@ -68,7 +68,7 @@ pub struct LiveArgs {
     pub entity_path_prefix: Option<String>,
     /// A model file that replaces the declaration's field model.
     pub field_model: Option<PathBuf>,
-    /// A model file that replaces every robot's bounding box.
+    /// A model file that replaces every robot's bundled kitbot model.
     pub robot_model: Option<PathBuf>,
 }
 
@@ -334,7 +334,8 @@ pub fn usage() -> &'static str {
         "  --robot-time-topic <topic>   use this topic as the robot_time source\n",
         "  --field-model <path>         draw this glTF/GLB/OBJ/STL field model instead of the\n",
         "                               one the declaration names\n",
-        "  --robot-model <path>         draw this model for every robot instead of a box\n",
+        "  --robot-model <path>         draw this model for every robot instead of the\n",
+        "                               bundled kitbot\n",
         "  --config <path>              read the field, robots and viewer layout from a TOML\n",
         "                               file (default: moneyshift.toml, when it exists)\n",
         "  --override                   ignore /Moneyshift/layout; the config file decides what\n",

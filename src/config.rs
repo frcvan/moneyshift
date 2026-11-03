@@ -51,7 +51,7 @@ pub struct Config {
     /// A field model that replaces the one the layout names.
     #[serde(default)]
     pub field_model: Option<PathBuf>,
-    /// A model drawn for every robot instead of its bounding box.
+    /// A model drawn for every robot instead of the bundled kitbot.
     #[serde(default)]
     pub robot_model: Option<PathBuf>,
     /// The field, robots, paths and viewer layout to draw.

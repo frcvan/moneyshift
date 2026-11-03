@@ -1,0 +1,11 @@
+override = true
+
+[layout]
+
+[layout.field]
+carpet = true
+
+[[layout.robots]]
+team = 1683
+pose_topic = "/RealOutputs/Swerve/Odometry/Robot2d"
+swerve = { states_topic = "/RealOutputs/Swerve/CurrentStates" }

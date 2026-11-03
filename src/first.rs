@@ -76,6 +76,10 @@ const CAMERA_HEIGHT: f32 = 720.0;
 /// two keeps the frustum readable next to a 0.9 m robot on a 16 m field.
 const CAMERA_IMAGE_PLANE_DISTANCE: f32 = 2.0;
 
+/// The robot model drawn when no `--robot-model` is given: AdvantageScope's kitbot drivebase,
+/// baked into the robot frame (see `assets/README.md`).
+pub const KITBOT_MODEL: &[u8] = include_bytes!("../assets/kitbot.glb");
+
 /// A parsed `/Moneyshift/layout` declaration.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Layout {
@@ -299,16 +303,17 @@ impl Layout {
             &ViewCoordinates::RIGHT_HAND_Z_UP(),
         )?;
         self.field.log_static(stream, prefix, models.field)?;
-        // One read for every robot; a broken file falls back to boxes so the robots stay visible.
+        // One read for every robot; a broken file falls back to the kitbot so the robots stay
+        // visible.
         let robot_asset = match models.robot {
             Some(path) => match load_asset3d(path) {
-                Ok(asset) => Some(asset),
+                Ok(asset) => asset,
                 Err(error) => {
-                    re_log::warn!("{error:#}; drawing bounding boxes instead");
-                    None
+                    re_log::warn!("{error:#}; drawing the kitbot instead");
+                    kitbot_asset()
                 }
             },
-            None => None,
+            None => kitbot_asset(),
         };
         for robot in &self.robots {
             log_cameras(stream, robot, prefix)?;
@@ -316,18 +321,7 @@ impl Layout {
                 prefix,
                 robot_entity(robot.team, ROOT_3D).join(&EntityPath::from("model")),
             );
-            match &robot_asset {
-                Some(asset) => stream.log_static(model_entity, &asset.clone())?,
-                None => {
-                    let (center, half_size) = robot_model(robot.half_extents);
-                    stream.log_static(
-                        model_entity,
-                        &Boxes3D::from_centers_and_half_sizes([center], [half_size])
-                            .with_colors([team_color(robot.team)])
-                            .with_fill_mode(FillMode::Solid),
-                    )?;
-                }
-            }
+            stream.log_static(model_entity, &robot_asset.clone())?;
         }
         Ok(())
     }
@@ -617,7 +611,7 @@ fn struct_type_name(ty: &str) -> &str {
 pub struct Models<'a> {
     /// Replaces the declaration's field model.
     pub field: Option<&'a FsPath>,
-    /// Replaces every robot's bounding box.
+    /// Replaces every robot's bundled kitbot model.
     pub robot: Option<&'a FsPath>,
 }
 
@@ -1002,17 +996,6 @@ pub fn log_pose(
             .with_radii([ROBOT_LINE_RADIUS]),
     )?;
     Ok(())
-}
-
-/// The center and half-size of a robot's static model box, in the robot frame.
-///
-/// A pose is the footprint center on the carpet, so the body spans `0..2hz` in z. Centering the
-/// box on the origin would bury half of it in the floor, which is exactly what a solid box at the
-/// origin looks like.
-#[must_use]
-pub fn robot_model(half_extents: [f64; 3]) -> ([f32; 3], [f32; 3]) {
-    let [hx, hy, hz] = half_extents.map(|extent| extent as f32);
-    ([0.0, 0.0, hz], [hx, hy, hz])
 }
 
 /// The z of the swerve vectors in the robot frame: above the body, so it cannot hide them.
@@ -1595,6 +1578,11 @@ fn load_asset3d(path: &FsPath) -> anyhow::Result<Asset3D> {
     })
 }
 
+/// The kitbot drivebase a robot is drawn with when no model file is given.
+fn kitbot_asset() -> Asset3D {
+    Asset3D::new(KITBOT_MODEL.to_vec()).with_media_type("model/gltf-binary")
+}
+
 fn read_f64(bytes: &[u8], offset: usize) -> Option<f64> {
     Some(f64::from_le_bytes(
         bytes.get(offset..offset + 8)?.try_into().ok()?,
@@ -1618,8 +1606,8 @@ const fn default_half_extents() -> [f64; 3] {
 mod tests {
     use super::{
         Layout, Pose, ROOT_2D, ROOT_3D, TIMELINE, footprint_2d, image_media_type, log_image,
-        log_path, log_pose, log_swerve, poses_from_nt, robot_entity, robot_model,
-        swerve_arrow_height, swerve_color, swerve_states_from_nt, team_color,
+        log_path, log_pose, log_swerve, poses_from_nt, robot_entity, swerve_arrow_height,
+        swerve_color, swerve_states_from_nt, team_color,
     };
     use nt_client::data::DataType;
 
@@ -1924,6 +1912,34 @@ mod tests {
     }
 
     #[test]
+    fn an_unreadable_robot_model_falls_back_to_the_kitbot() {
+        let missing = std::env::temp_dir().join("moneyshift-no-such-robot.glb");
+        let _ = std::fs::remove_file(&missing);
+
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_models_test")
+            .memory()
+            .unwrap();
+        let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
+        layout
+            .log_static_with_models(
+                &stream,
+                None,
+                super::Models {
+                    field: None,
+                    robot: Some(missing.as_path()),
+                },
+            )
+            .unwrap();
+
+        let chunks = chunks(storage.take());
+        assert!(has(
+            &chunks,
+            "/first/robots/254/model",
+            "rerun.archetypes.Asset3D"
+        ));
+    }
+
+    #[test]
     fn logs_camera_frames_as_encoded_images() {
         let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_image_test")
             .memory()
@@ -2087,7 +2103,7 @@ mod tests {
         assert!(has(
             &chunks,
             "/first/robots/254/model",
-            "rerun.archetypes.Boxes3D"
+            "rerun.archetypes.Asset3D"
         ));
         assert!(has(
             &chunks,
@@ -2206,22 +2222,36 @@ mod tests {
     }
 
     #[test]
-    fn robots_stand_on_the_carpet_and_swerve_vectors_sit_on_top() {
+    fn the_default_robot_model_is_the_bundled_kitbot() {
+        let (stream, storage) = re_sdk::RecordingStreamBuilder::new("first_kitbot_test")
+            .memory()
+            .unwrap();
         let layout = Layout::parse(DECLARATION_WITH_DEVICES).unwrap();
-        let robot = &layout.robots[0];
+        layout.log_static(&stream, None).unwrap();
+        let chunks = chunks(storage.take());
 
-        let (center, half_size) = robot_model(robot.half_extents);
-        assert_eq!(center, [0.0, 0.0, 0.3]);
-        assert_eq!(half_size, [0.45, 0.45, 0.3]);
-        assert_eq!(
-            center[2] - half_size[2],
-            0.0,
-            "the box starts at the carpet"
-        );
+        assert!(has(
+            &chunks,
+            "/first/robots/254/model",
+            "rerun.archetypes.Asset3D"
+        ));
         assert!(
-            swerve_arrow_height(robot) > center[2] + half_size[2],
-            "the vectors are drawn above the body"
+            !has(
+                &chunks,
+                "/first/robots/254/model",
+                "rerun.archetypes.Boxes3D"
+            ),
+            "the kitbot replaces the bounding box"
         );
+        assert_eq!(
+            super::KITBOT_MODEL.get(..4),
+            Some(b"glTF".as_slice()),
+            "the bundled robot model is a GLB"
+        );
+
+        // The kitbot is the body; half-extents still place the swerve vectors above it.
+        let robot = &layout.robots[0];
+        assert!(swerve_arrow_height(robot) > (robot.half_extents[2] * 2.0) as f32);
     }
 
     #[test]
