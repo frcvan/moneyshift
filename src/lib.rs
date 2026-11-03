@@ -51,10 +51,9 @@ mod tests {
     fn the_example_wpilog_contains_renderable_native_values() {
         use crate::log::EntryLog;
         use crate::wpilog::parse::WpiLogFile;
-        use hashbrown::HashMap;
 
         let contents = include_bytes!("../test_data/FRC_TBD_d225b5377c70a88d.wpilog");
-        let mut contexts = HashMap::new();
+        let mut contexts = nohash_hasher::IntMap::default();
         let mut logger = EntryLog::new();
         WpiLogFile::parse(contents, |record| {
             crate::importer::fill_log(&mut contexts, &mut logger, record).unwrap();

@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use nohash_hasher::IntMap;
 use re_chunk::{Chunk, ChunkBuilder};
 use re_log;
@@ -17,7 +15,8 @@ use crate::log::{EntryLog, Timestamp};
 mod components;
 
 use components::{
-    component_owner, is_metadata_path, primitive_batches, structured_batches, structured_root,
+    Resolver, component_owner, is_metadata_path, primitive_batches, structured_batches,
+    structured_root,
 };
 
 /// Options that control how a WPILog is translated into Rerun chunks.
@@ -49,72 +48,150 @@ pub fn log_changes_to_chunks_with_options(
     log: &mut EntryLog,
     options: &ConversionOptions,
 ) -> Vec<Chunk> {
-    let mut rows = BTreeMap::<(Timestamp, EntityPath), Vec<SerializedComponentBatch>>::new();
+    // Changes arrive in timestamp order, so the rows of one timestamp are contiguous: they are
+    // collected in a small `pending` batch and merged into the per-entity rows when the
+    // timestamp changes, instead of being keyed by `(timestamp, entity)` in a map.
+    let resolver = Resolver::new(log);
+    let mut per_entity =
+        IntMap::<EntityPath, Vec<(Timestamp, Vec<SerializedComponentBatch>)>>::default();
+    let mut pending: Vec<(EntityPath, Timestamp, Vec<SerializedComponentBatch>)> = Vec::new();
+    let mut pending_rows = IntMap::<EntityPath, usize>::default();
+    let mut pending_timestamp = None;
 
     for (key, timestamp, value) in log.get_changed() {
         if is_metadata_path(&key) {
             continue;
         }
 
-        if let Some((root, kind, is_array)) = structured_root(log, &key, timestamp) {
-            let target = component_owner(log, &root, timestamp).unwrap_or_else(|| root.clone());
-            let batches = structured_batches(log, &root, timestamp, kind, is_array);
-            if !batches.is_empty() {
-                insert_batches(&mut rows, timestamp, target, batches);
-                continue;
-            }
-            // If a recognized struct is missing the fields we need (or is an empty
-            // array), fall back to logging its leaves as primitive values below.
+        let structured = structured_root(log, &resolver, &key, timestamp).and_then(
+            |(root, kind, is_array)| {
+                let target = component_owner(log, &resolver, &root, timestamp)
+                    .unwrap_or_else(|| root.clone());
+                let batches = structured_batches(log, &root, timestamp, kind, is_array);
+                (!batches.is_empty()).then_some((target, batches))
+            },
+        );
+        // If a recognized struct is missing the fields we need (or is an empty array), fall
+        // back to logging its leaves as primitive values.
+        let (target, batches) = structured.unwrap_or_else(|| {
+            let target = component_owner(log, &resolver, &key, timestamp)
+                .unwrap_or_else(|| key.clone());
+            (target, primitive_batches(&value))
+        });
+        if batches.is_empty() {
+            continue;
         }
 
-        let target = component_owner(log, &key, timestamp).unwrap_or_else(|| key.clone());
-        let batches = primitive_batches(&value);
-        insert_batches(&mut rows, timestamp, target, batches);
+        let entity = match &options.entity_path_prefix {
+            Some(prefix) => prefix.join(&target),
+            None => target,
+        };
+
+        if pending_timestamp != Some(timestamp) {
+            flush_rows(&mut per_entity, &mut pending, &mut pending_rows);
+            pending_timestamp = Some(timestamp);
+        }
+        match pending_rows.get(&entity) {
+            Some(&index) => add_batches(&mut pending[index].2, batches),
+            None => {
+                pending_rows.insert(entity.clone(), pending.len());
+                pending.push((entity, timestamp, batches));
+            }
+        }
+    }
+    flush_rows(&mut per_entity, &mut pending, &mut pending_rows);
+
+    let entities = per_entity.into_iter().collect::<Vec<_>>();
+    let mut chunks = metadata_chunks(options);
+    chunks.extend(build_chunks(&entities, timeline, options));
+
+    chunks
+}
+
+/// Builds one chunk per entity.
+///
+/// Every entity's rows are independent of the others, so the chunks are built on all available
+/// cores. They are still emitted in entity order, so the output is deterministic.
+fn build_chunks(
+    entities: &[(EntityPath, Vec<(Timestamp, Vec<SerializedComponentBatch>)>)],
+    timeline: Timeline,
+    options: &ConversionOptions,
+) -> Vec<Chunk> {
+    // The browser importer has no threads.
+    let threads = if cfg!(target_arch = "wasm32") {
+        0
+    } else {
+        std::thread::available_parallelism().map_or(1, std::num::NonZero::get)
+    };
+    if threads < 2 || entities.len() < 2 * threads {
+        return entities
+            .iter()
+            .filter_map(|(entity, rows)| build_chunk(entity, rows, timeline, options))
+            .collect();
     }
 
-    let mut per_entity =
-        IntMap::<EntityPath, Vec<(Timestamp, Vec<SerializedComponentBatch>)>>::default();
-    for ((timestamp, entity), batches) in rows {
-        let entity = match &options.entity_path_prefix {
-            Some(prefix) => prefix.join(&entity),
-            None => entity,
-        };
+    let chunk_size = entities.len().div_ceil(threads);
+    std::thread::scope(|scope| {
+        let handles = entities
+            .chunks(chunk_size)
+            .map(|slice| {
+                scope.spawn(move || {
+                    slice
+                        .iter()
+                        .filter_map(|(entity, rows)| build_chunk(entity, rows, timeline, options))
+                        .collect::<Vec<Chunk>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .flat_map(|handle| match handle.join() {
+                Ok(chunks) => chunks,
+                Err(panic) => std::panic::resume_unwind(panic),
+            })
+            .collect()
+    })
+}
+
+fn build_chunk(
+    entity: &EntityPath,
+    rows: &[(Timestamp, Vec<SerializedComponentBatch>)],
+    timeline: Timeline,
+    options: &ConversionOptions,
+) -> Option<Chunk> {
+    let mut builder: ChunkBuilder = Chunk::builder(entity.clone());
+    for (timestamp, batches) in rows {
+        builder = builder.with_serialized_batches(
+            re_chunk::RowId::new(),
+            timepoint(timeline, options, *timestamp),
+            batches.clone(),
+        );
+    }
+    match builder.build() {
+        Ok(chunk) => Some(chunk),
+        Err(error) => {
+            re_log::warn!("failed to build a chunk for WPILog data: {error}");
+            None
+        }
+    }
+}
+
+/// Moves the rows collected for one timestamp onto their entities.
+fn flush_rows(
+    per_entity: &mut IntMap<EntityPath, Vec<(Timestamp, Vec<SerializedComponentBatch>)>>,
+    pending: &mut Vec<(EntityPath, Timestamp, Vec<SerializedComponentBatch>)>,
+    pending_rows: &mut IntMap<EntityPath, usize>,
+) {
+    for (entity, timestamp, batches) in pending.drain(..) {
         per_entity
             .entry(entity)
             .or_default()
             .push((timestamp, batches));
     }
-
-    let mut chunks = metadata_chunks(options);
-    for (entity, rows) in per_entity {
-        let mut builder: ChunkBuilder = Chunk::builder(entity);
-        for (timestamp, batches) in rows {
-            builder = builder.with_serialized_batches(
-                re_chunk::RowId::new(),
-                timepoint(timeline, options, timestamp),
-                batches,
-            );
-        }
-        match builder.build() {
-            Ok(chunk) => chunks.push(chunk),
-            Err(error) => re_log::warn!("failed to build a chunk for WPILog data: {error}"),
-        }
-    }
-
-    chunks
+    pending_rows.clear();
 }
 
-fn insert_batches(
-    rows: &mut BTreeMap<(Timestamp, EntityPath), Vec<SerializedComponentBatch>>,
-    timestamp: Timestamp,
-    entity: EntityPath,
-    batches: Vec<SerializedComponentBatch>,
-) {
-    if batches.is_empty() {
-        return;
-    }
-
-    let row = rows.entry((timestamp, entity)).or_default();
+fn add_batches(row: &mut Vec<SerializedComponentBatch>, batches: Vec<SerializedComponentBatch>) {
     for batch in batches {
         // Multiple struct fields can point at the same structured root. Only emit each
         // component once per row.

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, HashSet},
     num::{NonZero, TryFromIntError},
     path::Path,
     sync::Arc,
@@ -100,7 +100,12 @@ pub struct EntryLog {
     /// This is what tells us whether a value is a plain primitive, an array, or one of
     /// WPILib's native structs (e.g. `struct:Pose2d[]`).
     types: IntMap<EntityPath, String>,
-    changed: BTreeSet<(Timestamp, EntityPath)>,
+    /// The `(timestamp, entity)` pairs that changed since the last flush, in arrival order.
+    ///
+    /// A `Vec` instead of a set: every sample pushes here, and ordering them once per flush is
+    /// cheaper than a tree insert per sample. A repeated `(timestamp, entity)` is not pushed at
+    /// all, because the entry map is the deduplicated one.
+    changed: Vec<(Timestamp, EntityPath)>,
     schemas: StructSchemas,
     queued_structs: HashMap<String, Vec<QueuedStruct>>,
     queued_count: usize,
@@ -122,7 +127,7 @@ impl EntryLog {
         Self {
             entries: IntMap::default(),
             types: IntMap::default(),
-            changed: BTreeSet::new(),
+            changed: Vec::new(),
             schemas: StructSchemas::new(),
             queued_structs: HashMap::new(),
             queued_count: 0,
@@ -135,6 +140,17 @@ impl EntryLog {
     #[must_use]
     pub fn type_of(&self, key: &EntityPath) -> Option<&str> {
         self.types.get(key).map(String::as_str)
+    }
+
+    /// Every entry's raw WPILog type, keyed by entity path.
+    #[must_use]
+    pub fn typed_entries(&self) -> &IntMap<EntityPath, String> {
+        &self.types
+    }
+
+    /// Every entity path the log holds a value for.
+    pub fn paths(&self) -> impl Iterator<Item = &EntityPath> {
+        self.entries.keys()
     }
 
     #[must_use]
@@ -362,9 +378,11 @@ impl EntryLog {
         match value {
             EntryValue::Arrow(array) => {
                 let entry = self.entries.entry(key.clone()).or_default();
-                entry.insert(timestamp, array);
-
-                self.changed.insert((timestamp, key));
+                // A value written twice at one timestamp is one change, and the map already
+                // holds the latest of the two.
+                if entry.insert(timestamp, array).is_none() {
+                    self.changed.push((timestamp, key));
+                }
             }
             EntryValue::StructSchema(s) => {
                 let name = key.last().map_or("struct:Unknown", |s| s.unescaped_str());
@@ -438,8 +456,15 @@ impl EntryLog {
     }
 
     /// Gets the changed entries with their values and clears the changed set.
+    ///
+    /// One value per `(timestamp, entity)` in timestamp order. Conversion only needs the
+    /// timestamps ordered (each entity's rows stay in time order either way), so this sorts by
+    /// timestamp alone: a log written in time order is nearly sorted already.
     pub fn get_changed(&mut self) -> Vec<(EntityPath, Timestamp, ArrayRef)> {
-        std::mem::take(&mut self.changed)
+        let mut changed = std::mem::take(&mut self.changed);
+        changed.sort_unstable_by_key(|(timestamp, _)| *timestamp);
+
+        changed
             .into_iter()
             .filter_map(|(time, key)| {
                 self.entries

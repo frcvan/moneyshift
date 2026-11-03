@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::{ArrayRef, Float64Array, StringArray},
+    array::{
+        ArrayRef, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
+        StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+    },
     compute::cast,
     datatypes::DataType,
 };
+use nohash_hasher::IntMap;
 use re_log_types::EntityPath;
 use re_sdk_types::{
     AnyValues, Rotation3D,
@@ -53,31 +57,51 @@ impl StructuredKind {
         // Some producers use fully-qualified class names in their type metadata.
         let ty = ty.rsplit('.').next().unwrap_or(ty);
 
-        let kind = match ty.to_ascii_lowercase().as_str() {
-            "translation2d" | "point2d" => Self::Translation2d,
-            "translation3d" | "point3d" => Self::Translation3d,
-            "rotation2d" => Self::Rotation2d,
-            "rotation3d" => Self::Rotation3d,
-            "quaternion" => Self::Quaternion,
-            "pose2d" => Self::Pose2d,
-            "pose3d" => Self::Pose3d,
-            "transform2d" => Self::Transform2d,
-            "transform3d" => Self::Transform3d,
-            "twist2d" => Self::Twist2d,
-            "twist3d" => Self::Twist3d,
-            "chassisspeeds" => Self::ChassisSpeeds,
-            // 2027 renamed `SwerveModuleState` to `SwerveModuleVelocity` (`velocity` instead of
-            // `speed_meters_per_second`); both carry a speed and a steering angle.
-            "swerve/modulestate"
-            | "swerve_module_state"
-            | "swervemodulestate"
-            | "swerve/modulevelocity"
-            | "swerve_module_velocity"
-            | "swervemodulevelocity" => Self::SwerveModuleState,
-            "swerve/moduleposition" | "swerve_module_position" | "swervemoduleposition" => {
-                Self::SwerveModulePosition
-            }
-            _ => return None,
+        // Compared case-insensitively in place: this runs for every entry and every field, so a
+        // lowercased copy would be an allocation on the hot path.
+        let is = |name: &str| ty.eq_ignore_ascii_case(name);
+        let kind = if is("translation2d") || is("point2d") {
+            Self::Translation2d
+        } else if is("translation3d") || is("point3d") {
+            Self::Translation3d
+        } else if is("rotation2d") {
+            Self::Rotation2d
+        } else if is("rotation3d") {
+            Self::Rotation3d
+        } else if is("quaternion") {
+            Self::Quaternion
+        } else if is("pose2d") {
+            Self::Pose2d
+        } else if is("pose3d") {
+            Self::Pose3d
+        } else if is("transform2d") {
+            Self::Transform2d
+        } else if is("transform3d") {
+            Self::Transform3d
+        } else if is("twist2d") {
+            Self::Twist2d
+        } else if is("twist3d") {
+            Self::Twist3d
+        } else if is("chassisspeeds") {
+            Self::ChassisSpeeds
+        } else if
+        // 2027 renamed `SwerveModuleState` to `SwerveModuleVelocity` (`velocity` instead of
+        // `speed_meters_per_second`); both carry a speed and a steering angle.
+        is("swerve/modulestate")
+            || is("swerve_module_state")
+            || is("swervemodulestate")
+            || is("swerve/modulevelocity")
+            || is("swerve_module_velocity")
+            || is("swervemodulevelocity")
+        {
+            Self::SwerveModuleState
+        } else if is("swerve/moduleposition")
+            || is("swerve_module_position")
+            || is("swervemoduleposition")
+        {
+            Self::SwerveModulePosition
+        } else {
+            return None;
         };
 
         Some((kind, is_array))
@@ -87,53 +111,150 @@ impl StructuredKind {
 /// Metadata entries that describe the logging schema rather than a value. They should not be
 /// rendered as data.
 pub(super) fn is_metadata_path(path: &EntityPath) -> bool {
-    let Some(last) = path.last() else {
+    let parts = path.as_slice();
+    let Some(last) = parts.last() else {
         return false;
     };
     let last = last.unescaped_str();
     last == ".type"
         || last == ".components"
-        || path
-            .parent()
-            .and_then(|parent| parent.last().map(|part| part.unescaped_str() == ".schema"))
-            .unwrap_or(false)
+        || parts
+            .len()
+            .checked_sub(2)
+            .is_some_and(|index| parts[index].unescaped_str() == ".schema")
+}
+
+/// The per-path metadata answers conversion asks about for every change.
+///
+/// Resolving them once per conversion keeps the per-change cost to hash lookups. The answers
+/// themselves are unchanged: a log's types and metadata entries are all known by then.
+pub(super) struct Resolver {
+    /// Entity path to the structured kind its WPILog type names, if it names one. `None` means
+    /// the entry has a type, but not one that renders as a struct.
+    structured: IntMap<EntityPath, Option<(StructuredKind, bool)>>,
+    /// For every entry, the ancestors (itself included) that can name a structured kind: the
+    /// ones with a WPILog type and the ones with a `.type` child. Walking these instead of the
+    /// path's parents keeps the per-change lookup allocation-free.
+    candidates: IntMap<EntityPath, Vec<EntityPath>>,
+    /// Entries that have a `.components` sibling; only they can belong to a component owner.
+    component_fields: IntMap<EntityPath, ()>,
+}
+
+impl Resolver {
+    pub(super) fn new(log: &EntryLog) -> Self {
+        let structured: IntMap<EntityPath, Option<(StructuredKind, bool)>> = log
+            .typed_entries()
+            .iter()
+            .map(|(path, ty)| (path.clone(), StructuredKind::from_type(ty)))
+            .collect();
+
+        let mut with_type_meta = IntMap::default();
+        let mut with_components = IntMap::default();
+        for path in log.paths() {
+            let (Some(parent), Some(last)) = (path.parent(), path.last()) else {
+                continue;
+            };
+            match last.unescaped_str() {
+                ".components" => {
+                    with_components.insert(parent, ());
+                }
+                ".type" => {
+                    with_type_meta.insert(parent, ());
+                }
+                _ => {}
+            }
+        }
+
+        // Every path conversion can ask about: the entries themselves, the typed entries (a
+        // struct's root has a type but no value of its own) and the entities `.type` metadata
+        // names.
+        let mut queried = IntMap::default();
+        for path in log.paths() {
+            queried.insert(path.clone(), ());
+        }
+        for path in structured.keys() {
+            queried.insert(path.clone(), ());
+        }
+        for path in with_type_meta.keys() {
+            queried.insert(path.clone(), ());
+        }
+
+        let mut candidates = IntMap::default();
+        let mut component_fields = IntMap::default();
+        for path in queried.keys() {
+            let mut chain = Vec::new();
+            let mut owned = false;
+            let mut current = Some(path.clone());
+            while let Some(candidate) = current {
+                if structured.contains_key(&candidate) || with_type_meta.contains_key(&candidate) {
+                    chain.push(candidate.clone());
+                }
+                // Only entities with a `.components` child can own components.
+                owned |= with_components.contains_key(&candidate);
+                current = candidate.parent();
+            }
+            if !chain.is_empty() {
+                candidates.insert(path.clone(), chain);
+            }
+            if owned {
+                component_fields.insert(path.clone(), ());
+            }
+        }
+
+        Self {
+            structured,
+            candidates,
+            component_fields,
+        }
+    }
 }
 
 /// If this entry belongs to an entity that declared rerun components via `.components`, return
 /// that entity. Otherwise the entry is its own entity.
 pub(super) fn component_owner(
     log: &EntryLog,
+    resolver: &Resolver,
     path: &EntityPath,
     timestamp: Timestamp,
 ) -> Option<EntityPath> {
+    if !resolver.component_fields.contains_key(path) {
+        return None;
+    }
     let parent = path.parent()?;
     let field = path.last()?.unescaped_str();
-    let components = latest_strings(log, &parent, &[".components"], timestamp)?;
-    components
-        .iter()
-        .any(|component| component == field)
-        .then_some(parent)
+    let (_, value) = log.get_latest_at(&parent, &[".components"], timestamp)?;
+    with_strings(value, |components| {
+        components.iter().flatten().any(|component| component == field)
+    })
+    .unwrap_or(false)
+    .then_some(parent)
 }
 
 /// Find the outermost WPILib struct that this entry belongs to, if it is one we know how to
 /// render.
 pub(super) fn structured_root(
     log: &EntryLog,
+    resolver: &Resolver,
     path: &EntityPath,
     timestamp: Timestamp,
 ) -> Option<(EntityPath, StructuredKind, bool)> {
-    let mut candidate = Some(path.clone());
-    while let Some(current) = candidate {
-        let ty = log
-            .type_of(&current)
-            .map(str::to_owned)
-            .or_else(|| latest_string(log, &current, &[".type"], timestamp));
-        if let Some(ty) = ty
-            && let Some((kind, is_array)) = StructuredKind::from_type(&ty)
-        {
-            return Some((current, kind, is_array));
+    for current in resolver.candidates.get(path)? {
+        match resolver.structured.get(current) {
+            // A typed entry's own type wins over the entity's `.type` metadata, even when it is
+            // not a struct we render.
+            Some(known) => {
+                if let Some((kind, is_array)) = known {
+                    return Some((current.clone(), *kind, *is_array));
+                }
+            }
+            None => {
+                if let Some(ty) = latest_string(log, current, &[".type"], timestamp)
+                    && let Some((kind, is_array)) = StructuredKind::from_type(&ty)
+                {
+                    return Some((current.clone(), kind, is_array));
+                }
+            }
         }
-        candidate = current.parent();
     }
     None
 }
@@ -186,9 +307,8 @@ pub(super) fn structured_batches(
             let angles = elements
                 .iter()
                 .filter_map(|element| read_yaw(log, element, timestamp, None))
-                .map(|yaw| Scalar::from(f64::from(yaw)))
-                .collect::<Vec<_>>();
-            scalars(&angles)
+                .map(|yaw| Scalar::from(f64::from(yaw)));
+            scalars(angles)
         }
         StructuredKind::Rotation3d | StructuredKind::Quaternion => {
             let rotations = elements
@@ -243,10 +363,9 @@ pub(super) fn structured_batches(
                 .collect::<Vec<_>>();
             let angles = twists
                 .iter()
-                .map(|(_, angle)| Scalar::from(f64::from(*angle)))
-                .collect::<Vec<_>>();
+                .map(|(_, angle)| Scalar::from(f64::from(*angle)));
             let mut batches = arrows_2d(&vectors);
-            batches.extend(scalars(&angles));
+            batches.extend(scalars(angles));
             batches
         }
         StructuredKind::Twist3d => {
@@ -282,10 +401,9 @@ pub(super) fn structured_batches(
                 .collect::<Vec<_>>();
             let angles = speeds
                 .iter()
-                .map(|(_, omega)| Scalar::from(f64::from(*omega)))
-                .collect::<Vec<_>>();
+                .map(|(_, omega)| Scalar::from(f64::from(*omega)));
             let mut batches = arrows_2d(&vectors);
-            batches.extend(scalars(&angles));
+            batches.extend(scalars(angles));
             batches
         }
         StructuredKind::SwerveModuleState => {
@@ -341,14 +459,38 @@ pub(super) fn primitive_batches(value: &ArrayRef) -> Vec<SerializedComponentBatc
         DataType::Boolean => AnyValues::default()
             .with_component_from_data("value", Arc::clone(value))
             .as_serialized_batches(),
-        datatype if datatype.is_numeric() => {
-            let Some(values) = numeric_values(value) else {
-                return Vec::new();
-            };
-            scalars(&values.into_iter().map(Scalar::from).collect::<Vec<_>>())
-        }
+        datatype if datatype.is_numeric() => numeric_batches(value),
         _ => Vec::new(),
     }
+}
+
+/// Scalars for a numeric column.
+///
+/// The arrays the decoder produces are read in place instead of being cast into a second Arrow
+/// array; anything else (a decimal, say) still goes through Arrow's own cast.
+fn numeric_batches(value: &ArrayRef) -> Vec<SerializedComponentBatch> {
+    let any = value.as_any();
+    macro_rules! read {
+        ($array:ty, $conv:expr) => {
+            if let Some(values) = any.downcast_ref::<$array>() {
+                return scalars(values.iter().flatten().map($conv));
+            }
+        };
+    }
+    read!(Float64Array, Scalar::from);
+    read!(Float32Array, |value: f32| Scalar::from(f64::from(value)));
+    read!(Int64Array, |value: i64| Scalar::from(value as f64));
+    read!(Int32Array, |value: i32| Scalar::from(f64::from(value)));
+    read!(Int16Array, |value: i16| Scalar::from(f64::from(value)));
+    read!(Int8Array, |value: i8| Scalar::from(f64::from(value)));
+    read!(UInt64Array, |value: u64| Scalar::from(value as f64));
+    read!(UInt32Array, |value: u32| Scalar::from(f64::from(value)));
+    read!(UInt16Array, |value: u16| Scalar::from(f64::from(value)));
+    read!(UInt8Array, |value: u8| Scalar::from(f64::from(value)));
+
+    numeric_values(value).map_or_else(Vec::new, |values| {
+        scalars(values.into_iter().map(Scalar::from))
+    })
 }
 
 /// Reads all strings from an entry, if it is a string or string array.
@@ -378,13 +520,75 @@ fn latest_text(value: &ArrayRef) -> Option<String> {
     (!values.is_empty()).then(|| values.join("\n"))
 }
 
-fn string_values(value: &ArrayRef) -> Option<Vec<String>> {
+/// Runs `read` on the column's strings, casting only when it is not already UTF-8.
+fn with_strings<R>(value: &ArrayRef, read: impl FnOnce(&StringArray) -> R) -> Option<R> {
+    if let Some(strings) = value.as_any().downcast_ref::<StringArray>() {
+        return Some(read(strings));
+    }
     let value = cast(value, &DataType::Utf8).ok()?;
-    let values = value.as_any().downcast_ref::<StringArray>()?;
-    Some(values.iter().flatten().map(str::to_owned).collect())
+    Some(read(value.as_any().downcast_ref::<StringArray>()?))
+}
+
+fn string_values(value: &ArrayRef) -> Option<Vec<String>> {
+    with_strings(value, |values| {
+        values.iter().flatten().map(str::to_owned).collect()
+    })
+}
+
+/// The first value of a numeric column, without building a vector for it.
+fn numeric_first(value: &ArrayRef) -> Option<f64> {
+    let any = value.as_any();
+    macro_rules! first {
+        ($array:ty, $conv:expr) => {
+            if let Some(values) = any.downcast_ref::<$array>() {
+                return values.iter().flatten().next().map($conv);
+            }
+        };
+    }
+    first!(Float64Array, |value: f64| value);
+    first!(Float32Array, |value: f32| f64::from(value));
+    first!(Int64Array, |value: i64| value as f64);
+    first!(Int32Array, |value: i32| f64::from(value));
+    first!(Int16Array, |value: i16| f64::from(value));
+    first!(Int8Array, |value: i8| f64::from(value));
+    first!(UInt64Array, |value: u64| value as f64);
+    first!(UInt32Array, |value: u32| f64::from(value));
+    first!(UInt16Array, |value: u16| f64::from(value));
+    first!(UInt8Array, |value: u8| f64::from(value));
+
+    numeric_first_via_cast(value)
+}
+
+fn numeric_first_via_cast(value: &ArrayRef) -> Option<f64> {
+    let value = cast(value, &DataType::Float64).ok()?;
+    value
+        .as_any()
+        .downcast_ref::<Float64Array>()?
+        .iter()
+        .flatten()
+        .next()
 }
 
 fn numeric_values(value: &ArrayRef) -> Option<Vec<f64>> {
+    let any = value.as_any();
+    macro_rules! read {
+        ($array:ty, $conv:expr) => {
+            if let Some(values) = any.downcast_ref::<$array>() {
+                return Some(values.iter().flatten().map($conv).collect());
+            }
+        };
+    }
+    read!(Float64Array, |value: f64| value);
+    read!(Float32Array, |value: f32| f64::from(value));
+    read!(Int64Array, |value: i64| value as f64);
+    read!(Int32Array, |value: i32| f64::from(value));
+    read!(Int16Array, |value: i16| f64::from(value));
+    read!(Int8Array, |value: i8| f64::from(value));
+    read!(UInt64Array, |value: u64| value as f64);
+    read!(UInt32Array, |value: u32| f64::from(value));
+    read!(UInt16Array, |value: u16| f64::from(value));
+    read!(UInt8Array, |value: u8| f64::from(value));
+
     let value = cast(value, &DataType::Float64).ok()?;
     let values = value.as_any().downcast_ref::<Float64Array>()?;
     Some(values.iter().flatten().collect())
@@ -446,7 +650,7 @@ fn read_number(
 ) -> Option<f64> {
     paths.iter().find_map(|parts| {
         let (_, value) = log.get_latest_at(root, parts, timestamp)?;
-        numeric_values(value)?.first().copied()
+        numeric_first(value)
     })
 }
 
@@ -567,7 +771,8 @@ fn read_quat(
     None
 }
 
-fn scalars(values: &[Scalar]) -> Vec<SerializedComponentBatch> {
+fn scalars(values: impl IntoIterator<Item = Scalar>) -> Vec<SerializedComponentBatch> {
+    let values = values.into_iter().collect::<Vec<_>>();
     if values.is_empty() {
         return Vec::new();
     }

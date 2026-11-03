@@ -6,6 +6,7 @@
 
 use std::path::Path;
 
+#[cfg(not(target_arch = "wasm32"))]
 use hashbrown::HashMap;
 use re_build_info::CrateVersion;
 use re_chunk::{Chunk, RowId};
@@ -129,7 +130,8 @@ impl ImportOptions {
 
 pub(crate) struct EntryContext<'log> {
     ty: &'log str,
-    name: &'log str,
+    /// The entry's entity path, built once when it starts rather than per sample.
+    key: EntityPath,
 }
 
 fn handle_data(
@@ -143,7 +145,7 @@ fn handle_data(
 }
 
 pub(crate) fn fill_log<'file>(
-    contexts: &mut HashMap<u32, EntryContext<'file>>,
+    contexts: &mut nohash_hasher::IntMap<u32, EntryContext<'file>>,
     logger: &mut EntryLog,
     record: WpiRecord<'file>,
 ) -> anyhow::Result<()> {
@@ -162,7 +164,7 @@ pub(crate) fn fill_log<'file>(
                 entry_id,
                 EntryContext {
                     ty: entry_type,
-                    name: entry_name,
+                    key: EntityPath::from_file_path(Path::new(entry_name)),
                 },
             );
         }
@@ -170,8 +172,13 @@ pub(crate) fn fill_log<'file>(
             let Some(context) = contexts.get(&entry_id) else {
                 return Ok(());
             };
-            let key = EntityPath::from_file_path(Path::new(context.name));
-            handle_data(context.ty, record.timestamp, key, data, logger)?;
+            handle_data(
+                context.ty,
+                record.timestamp,
+                context.key.clone(),
+                data,
+                logger,
+            )?;
         }
         _ => {}
     }
@@ -192,7 +199,8 @@ pub fn parse_wpilog(
 
     let timeline = Timeline::new_duration("robotime");
     let conversion = options.conversion_options();
-    let mut contexts = HashMap::new();
+    // Entry ids are dense integers, so they hash to themselves.
+    let mut contexts = nohash_hasher::IntMap::default();
     let mut logger = EntryLog::new();
 
     // Stream the records in: keeping them would hold a second copy of the whole log's metadata
