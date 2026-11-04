@@ -1,6 +1,6 @@
 //! The bridge's config file: what to draw, and from where, without robot code.
 //!
-//! Normally robot code publishes `/Firstrun/layout` and the bridge draws the field, robots and
+//! Normally robot code publishes `/Moneyshift/layout` and the bridge draws the field, robots and
 //! viewer layout it describes. A [`Config`] carries the same declaration in a file, so a session
 //! can show the field with no robot code at all; with `override` set, whatever robot code does
 //! publish is ignored and the file stays authoritative.
@@ -39,12 +39,12 @@ pub const DEFAULT_PATH: &str = "moneyshift.toml";
 
 /// A parsed config file.
 ///
-/// The `[layout]` table is the same declaration robot code publishes on `/Firstrun/layout`, so
+/// The `[layout]` table is the same declaration robot code publishes on `/Moneyshift/layout`, so
 /// the field, robots, cameras, paths and viewer blueprint all read the same either way.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    /// Ignore `/Firstrun/layout` and draw this file's declaration instead: the file overrides
+    /// Ignore `/Moneyshift/layout` and draw this file's declaration instead: the file overrides
     /// robot code. This is what makes a session possible with no robot code running at all.
     #[serde(default)]
     pub r#override: bool,
@@ -79,7 +79,7 @@ impl Config {
     /// hand-written file with a relative topic or a missing pose source fails here rather than
     /// drawing a field at the origin.
     pub fn parse(text: &str) -> anyhow::Result<Self> {
-        let mut config: Self = toml::from_str(text).context("not a FIRSTrun config file")?;
+        let mut config: Self = toml::from_str(text).context("not a moneyshift config file")?;
         if let Some(layout) = config.layout.take() {
             config.layout = Some(layout.validate()?);
         }
@@ -262,9 +262,9 @@ entities = ["/Pose"]
 
     #[test]
     fn a_missing_default_file_is_not_an_error() {
-        // `discover` with no path looks at `firstrun.toml` in the working directory, which tests
+        // `discover` with no path looks at `moneyshift.toml` in the working directory, which tests
         // must not depend on; an explicit missing path is the error case.
-        let missing = std::env::temp_dir().join("firstrun-no-such-config.toml");
+        let missing = std::env::temp_dir().join("moneyshift-no-such-config.toml");
         let _ = std::fs::remove_file(&missing);
         assert!(Config::discover(Some(&missing)).is_err());
     }
