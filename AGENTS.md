@@ -8,10 +8,10 @@ independent surfaces:
 - a Rust crate (`moneyshift`) that parses WPILog (`*.wpilog`) files into Rerun chunks, compiled for
   native (console importer) and `wasm32` (browser importer), plus a static viewer app in `web/`;
 - a Java SDK in `moneyshift/` that exposes Rerun's archetype/component type surface (generated
-  from Rerun 0.40.0) and publishes it to NetworkTables.
+  from Rerun 0.41.0) and publishes it to NetworkTables.
 
-Rerun is pinned to **0.40.0** everywhere (`Cargo.toml`, `xtask/Cargo.toml`). The Java type surface
-is generated from the `re_type_definitions` git tag `0.40.0`.
+Rerun is pinned to **0.41.0** everywhere (`Cargo.toml`, `xtask/Cargo.toml`). The Java type surface
+is generated from the `re_type_definitions` git tag `0.41.0`.
 
 ## Repository map
 
@@ -97,8 +97,9 @@ still imports.
   `ChassisSpeeds`, `SwerveModuleState`, …), including `struct:` prefixes, arrays, and
   fully-qualified class names, and turns them into Rerun archetypes. It also honors
   AdvantageKit's `.type` / `.components` metadata topics.
-- Primitive values map to `Scalars` (numbers), `TextDocument` (strings), and `Blob`; booleans stay
-  booleans as a dynamic `value` component (Rerun has no bool archetype), never float64 0/1.
+- Primitive values map to `Scalars` (numbers), `TextDocument` (strings), and `Blob`; booleans use
+  Rerun's `Bool` component (a lone component, since there is no bool archetype), never float64
+  0/1 and never a dynamic `value` column.
 - Struct arrays are expanded under stable indices (`<root>/length`, `<root>/0/...`), matching the
   WPILog convention.
 - `test_data/*.wpilog` is a real AdvantageKit file; tests assert specific archetypes/entities from
@@ -150,7 +151,7 @@ camera's optional ninth
   `:lib:checkPublicationSize` enforces it and runs from `:lib:check`. Javadoc uses `-no-fonts`
   because the JDK's DejaVu webfonts alone blew the budget.
 
-## Rerun external importer contract (0.40.0)
+## Rerun external importer contract (0.41.0)
 
 Useful when changing the console binary:
 
@@ -162,7 +163,7 @@ Useful when changing the console binary:
 - **stdout is the RRD stream**, stderr is for logs. Never print to stdout in importer mode.
 - Exit code **66** means "this file is not mine"; any other non-zero code is a failure.
 - The child process is spawned with `RERUN_APP_ONLY` removed.
-- Implementation reference: `re_importer-0.40.0/src/importer_external.rs`.
+- Implementation reference: `re_importer-0.41.0/src/importer_external.rs`.
 
 ## NetworkTables migration invariants
 
@@ -214,7 +215,7 @@ Useful when changing the console binary:
   `~/.cargo/bin/rerun --screenshot-to /tmp/shot.png some.rrd` writes a PNG of the rendered viewer.
   Pane contents are only readable after downscaling a very large screenshot. This is how the
   camera-pinhole layout rules above were verified.
-- Rerun 0.40 also ships a viewer MCP (`rerun viewer-mcp`), which reads a **running** viewer and is
+- Rerun 0.41 also ships a viewer MCP (`rerun viewer-mcp`), which reads a **running** viewer and is
   the fastest way to see what a viewer really reports:
   - It speaks MCP over stdio: start it with `--endpoint http://127.0.0.1:9876` (the viewer's gRPC
     port), or call its `rerun_connect` tool first. The handshake is newline-delimited JSON-RPC:

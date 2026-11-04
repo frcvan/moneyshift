@@ -11,7 +11,7 @@ use arrow::{
 use nohash_hasher::IntMap;
 use re_log_types::EntityPath;
 use re_sdk_types::{
-    AnyValues, Rotation3D,
+    Rotation3D,
     archetypes::{
         Arrows2D, Arrows3D, InstancePoses3D, Points2D, Points3D, Scalars, TextDocument,
         Transform3D, TransformAxes3D,
@@ -453,12 +453,9 @@ pub(super) fn primitive_batches(value: &ArrayRef) -> Vec<SerializedComponentBatc
             document.as_serialized_batches()
         }),
         DataType::Binary => blob(value).map_or_else(Vec::new, |batch| vec![batch]),
-        // Booleans stay booleans: Rerun has no `Scalar`-style bool archetype, so log the column
-        // as a dynamic component (the same mechanism as `AnyValues`). The viewer then shows
-        // `true`/`false` instead of a float64 0/1.
-        DataType::Boolean => AnyValues::default()
-            .with_component_from_data("value", Arc::clone(value))
-            .as_serialized_batches(),
+        // Booleans stay booleans: they are logged with Rerun's own `Bool` component, so the
+        // viewer shows a checkbox instead of a float64 0/1.
+        DataType::Boolean => bool_batch(value).map_or_else(Vec::new, |batch| vec![batch]),
         datatype if datatype.is_numeric() => numeric_batches(value),
         _ => Vec::new(),
     }
@@ -592,6 +589,22 @@ fn numeric_values(value: &ArrayRef) -> Option<Vec<f64>> {
     let value = cast(value, &DataType::Float64).ok()?;
     let values = value.as_any().downcast_ref::<Float64Array>()?;
     Some(values.iter().flatten().collect())
+}
+
+/// Wraps a boolean column in Rerun's `Bool` component.
+///
+/// `Bool` has no archetype (there is no `Scalars`-style bool archetype), so this is a lone
+/// component with a fully-qualified name, the same shape as [`blob`]. The column is passed
+/// through untouched: `Bool` encodes as a plain bool and the decoder only produces `BooleanArray`s.
+fn bool_batch(value: &ArrayRef) -> Option<SerializedComponentBatch> {
+    Some(SerializedComponentBatch::new(
+        Arc::clone(value),
+        ComponentDescriptor {
+            archetype: None,
+            component: "rerun.components.Bool".into(),
+            component_type: Some("rerun.components.Bool".into()),
+        },
+    ))
 }
 
 fn blob(value: &ArrayRef) -> Option<SerializedComponentBatch> {

@@ -387,10 +387,16 @@ mod tests {
                 .as_ref()
                 .is_some_and(|name| name == "rerun.archetypes.Scalars")
         }));
+        assert!(flag.component_descriptors().any(|descriptor| {
+            descriptor
+                .component_type
+                .as_ref()
+                .is_some_and(|name| name == "rerun.components.Bool")
+        }));
         let array = flag
             .components()
-            .get_array("value".into())
-            .expect("boolean component");
+            .get_array("rerun.components.Bool".into())
+            .expect("Bool component");
         let values = array
             .values()
             .as_any()
@@ -401,8 +407,8 @@ mod tests {
         let flags = find(&chunks, "flags");
         let array = flags
             .components()
-            .get_array("value".into())
-            .expect("boolean component");
+            .get_array("rerun.components.Bool".into())
+            .expect("Bool component");
         let values = array
             .values()
             .as_any()

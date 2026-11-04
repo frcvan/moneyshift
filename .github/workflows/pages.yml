@@ -70,7 +70,7 @@ jobs:
                     --vacuum \
                     web/dist/moneyshift_bg.wasm \
                     -o web/dist/moneyshift_bg.wasm
-                  viewer_version="0.40.0"
+                  viewer_version="0.41.0"
                   viewer_crate="${RUNNER_TEMP}/re_web_viewer_server-${viewer_version}.crate"
                   curl --fail --location --retry 3 \
                     "https://static.crates.io/crates/re_web_viewer_server/re_web_viewer_server-${viewer_version}.crate" \

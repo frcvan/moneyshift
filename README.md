@@ -2,7 +2,7 @@
 
 Turn FRC robot telemetry into [Rerun](https://rerun.io) recordings and live streams.
 
-moneyshift has four surfaces that all speak Rerun 0.40.0:
+moneyshift has four surfaces that all speak Rerun 0.41.0:
 
 | Surface | What it does |
 |---|---|
